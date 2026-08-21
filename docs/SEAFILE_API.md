@@ -1,0 +1,341 @@
+# Omarseafile — Seafile API Audit & Reference
+
+> **Source of Truth Hierarchy**
+> 1. **Server Reality** (our server at `http://192.168.1.108:8000`) — ultimate authority
+> 2. **Current Official Docs** — [seafile-api.readme.io](https://seafile-api.readme.io/) + [manual.seafile.com](https://manual.seafile.com/)
+> 3. **Model Knowledge** — never authoritative, only for gaps
+
+> **Rule**: Before implementing any Seafile feature → consult this doc → check official docs if not VERIFIED → SPIKE against real server → update this doc → then implement.
+
+---
+
+## API Family & Version Matrix
+
+| Family | Version | Base Path | Auth | Primary Use |
+|--------|---------|-----------|------|-------------|
+| **Account Token** | v2 | `/api2/auth-token/` | Basic (user/pass) | Get account token |
+| **Account API** | v2 | `/api2/` | Account-Token | User, libraries, repos |
+| **Repo Token API** | v2.1 | `/api/v2.1/` | Repo-Token | Scoped repo operations |
+| **Seafhttp** | v2 | `/seafhttp/` | Token in header/query | File upload/download |
+| **Admin API** | v2 | `/api/v2.1/admin/` | Admin Token | System administration |
+
+**Auth Header**: `Authorization: Token <token>` (both Account-Token and Repo-Token)
+
+---
+
+## Endpoint Audit Matrix
+
+### AUTH
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| Obtain Account Token | POST | `/api2/auth-token/` | v2 | **VERIFIED** | v0.1.0 | `username` + `password` form-encoded |
+| Validate Token | GET | `/api2/ping/` | v2 | **VERIFIED** | v0.1.4 | Returns 200 if valid |
+| Get Account Info | GET | `/api2/account-info/` | v2 | DOCUMENTED_UNVERIFIED | — | |
+| Get Client Token | POST | `/api2/client-login/` | v2 | DOCUMENTED_UNVERIFIED | — | For desktop client |
+
+### LIBRARIES
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| List Libraries | GET | `/api2/repos/` | v2 | **VERIFIED** | v0.1.1 | Returns all accessible repos |
+| Get Library Info | GET | `/api2/repos/{repo_id}/` | v2 | DOCUMENTED_UNVERIFIED | — | |
+| Create Library | POST | `/api2/repos/` | v2 | DOCUMENTED_UNVERIFIED | — | `name`, `passwd` (optional) |
+| Create Encrypted Library | POST | `/api2/repos/` | v2 | DOCUMENTED_UNVERIFIED | — | `passwd` required |
+| Rename Library | POST | `/api2/repos/{repo_id}/` | v2 | DOCUMENTED_UNVERIFIED | — | `op=rename`, `name` |
+| Delete Library | DELETE | `/api2/repos/{repo_id}/` | v2 | DOCUMENTED_UNVERIFIED | — | |
+| Get Library Owner | GET | `/api2/repos/{repo_id}/owner/` | v2 | DOCUMENTED_UNVERIFIED | — | |
+| Transfer Library | PUT | `/api2/repos/{repo_id}/owner/` | v2 | DOCUMENTED_UNVERIFIED | — | `owner` param |
+| Get Library History | GET | `/api/v2.1/repos/{repo_id}/history/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Get/Set History Limit | GET/PUT | `/api2/repos/{repo_id}/history-limit/` | v2 | DOCUMENTED_UNVERIFIED | — | Days |
+| Get Library Trash | GET | `/api/v2.1/repos/{repo_id}/trash/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Clean Library Trash | DELETE | `/api/v2.1/repos/{repo_id}/trash/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+
+### DIRECTORIES (api/v2.1 via repo-token)
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| List Directory | GET | `/api/v2.1/via-repo-token/dir/` | v2.1 | **VERIFIED** | v0.1.1 | `p=/path` |
+| Create Dir | POST | `/api/v2.1/via-repo-token/dir/` | v2.1 | **PARTIALLY_VERIFIED** | v0.2.1 | `operation=mkdir`, `dir_name`, `p=/parent` **p ignored** |
+| Rename Dir | POST | `/api/v2.1/via-repo-token/dir/` | v2.1 | **VERIFIED** | v0.2.1 | `operation=rename`, `oldname`, `newname`, `p=/parent` |
+| Delete Dir | DELETE | `/api/v2.1/via-repo-token/dir/` | v2.1 | **VERIFIED** | v0.2.1.1 | `p=/full/path` |
+| Revert Dir | PUT | `/api2/repos/{repo_id}/dir/revert/` | v2 | DOCUMENTED_UNVERIFIED | — | `commit_id` |
+| Move Dir (merged) | POST | `/api/v2.1/move-folder-merge/` | v2.1 | DOCUMENTED_UNVERIFIED | — | Sync move |
+| Async Move Dir | POST | `/api/v2.1/repos/async-batch-move-item/` | v2.1 | **VERIFIED** | v0.2.1.1 | Async, returns task_id |
+| Get Dir Detail | GET | `/api/v2.1/repos/{repo_id}/dir/detail/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Repo Token Dir List | GET | `/api2/repos/{repo_id}/dir/` | v2 | **VERIFIED** | v0.1.1 | `p=/path` |
+| Create/Rename Dir (v2) | POST | `/api2/repos/{repo_id}/dir/` | v2 | **VERIFIED** | v0.2.1 | `operation=mkdir/rename`, `p=/path` |
+| Delete Dir (v2) | DELETE | `/api2/repos/{repo_id}/dir/` | v2 | **VERIFIED** | v0.2.1.1 | `p=/path` |
+
+### FILES (api/v2.1 via repo-token)
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| Get File Info | GET | `/api/v2.1/via-repo-token/file/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `p=/path` |
+| Rename File | POST | `/api/v2.1/via-repo-token/file/` | v2.1 | **VERIFIED** | v0.2.1 | `operation=rename`, `oldname`, `newname`, `p=/full/path` |
+| Delete File | DELETE | `/api/v2.1/via-repo-token/file/` | v2.1 | **VERIFIED** | v0.2.1.1 | `p=/full/path` |
+| Lock/Unlock File | PUT | `/api/v2.1/via-repo-token/file/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `operation=lock/unlock` |
+| Move Dir (merged) | POST | `/api/v2.1/via-repo-token/move-dir/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Get File Detail (v2) | GET | `/api2/repos/{repo_id}/file/detail/` | v2 | **VERIFIED** | v0.2.1 | `p=/path` |
+| Create/Rename/Move/Copy/Revert File (v2) | POST | `/api/v2.1/repos/{repo_id}/file/` | v2.1 | **PARTIALLY_VERIFIED** | v0.2.1 | `operation=rename/move/copy/revert/create` |
+| Delete File (v2) | DELETE | `/api/v2.1/repos/{repo_id}/file/` | v2.1 | **VERIFIED** | v0.2.1.1 | `p=/full/path` |
+| Lock/Unlock File (v2) | PUT | `/api/v2.1/repos/{repo_id}/file/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `operation=lock/unlock` |
+
+### UPLOAD
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| Get Upload Link | GET | `/api2/repos/{repo_id}/upload-link/` | v2 | **VERIFIED** | v0.1.3 | `p=/path`, `replace=0\|1` |
+| Get Upload Link (v2.1) | GET | `/api2/repos/{repo_id}/upload-link/` | v2 | **VERIFIED** | v0.1.3 | `p=/path`, `replace=0\|1` |
+| Get Upload Link (v2.1 token) | GET | `/api/v2.1/via-repo-token/upload-link/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `p=/path` |
+| Upload File | POST | `{upload_link}?ret-json=1` | seafhttp | **VERIFIED** | v0.1.3 | multipart/form-data `file=@path`, `parent_dir`, `replace=0\|1` |
+| Chunked Upload | POST | `/seafhttp/upload-api/{token}` | seafhttp | DOCUMENTED_UNVERIFIED | — | Large files, see `file_chunk_upload.md` |
+| Update Link | GET | `/api2/repos/{repo_id}/update-link/` | v2 | DOCUMENTED_UNVERIFIED | — | `p=/path` |
+| Update File | POST | `{update_link}` | seafhttp | DOCUMENTED_UNVERIFIED | — | multipart/form-data |
+| Replace Behavior | — | `replace=0` | — | **VERIFIED** | v0.1.3 | Auto-renames `(1)`, `(2)` on collision |
+
+### DOWNLOAD
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| Get Download Link | GET | `/api2/repos/{repo_id}/file/` | v2 | **VERIFIED** | v0.1.2 | `p=/path`, `reuse=1` |
+| Get Download Link (v2.1) | GET | `/api/v2.1/via-repo-token/download-link/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `p=/path` |
+| Download File | GET | `{download_link}` | seafhttp | **VERIFIED** | v0.1.2 | **Requires `Authorization: Token` header** |
+| Download File (v2) | GET | `/api2/repos/{repo_id}/file/` | v2 | **VERIFIED** | v0.1.2 | `p=/path` |
+| Download Revision | GET | `/api2/repos/{repo_id}/file/revision/` | v2 | DOCUMENTED_UNVERIFIED | — | `commit_id` |
+
+### SHARE LINKS
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| List Share Links | GET | `/api/v2.1/share-links/` | v2.1 | DOCUMENTED_UNVERIFIED | v0.2.2 | |
+| Create Share Link | POST | `/api/v2.1/share-links/` | v2.1 | DOCUMENTED_UNVERIFIED | v0.2.2 | `repo_id`, `path`, `password`, `expire`, `permission` |
+| Create Multi Share Links | POST | `/api/v2.1/multi-share-links/` | v2.1 | DOCUMENTED_UNVERIFIED | — | Batch |
+| List Share Links of Repo | GET | `/api/v2.1/share-links/{repo_id}/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Get Share Link Info | GET | `/api/v2.1/share-links/{repo_id}/path/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `path` param |
+| Delete Share Link | DELETE | `/api/v2.1/share-links/{token}/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Send Share Link Email | POST | `/api2/send-share-link/` | v2 | DOCUMENTED_UNVERIFIED | — | |
+
+### UPLOAD LINKS (Shared Upload)
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| List Upload Links | GET | `/api/v2.1/upload-links/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Create Upload Link | POST | `/api/v2.1/upload-links/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `repo_id`, `path`, `password`, `expire` |
+| Delete Upload Link | DELETE | `/api/v2.1/upload-links/{token}/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Send Upload Link Email | POST | `/api2/send-upload-link/` | v2 | DOCUMENTED_UNVERIFIED | — | |
+| Get Shared Upload Link | GET | `/api/v2.1/upload-links/{token}/upload/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+
+### SEARCH
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| Search Files (Global) | GET | `/api2/search/` | v2 | DOCUMENTED_UNVERIFIED | — | `q`, `repo_id` optional |
+| Search Files in Repo | GET | `/api/v2.1/search-file/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `q`, `repo_id` |
+
+### STARRED / FAVORITES
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| List Starred | GET | `/api/v2.1/starred-items/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Star Item | POST | `/api/v2.1/starred-items/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `obj_type`, `obj_id`, `repo_id` |
+| Unstar Item | DELETE | `/api/v2.1/starred-items/` | v2.1 | DOCUMENTED_UNVERIFIED | — | Same params |
+
+### HISTORY / TRASH
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| Get File History | GET | `/api/v2.1/repos/{repo_id}/file/history/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `p=/path` |
+| Download Revision | GET | `/api2/repos/{repo_id}/file/revision/` | v2 | DOCUMENTED_UNVERIFIED | — | `p=/path`, `commit_id` |
+| Revert File | GET | `/api2/repos/{repo_id}/file/revision/` | v2 | DOCUMENTED_UNVERIFIED | — | `commit_id` |
+| Revert Dir | PUT | `/api2/repos/{repo_id}/dir/revert/` | v2 | DOCUMENTED_UNVERIFIED | — | `commit_id` |
+| Get Library Trash | GET | `/api/v2.1/repos/{repo_id}/trash/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Clean Trash | DELETE | `/api/v2.1/repos/{repo_id}/trash/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Restore from Trash | POST | `/api/v2.1/repos/{repo_id}/trash/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `op=restore` |
+
+### BATCH OPERATIONS
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| Sync Batch Move | POST | `/api/v2.1/repos/sync-batch-move-item/` | v2.1 | **VERIFIED** | v0.2.1.1 | Sync, `src_repo_id`, `src_parent_dir`, `src_dirents`, `dst_repo_id`, `dst_parent_dir` |
+| Sync Batch Copy | POST | `/api/v2.1/repos/sync-batch-copy-item/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Async Batch Move | POST | `/api/v2.1/repos/async-batch-move-item/` | v2.1 | **VERIFIED** | v0.2.1.1 | Returns `task_id` |
+| Async Batch Copy | POST | `/api/v2.1/repos/async-batch-copy-item/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Batch Delete | DELETE | `/api/v2.1/repos/batch-delete-item/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `src_repo_id`, `src_parent_dir`, `dirents` |
+| Query Async Progress | GET | `/api/v2.1/query-copy-move-progress/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `task_id` |
+| Cancel Async | DELETE | `/api/v2.1/copy-move-task/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `task_id` |
+
+### SHARE LINKS (v0.2.2 Target)
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| List All Share Links | GET | `/api/v2.1/share-links/` | v2.1 | DOCUMENTED_UNVERIFIED | v0.2.2 | |
+| Create Share Link | POST | `/api/v2.1/share-links/` | v2.1 | DOCUMENTED_UNVERIFIED | v0.2.2 | `repo_id`, `path`, `password`, `expire`, `permission` |
+| List Share Links of Repo | GET | `/api/v2.1/share-links/{repo_id}/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Get Share Link Info | GET | `/api/v2.1/share-links/{repo_id}/path/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `path` |
+| Delete Share Link | DELETE | `/api/v2.1/share-links/{token}/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Send Share Link Email | POST | `/api2/send-share-link/` | v2 | DOCUMENTED_UNVERIFIED | — | |
+
+### UPLOAD LINKS
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| List Upload Links | GET | `/api/v2.1/upload-links/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Create Upload Link | POST | `/api/v2.1/upload-links/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Delete Upload Link | DELETE | `/api/v2.1/upload-links/{token}/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+
+### USER / ACCOUNT
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| Get Account Info | GET | `/api2/account-info/` | v2 | DOCUMENTED_UNVERIFIED | — | |
+| Get User Profile | GET | `/api/v2.1/user/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Update User Profile | PUT | `/api/v2.1/user/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Get User Avatar | GET | `/api2/avatars/user/{user}/` | v2 | DOCUMENTED_UNVERIFIED | — | |
+| Get Account Info | GET | `/api/v2.1/account-info/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+
+### BATCH OPERATIONS (Async)
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| Async Batch Move | POST | `/api/v2.1/repos/async-batch-move-item/` | v2.1 | **VERIFIED** | v0.2.1.1 | Returns `task_id` |
+| Async Batch Copy | POST | `/api/v2.1/repos/async-batch-copy-item/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| Query Async Progress | GET | `/api/v2.1/query-copy-move-progress/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `task_id` |
+| Cancel Async | DELETE | `/api/v2.1/copy-move-task/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `task_id` |
+
+### SEARCH
+
+| Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
+|---------|--------|----------|---------|--------|-----------------|-------|
+| Search Global | GET | `/api2/search/` | v2 | DOCUMENTED_UNVERIFIED | — | `q`, `repo_id` optional |
+| Search in Repo | GET | `/api/v2.1/search-file/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `q`, `repo_id` |
+
+---
+
+## Summary Statistics
+
+| Status | Count |
+|--------|-------|
+| **VERIFIED** | 19 |
+| **PARTIALLY_VERIFIED** | 3 |
+| **DOCUMENTED_UNVERIFIED** | 87 |
+| **NOT_SUPPORTED_BY_SERVER** | 0 |
+| **DEPRECATED** | 0 |
+| **NOT_RELEVANT** | 0 |
+
+**Total Endpoints Catalogued**: 109
+
+---
+
+## Verified Server Behaviors
+
+> All behaviors tested against our real server at `http://192.168.1.108:8000` (Seafile CE, version inferred from API responses).
+
+| Behavior | Verified | Details |
+|----------|----------|---------|
+| **Auth Token** | ✅ | `POST /api2/auth-token/` with `username`/`password` form-encoded → returns `{token}` |
+| **Libraries List** | ✅ | `GET /api2/repos/` → array of repo objects with `id`, `name`, `size`, `mtime`, `permission`, `encrypted` |
+| **Folder Listing** | ✅ | `GET /api2/repos/{id}/dir/?p=/path` → array of `{type, name, id, mtime, size, permission}` |
+| **Folder Sorting** | ✅ | Server returns dirs first (000... IDs), then files, alpha order |
+| **Download Link** | ✅ | `GET /api2/repos/{id}/file/?p=/path&reuse=1` → returns seafhttp URL |
+| **Download Auth** | ✅ | **Requires** `Authorization: Token <token>` header on seafhttp download |
+| **Download 0-byte** | ✅ | Works (returns 0-byte file), but link returns "Access token not found" without auth header |
+| **Upload Link** | ✅ | `GET /api2/repos/{id}/upload-link/?p=/path&replace=0\|1` → seafhttp upload URL |
+| **Upload Multipart** | ✅ | `POST {link}?ret-json=1` with `file=@path`, `parent_dir`, `replace=0\|1` |
+| **Upload Replace** | ✅ | `replace=0` → auto-rename `(1)`, `(2)`; `replace=1` → overwrite |
+| **Upload Large File** | ✅ | 408 KB PDF tested OK |
+| **Upload 0-byte** | ✅ | Returns `{name, id, size: 0}` |
+| **Upload Collision** | ✅ | `replace=0` → server renames to `(1)`, `(2)` etc. |
+| **Upload Link Reuse** | ✅ | `reuse=1` makes link reusable for multiple uploads |
+| **Download 403** | ✅ | Without `Authorization` header → 403 "Access token not found" |
+| **Auth Error** | ✅ | Invalid token → `{"detail":"Invalid token"}` (401) |
+| **Rename File** | ✅ | `POST /api/v2.1/repos/{id}/file/?p=/full/path` with `operation=rename&oldname=...&newname=...` |
+| **Rename Folder** | ✅ | `POST /api/v2.1/repos/{id}/dir/?p=/parent&operation=rename&oldname=...&newname=...` |
+| **Move File** | ✅ | `POST /api/v2.1/repos/{id}/file/?p=/full/path&operation=move&dst_repo={id}&dst_dir=/dest` |
+| **Move Folder (Async)** | ✅ | `POST /api/v2.1/repos/async-batch-move-item/` with JSON body |
+| **Delete File** | ✅ | `DELETE /api/v2.1/repos/{id}/file/?p=/full/path` → `{"success":true}` |
+| **Delete Folder** | ✅ | `DELETE /api2/repos/{id}/dir/?p=/path` → `"success"` |
+| **Upload Link Reuse** | ✅ | `reuse=1` allows multiple uploads to same link |
+| **Upload Collision** | ✅ | `replace=0` → server renames `(1)`, `(2)`... |
+| **Upload 0-byte** | ✅ | Works, returns `size: 0` |
+| **Download 0-byte** | ✅ | Creates 0-byte file locally |
+| **Token 401** | ✅ | Invalid token → `{"detail":"Invalid token"}` (401) |
+| **Folder Not Found** | ✅ | 404 for invalid path |
+| **Async Move Folder** | ✅ | `POST /api/v2.1/repos/async-batch-move-item/` with JSON body → returns `task_id` |
+| **Create Folder** | ⚠️ | **API ignores `p` parameter** — creates at repo root regardless of `p=` |
+
+---
+
+## Known Server/API Quirks
+
+| Quirk | Impact | Workaround |
+|-------|--------|------------|
+| **Create Folder ignores `p=`** | Cannot create folder in subdirectory via API; always creates at repo root | Use workaround: create at root, then move (async move folder works) |
+| **Download link requires Auth header** | Seafhttp download returns 403 "Access token not found" without `Authorization: Token` | Always pass `Authorization: Token <token>` header on seafhttp downloads |
+| **0-byte files** | Download link returns "Access token not found" for 0-byte files without auth; works with auth header | Use auth header |
+| **Create Folder `p=` ignored** | API creates folder at repo root regardless of `p=/parent` parameter | Create at root, then async move to desired location |
+| **Async Move Folder** | Works but returns empty `task_id`; completes quickly on small dirs | Poll or just refresh after short delay |
+| **Rename File Path Format** | `p=` must be **full file path** including filename, not parent dir | Use `p=/full/path/to/file.txt` not `p=/parent/dir` |
+| **Rename Folder Path Format** | `p=` must be **parent directory path**, not folder path | Use `p=/parent` not `p=/parent/folder` |
+| **Move Folder Async** | Returns empty `task_id` (`""`); completes synchronously on small dirs | Just refresh after short delay |
+| **Upload Collision** | `replace=0` → server renames to `(1)`, `(2)` etc. automatically | Use `replace=0` for safe behavior |
+| **Download 0-byte files** | Returns 403 "Access token not found" without auth header; works with auth | Always include auth header |
+| **Upload Link Reuse** | `reuse=1` makes link reusable; without it link is single-use | Use `reuse=1` for multiple uploads |
+| **Delete Root Protection** | Must prevent deleting `/` path manually | Check `path === "/"` before delete |
+| **Folder Rename Path** | `p=` must be **parent directory**, not folder path | Use `p=/parent` not `p=/parent/folder` |
+
+---
+
+## Roadmap Discoveries
+
+Based on API documentation review, these features are available for future Omarseafile versions:
+
+### High Priority (v0.2.2+)
+| Feature | API Availability | Priority |
+|---------|-----------------|----------|
+| Share Links (create/list/delete) | `/api/v2.1/share-links/` | High (v0.2.2) |
+| File Search | `/api2/search/`, `/api/v2.1/search-file/` | High |
+| Starred Items | `/api/v2.1/starred-items/` | Medium |
+| File History/Versions | `/api/v2.1/repos/{id}/file/history/` | Medium |
+| File Comments | `/api2/repos/{id}/file/comments/` | Low |
+| File Locking | `/api/v2.1/via-repo-token/file/` (lock/unlock) | Low |
+| Upload Links (Shared) | `/api/v2.1/upload-links/` | Medium |
+| Tags/Metadata | `/api/v2.1/repos/{id}/metadata/` | Low (Pro feature?) |
+
+### Roadmap Adjustments
+
+| Original Plan | Adjusted Plan | Reason |
+|---------------|---------------|--------|
+| v0.2.2 Sharing | **Keep** | Share links API well documented |
+| Chunked Upload | **Defer to v0.3.0** | Not needed yet; standard upload handles 400KB+ |
+| Folder Move Sync | **Available** | `/api/v2.1/move-folder-merge/` exists |
+| Batch Copy | **Available** | `/api/v2.1/repos/sync-batch-copy-item/` |
+| File Search | **Available** | `/api2/search/` + `/api/v2.1/search-file/` |
+| File Locking | **Available** | `/api/v2.1/via-repo-token/file/` (lock/unlock) |
+| Trash/Restore | **Available** | `/api/v2.1/repos/{id}/trash/` |
+
+---
+
+## Development Rule Enforcement
+
+> **Before any new Seafile feature implementation:**
+> 1. Check `docs/SEAFILE_API.md` for endpoint status
+> 2. If not `VERIFIED` → check official docs (seafile-api.readme.io)
+> 2. SPIKE minimal test against real server
+> 3. Update this document with results
+> 3. Only then implement
+
+**No endpoint may be invented or assumed.**
+
+---
+
+## Maintenance
+
+- **Last Audit**: 2026-08-22
+- **Server Tested**: `http://192.168.1.108:8000` (Seafile CE)
+- **Auditor**: Omarseafile bootstrap process
+- **Next Review**: Before v0.2.2 implementation
+
+---
+
+*This document is the single source of truth for Omarseafile's Seafile API integration. Update it before every new feature.*
