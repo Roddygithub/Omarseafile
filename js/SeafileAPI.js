@@ -598,15 +598,96 @@ QtObject {
         xhr.send()
     }
 
-    function parseError(xhr) {
-        try {
-            var response = JSON.parse(xhr.responseText)
-            if (response.non_field_errors) return response.non_field_errors.join(", ")
-            if (response.detail) return response.detail
-            if (response.error_msg) return response.error_msg
-            return "Error " + xhr.status
-        } catch (e) {
-            return "Error " + xhr.status + ": " + xhr.responseText
+    // ===== FILE HISTORY =====
+
+    function getFileHistory(repoId, path, callback) {
+        var url = "/api2/repos/" + repoId + "/file/history/?p=" + encodeURIComponent(path)
+        request("GET", url, null, function(success, data, error) {
+            if (success) {
+                var history = data.map(function(commit) {
+                    return {
+                        commitId: commit.id,
+                        id: commit.id,
+                        creatorName: commit.creator_name,
+                        ctime: commit.ctime,
+                        desc: commit.desc,
+                        revFileSize: commit.rev_file_size,
+                        revFileId: commit.rev_file_id,
+                        version: commit.version,
+                        creator: commit.creator,
+                        creatorContactEmail: commit.creator_contact_email,
+                        creatorEmail: commit.creator_email,
+                        repoId: commit.repo_id,
+                        repoName: commit.repo_name,
+                        creatorName: commit.creator_name
+                    }
+                })
+                callback(true, history, null)
+            } else {
+                callback(false, null, error)
+            }
+        })
+    }
+
+    function downloadRevision(repoId, path, commitId, callback) {
+        var url = "/api2/repos/" + repoId + "/file/revision/?p=" + encodeURIComponent(path) + "&commit_id=" + commitId
+        request("GET", url, null, function(success, data, error) {
+            if (success) {
+                callback(true, data, null)
+            } else {
+                callback(false, null, error)
+            }
+        })
+    }
+
+    // ===== TRASH =====
+
+    function listTrash(repoId, callback) {
+        var url = "/api/v2.1/repos/" + repoId + "/trash/"
+        request("GET", url, null, function(success, data, error) {
+            if (success) {
+                var trash = data.map(function(item) {
+                    return {
+                        parentDir: item.parent_dir,
+                        objName: item.obj_name,
+                        deletedTime: item.deleted_time,
+                        commitId: item.commit_id,
+                        isDir: item.is_dir,
+                        size: item.size || 0,
+                        objId: item.obj_id || "",
+                        isDir: item.is_dir,
+                        objId: item.obj_id || ""
+                    }
+                })
+                callback(true, trash, null)
+            } else {
+                callback(false, null, error)
+            }
+        })
+    }
+
+    function restoreFolder(repoId, parentDir, objName, callback) {
+        var url = "/api/v2.1/repos/" + repoId + "/trash/"
+        var xhr = new XMLHttpRequest()
+        xhr.open("POST", baseUrl + url, true)
+        xhr.setRequestHeader("Authorization", "Token " + token)
+        xhr.setRequestHeader("Content-Type", "application/json")
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    callback(true, null)
+                } else {
+                    callback(false, parseError(xhr))
+                }
+            }
         }
+        var body = JSON.stringify({
+            op: "restore",
+            dirents: [{
+                parent_dir: parentDir,
+                obj_name: objName
+            }]
+        })
+        xhr.send(body)
     }
 }

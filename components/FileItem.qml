@@ -12,6 +12,7 @@ Item {
     required property var onMoveClicked
     required property var onDeleteClicked
     required property var onShareClicked
+    required property var onHistoryClicked
     required property var findTransfer
     required property int transferRevision
     required property var onSelectionToggle
@@ -137,7 +138,7 @@ Item {
             }
         }
 
-        function showContextMenu(mouse) {
+function showContextMenu(mouse) {
             var menu = Qt.createComponent("ContextMenu.qml")
             if (menu.status === Component.Ready) {
                 var popup = menu.createObject(root, {
@@ -149,10 +150,13 @@ Item {
                     onMoveClicked: root.onMoveClicked,
                     onDeleteClicked: root.onDeleteClicked,
                     onShareClicked: root.onShareClicked,
+                    onCopyClicked: root.onCopyClicked,
+                    onHistoryClicked: root.onHistoryClicked,
                     isDir: root.isDir
                 })
                 popup.open()
             }
+        }
         }
     }
 }

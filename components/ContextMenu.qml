@@ -10,6 +10,7 @@ Popup {
     property var onDeleteClicked: null
     property var onShareClicked: null
     property var onCopyClicked: null
+    property var onHistoryClicked: null
     property bool isDir: false
     property int selectionCount: 1
 
@@ -112,6 +113,19 @@ Popup {
             visible: root.selectionCount === 1 && root.onCopyClicked !== null
             onClicked: {
                 if (root.onCopyClicked) root.onCopyClicked(root.item)
+                root.close()
+            }
+        }
+
+        Button {
+            id: historyBtn
+            width: parent.width
+            text: "History"
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.body
+            visible: root.selectionCount === 1 && root.onHistoryClicked !== null
+            onClicked: {
+                if (root.onHistoryClicked) root.onHistoryClicked(root.item)
                 root.close()
             }
         }

@@ -11,6 +11,7 @@ ListView {
     required property var onMoveClicked
     required property var onDeleteClicked
     required property var onShareClicked
+    required property var onHistoryClicked
     required property var findTransfer
     required property int transferRevision
     required property var onSelectionToggle
@@ -35,6 +36,7 @@ ListView {
         required property var onMoveClicked: root.onMoveClicked
         required property var onDeleteClicked: root.onDeleteClicked
         required property var onShareClicked: root.onShareClicked
+        required property var onHistoryClicked: root.onHistoryClicked
         required property var findTransfer: root.findTransfer
         required property int transferRevision: root.transferRevision
         required property var onSelectionToggle: root.onSelectionToggle

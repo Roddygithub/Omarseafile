@@ -24,6 +24,8 @@ import "./components/SearchResults.qml" as SearchResults
 import "./components/Toast.qml" as Toast
 import "./components/TransferManager.qml" as TransferManager
 import "./components/CopyDialog.qml" as CopyDialog
+import "./components/HistoryPanel.qml" as HistoryPanel
+import "./components/TrashPanel.qml" as TrashPanel
 
 Panel {
     id: root
@@ -51,6 +53,14 @@ Panel {
     property var fileTransfers: ({})
     property int transferRevision: 0
     property bool showTransfers: false
+
+    // ===== HISTORY / TRASH STATE =====
+    property bool showHistory: false
+    property bool showTrash: false
+    property var historyFile: null
+    property var historyFileName: ""
+    property var historyFilePath: ""
+    property var historyRepoId: ""
 
     // ===== SELECTION STATE =====
     property var selectedItems: []
@@ -106,6 +116,12 @@ Panel {
         } else {
             root.selectedItems.push(item)
         }
+    }
+
+    function hasTrashItems() {
+        if (!root.currentRepo) return false
+        var trash = TransferService.getFailedTransfers()
+        return trash.length > 0
     }
 
     function selectAll() {
@@ -237,7 +253,15 @@ Panel {
                     if (event.key === Qt.Key_F2) {
                         var list = fileList
                         if (!list.currentItem) return
-                        root.pickRename(list.currentItem.item)
+                        if (root.selectedItems.length === 1 && root.isItemSelected(list.currentItem.item)) {
+                            root.pickRename(list.currentItem.item)
+                        } else {
+                            root.pickRename(list.currentItem.item)
+                        }
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
+                        // Ctrl+A for Select All
+                        root.selectAll()
                         event.accepted = true
                     }
                 }
@@ -259,14 +283,18 @@ Panel {
                     showSearch: root.state === "browse"
                     showLogout: root.state === "browse"
                     showTransfers: root.state === "browse"
+                    showTrash: root.state === "browse"
                     activeTransferCount: root.activeTransferCount
-                    hasTransferFailures: root.hasTransferFailures
+                    hasTransferFailures: root.hasTransferFailures()
                     showOffline: !connectionService.online
                     searchActive: root.searchActive
                     searchQuery: root.searchQuery
                     selectionCount: root.selectedItems.length
+                    hasTrashItems: root.hasTrashItems()
                     onBackClicked: {
                         if (root.showTransfers) { root.showTransfers = false }
+                        else if (root.showHistory) { root.showHistory = false }
+                        else if (root.showTrash) { root.showTrash = false }
                         else { root.goBack() }
                     }
                     onRefreshClicked: root.refresh()
@@ -275,6 +303,7 @@ Panel {
                     onSearchActiveChanged: root.onSearchActiveToggle(active)
                     onLogoutClicked: root.doLogout()
                     onTransfersClicked: root.toggleTransfersView()
+                    onTrashClicked: root.showTrash()
                     onMoveBatch: root.moveItems
                     onCopyBatch: root.copyItems
                     onDeleteBatch: root.deleteItems
@@ -378,6 +407,7 @@ Panel {
                             onMoveClicked: root.pickMove(item)
                             onDeleteClicked: root.pickDelete(item)
                             onShareClicked: root.pickShare(item)
+                            onHistoryClicked: root.showHistory
                             visible: !root.loading && root.errorMessage === "" && !root.searchActive && !root.showTransfers
                             selectedItems: root.selectedItems
                             selectionAnchor: root.selectionAnchor
@@ -487,6 +517,55 @@ Panel {
             bar: root.bar
             onUpload: root.confirmUpload(pathField.text)
             onCancel: root.cancelFilePicker()
+        }
+    }
+
+    Loader { id: historyLoader; sourceComponent: undefined }
+    Component {
+        id: historyComponent
+        HistoryPanel {
+            bar: root.bar
+            repoId: root.historyRepoId
+            filePath: root.historyFilePath
+            fileName: root.historyFileName
+            onDownloadRevision: function(revision) {
+                SeafileAPI.downloadRevision(root.historyRepoId, root.historyFilePath, revision.commitId, function(success, data, error) {
+                    if (success) {
+                        TransferService.startDownload(
+                            { name: root.historyFileName + " (rev " + revision.commitId.substring(0, 8) + ")", type: "file" },
+                            Auth.getToken(), root.serverUrl, root.historyRepoId,
+                            root.getDownloadsDir(), root.historyFilePath
+                        )
+                        root.showHistory = false
+                        root.showToast("Downloading historical revision...")
+                    } else {
+                        root.showToast("Failed to download revision: " + error, "error")
+                    }
+                })
+            }
+            onClose: function() { root.showHistory = false }
+        }
+    }
+
+    Loader { id: trashLoader; sourceComponent: undefined }
+    Component {
+        id: trashComponent
+        TrashPanel {
+            bar: root.bar
+            repoId: root.currentRepo ? root.currentRepo.id : ""
+            onRestoreFolder: function(trashItem) {
+                SeafileAPI.restoreFolder(root.currentRepo.id, trashItem.parentDir, trashItem.objName, function(success, error) {
+                    if (success) {
+                        root.showTrash = false
+                        root.showToast("Folder restored")
+                        Cache.invalidatePath(root.currentRepo.id, trashItem.parentDir)
+                        root.refresh()
+                    } else {
+                        root.showToast("Failed to restore folder: " + error, "error")
+                    }
+                })
+            }
+            onClose: function() { root.showTrash = false }
         }
     }
 
@@ -1245,6 +1324,20 @@ function deleteItems() {
                 deleteNext()
             }
         }
+    }
+
+    function showHistory(item) {
+        if (!root.currentRepo || !item || item.type !== "file") return
+        root.historyRepoId = root.currentRepo.id
+        root.historyFileName = item.name
+        root.historyFilePath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
+        root.historyRepoId = root.currentRepo.id
+        root.showHistory = true
+    }
+
+    function showTrash() {
+        if (!root.currentRepo) return
+        root.showTrash = true
     }
 
     // ===== INIT =====

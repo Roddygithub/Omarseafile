@@ -14,10 +14,13 @@ Item {
     property bool showSearch: false
     property bool showLogout: false
     property bool showTransfers: false
+    property bool showTrash: false
     property int activeTransferCount: 0
     property bool hasTransferFailures: false
     property int selectionCount: 0
+    property bool hasTrashItems: false
     property var onTransfersClicked: null
+    property var onTrashClicked: null
     property var onMoveBatch: null
     property var onCopyBatch: null
     property var onDeleteBatch: null
@@ -197,6 +200,49 @@ Item {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
                 onClicked: { if (root.onTransfersClicked) root.onTransfersClicked() }
+            }
+        }
+
+        Item {
+            id: trashButton
+            width: Style.space(28)
+            height: row.height
+            visible: root.showTrash && !root.searchActive
+
+            Text {
+                id: trashIcon
+                text: "\uf1f8"
+                color: root.hasTrashItems ? Color.urgent : root.bar.foreground
+                font.family: "Noto Sans"
+                font.pixelSize: Style.font.title
+                anchors.centerIn: parent
+            }
+
+            Text {
+                id: trashBadge
+                text: "0"
+                color: Color.background
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.tiny
+                font.bold: true
+                visible: root.selectionCount > 0
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.topMargin: Style.space(2)
+                anchors.rightMargin: Style.space(2)
+                background: Rectangle {
+                    radius: width / 2
+                    color: Color.accent
+                    width: trashBadge.implicitWidth + Style.space(4)
+                    height: trashBadge.implicitHeight + Style.space(2)
+                    anchors.centerIn: trashBadge
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: { if (root.onTrashClicked) root.onTrashClicked() }
             }
         }
 
