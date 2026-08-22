@@ -11,6 +11,8 @@ ListView {
     required property var onMoveClicked
     required property var onDeleteClicked
     required property var onShareClicked
+    required property var findTransfer
+    required property int transferRevision
 
     width: parent.width
     height: parent.height
@@ -29,6 +31,8 @@ ListView {
         required property var onMoveClicked: root.onMoveClicked
         required property var onDeleteClicked: root.onDeleteClicked
         required property var onShareClicked: root.onShareClicked
+        required property var findTransfer: root.findTransfer
+        required property int transferRevision: root.transferRevision
     }
 
     ScrollBar.vertical: ScrollBar {

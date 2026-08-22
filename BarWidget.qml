@@ -9,6 +9,8 @@ BarWidget {
 
     readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
     readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
+    readonly property int activeTransferCount: panelLoader.item ? panelLoader.item.activeTransferCount : 0
+    readonly property bool hasTransferFailures: panelLoader.item ? panelLoader.item.hasTransferFailures : false
 
     function open() {
         if (panelLoader.item) panelLoader.item.open()
@@ -57,6 +59,30 @@ BarWidget {
         tooltipText: "Seafile"
         onPressed: function(b) {
             if (b === Qt.LeftButton) root.toggle()
+        }
+    }
+
+    Rectangle {
+        id: transferBadge
+        width: badgeText.implicitWidth + Style.space(6)
+        height: badgeText.implicitHeight + Style.space(4)
+        radius: width / 2
+        color: root.hasTransferFailures ? Color.urgent : Color.accent
+        visible: root.activeTransferCount > 0
+        anchors.top: button.top
+        anchors.right: button.right
+        anchors.topMargin: -Style.space(2)
+        anchors.rightMargin: -Style.space(2)
+        z: 10
+
+        Text {
+            id: badgeText
+            text: root.activeTransferCount
+            color: Color.background
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.tiny
+            font.bold: true
+            anchors.centerIn: parent
         }
     }
 }

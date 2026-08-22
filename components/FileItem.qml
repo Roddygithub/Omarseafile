@@ -12,13 +12,18 @@ Item {
     required property var onMoveClicked
     required property var onDeleteClicked
     required property var onShareClicked
+    required property var findTransfer
+    required property int transferRevision
     property QtObject bar: null
 
     property bool isDir: item.type === "dir"
-    property bool isDownloading: item.downloading === true
-    property bool isUploading: item.uploading === true
-    property real transferProgress: item.progress || 0
-    property string transferSpeed: item.speed || ""
+    property var activeTransfer: root.findTransfer(root.item)
+    property bool isDownloading: activeTransfer !== null && activeTransfer.type === "download" && (activeTransfer.state === "pending" || activeTransfer.state === "downloading")
+    property bool isUploading: activeTransfer !== null && activeTransfer.type === "upload" && (activeTransfer.state === "pending" || activeTransfer.state === "uploading")
+    property real transferProgress: activeTransfer ? activeTransfer.progress : 0
+    property string transferSpeed: activeTransfer ? activeTransfer.speed : ""
+
+    onTransferRevisionChanged: root.activeTransfer = root.findTransfer(root.item)
 
     implicitHeight: row.implicitHeight
     width: parent.width
@@ -112,7 +117,6 @@ Item {
                     if (root.onDownloadClicked) root.onDownloadClicked(root.item)
                 }
             } else if (mouse.button === Qt.RightButton) {
-                // Show context menu for rename/move/delete
                 if (root.onRenameClicked || root.onMoveClicked || root.onDeleteClicked) {
                     root.showContextMenu(mouse)
                 }
@@ -120,7 +124,6 @@ Item {
         }
 
         function showContextMenu(mouse) {
-            // Simple inline context menu using a popup
             var menu = Qt.createComponent("ContextMenu.qml")
             if (menu.status === Component.Ready) {
                 var popup = menu.createObject(root, {

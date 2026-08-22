@@ -21,6 +21,7 @@ import "./components/ConfirmDialog.qml" as ConfirmDialog
 import "./components/ShareDialog.qml" as ShareDialog
 import "./components/SearchResults.qml" as SearchResults
 import "./components/Toast.qml" as Toast
+import "./components/TransferManager.qml" as TransferManager
 
 Panel {
     id: root
@@ -43,7 +44,48 @@ Panel {
     property string errorMessage: ""
     property bool forceRefresh: false
 
-    property var activeTransfers: []
+    property int activeTransferCount: TransferService.getActiveCount()
+    property bool hasTransferFailures: TransferService.hasFailures()
+    property var fileTransfers: ({})
+    property int transferRevision: 0
+    property bool showTransfers: false
+
+    function findTransfer(item) {
+        if (!item) return null
+        var id = item.id
+        if (id && root.fileTransfers[id]) return root.fileTransfers[id]
+        if (item.name) {
+            for (var key in root.fileTransfers) {
+                var t = root.fileTransfers[key]
+                if (t.fileName === item.name) return t
+            }
+        }
+        return null
+    }
+
+    Connections {
+        target: TransferService
+        function onTransfersChanged() {
+            root.activeTransferCount = TransferService.getActiveCount()
+            root.hasTransferFailures = TransferService.hasFailures()
+            var active = TransferService.getActiveTransfers()
+            var map = {}
+            for (var i = 0; i < active.length; i++) {
+                var t = active[i]
+                if (t.repoId === (root.currentRepo ? root.currentRepo.id : "")) {
+                    map[t.id] = t
+                    if (t.fileName) map["name:" + t.fileName] = t
+                }
+            }
+            root.fileTransfers = map
+            root.transferRevision++
+        }
+        function onTransferStateChanged(transfer) {
+            if (transfer.state === "completed" || transfer.state === "failed" || transfer.state === "cancelled" || transfer.state === "auth_failed") {
+                root.handleTransferCompletion(transfer)
+            }
+        }
+    }
 
     // Search state
     property string searchQuery: ""
@@ -65,6 +107,7 @@ Panel {
     function close() { panelController.hide() }
     function toggle() { opened ? close() : open() }
     function closeForPopoutSwitch() { if (panelController.open) panelController.hide() }
+    function toggleTransfersView() { root.showTransfers = !root.showTransfers }
 
     function showToast(message, type) {
         toast.show(message, type || "success")
@@ -144,15 +187,22 @@ Panel {
                     showUpload: root.state === "browse" && !root.searchActive
                     showSearch: root.state === "browse"
                     showLogout: root.state === "browse"
+                    showTransfers: root.state === "browse"
+                    activeTransferCount: root.activeTransferCount
+                    hasTransferFailures: root.hasTransferFailures
                     showOffline: !connectionService.online
                     searchActive: root.searchActive
                     searchQuery: root.searchQuery
-                    onBackClicked: root.goBack()
+                    onBackClicked: {
+                        if (root.showTransfers) { root.showTransfers = false }
+                        else { root.goBack() }
+                    }
                     onRefreshClicked: root.refresh()
                     onUploadClicked: root.pickFileForUpload()
                     onSearchChanged: root.onSearchQueryChanged(query)
                     onSearchActiveChanged: root.onSearchActiveToggle(active)
                     onLogoutClicked: root.doLogout()
+                    onTransfersClicked: root.toggleTransfersView()
                 }
 
                 Loader {
@@ -244,13 +294,15 @@ Panel {
                             height: parent.height - toolBar.height - (breadcrumbs.visible ? breadcrumbs.height : 0) - (root.loading ? loadingIndicator.height : 0) - (root.errorMessage && !root.searchActive ? errorOverlay.height : 0) - (!connectionService.online ? offlineBanner.height : 0) - (searchStatusText.visible ? searchStatusText.height : 0) - (searchErrorOverlay.visible ? searchErrorOverlay.height : 0)
                             items: root.currentItems
                             focus: true
+                            findTransfer: root.findTransfer
+                            transferRevision: root.transferRevision
                             onItemClicked: root.onItemClicked(item)
                             onDownloadClicked: root.onDownloadClicked(item)
                             onRenameClicked: root.pickRename(item)
                             onMoveClicked: root.pickMove(item)
                             onDeleteClicked: root.pickDelete(item)
                             onShareClicked: root.pickShare(item)
-                            visible: !root.loading && root.errorMessage === "" && !root.searchActive
+                            visible: !root.loading && root.errorMessage === "" && !root.searchActive && !root.showTransfers
                         }
 
                         SearchResults {
@@ -261,6 +313,23 @@ Panel {
                             bar: root.bar
                             visible: root.searchActive && root.searchState !== "loading"
                             onResultClicked: root.onSearchResultClicked(result)
+                        }
+
+                        TransferManager {
+                            id: transferManager
+                            width: parent.width
+                            height: parent.height - toolBar.height - (breadcrumbs.visible ? breadcrumbs.height : 0)
+                            bar: root.bar
+                            visible: root.showTransfers && !root.searchActive
+                            transferRevision: root.transferRevision
+                            onCancel: function(transfer) { TransferService.cancelTransfer(transfer.id) }
+                            onRetry: function(transfer) {
+                                var token = Auth.getToken()
+                                var baseUrl = Auth.getServerUrl()
+                                TransferService.retryTransfer(transfer.id, token, baseUrl)
+                            }
+                            onClearCompleted: TransferService.clearCompleted()
+                            onClearFailed: TransferService.clearFailed()
                         }
                     }
                 }
@@ -429,12 +498,7 @@ Panel {
             var token = Auth.getToken()
             if (!token) { root.errorMessage = "Not authenticated"; return }
             var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
-            var download = TransferService.startDownload(item, token, root.serverUrl, root.currentRepo.id, getDownloadsDir(), fullPath)
-            download.fileItem = item
-            download.fullPath = fullPath
-            root.activeTransfers.push(download)
-            updateItemTransferState(item, "downloading", 0, "")
-            checkActiveTransfers()
+            TransferService.startDownload(item, token, root.serverUrl, root.currentRepo.id, getDownloadsDir(), fullPath)
         }
     }
 
@@ -644,37 +708,10 @@ Panel {
         var token = Auth.getToken()
         if (!token) { root.errorMessage = "Not authenticated"; return }
         var fileName = localFilePath.split("/").pop()
-        var upload = TransferService.startUpload(localFilePath, token, root.serverUrl, root.currentRepo.id, root.currentPath, fileName)
-        root.activeTransfers.push(upload)
+        TransferService.startUpload(localFilePath, token, root.serverUrl, root.currentRepo.id, root.currentPath, fileName)
     }
 
     function getDownloadsDir() { return Qt.getenv("HOME") + "/Downloads" }
-
-    function updateItemTransferState(item, type, progress, speed) {
-        for (var i = 0; i < root.currentItems.length; i++) {
-            if (root.currentItems[i].id === item.id) {
-                root.currentItems[i].downloading = (type === "downloading")
-                root.currentItems[i].uploading = (type === "uploading")
-                root.currentItems[i].progress = progress
-                root.currentItems[i].speed = speed
-                break
-            }
-        }
-    }
-
-    function checkActiveTransfers() {
-        var active = TransferService.getActiveTransfers()
-        for (var i = 0; i < active.length; i++) {
-            var t = active[i]
-            if (t.state === "completed" || t.state === "failed" || t.state === "cancelled" || t.state === "auth_failed") {
-                root.handleTransferCompletion(t)
-            }
-        }
-        var stillActive = TransferService.getActiveTransfers()
-        if (stillActive.length === 0 && root.activeTransfers.length > 0) {
-            root.activeTransfers = []
-        }
-    }
 
     function handleTransferCompletion(transfer) {
         if (transfer.state === "completed") {
@@ -693,6 +730,7 @@ Panel {
     }
 
     function doLogout() {
+        TransferService.logoutCleanup()
         Auth.clearSession()
         SeafileAPI.setToken("")
         Cache.clear()

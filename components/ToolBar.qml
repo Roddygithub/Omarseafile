@@ -12,6 +12,10 @@ Item {
     property bool showOffline: false
     property bool showSearch: false
     property bool showLogout: false
+    property bool showTransfers: false
+    property int activeTransferCount: 0
+    property bool hasTransferFailures: false
+    property var onTransfersClicked: null
     property string searchQuery: ""
     property bool searchActive: false
     property var onBackClicked: null
@@ -133,6 +137,49 @@ Item {
             tooltipText: "Logout"
             onClicked: {
                 if (root.onLogoutClicked) root.onLogoutClicked()
+            }
+        }
+
+        Item {
+            id: transfersButton
+            width: Style.space(28)
+            height: row.height
+            visible: root.showTransfers && !root.searchActive
+
+            Text {
+                id: transfersIcon
+                text: "\uf0ec"
+                color: root.hasTransferFailures ? Color.urgent : root.bar.foreground
+                font.family: "Noto Sans"
+                font.pixelSize: Style.font.title
+                anchors.centerIn: parent
+            }
+
+            Text {
+                id: transfersBadge
+                text: root.activeTransferCount
+                color: Color.background
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.tiny
+                font.bold: true
+                visible: root.activeTransferCount > 0
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.topMargin: Style.space(2)
+                anchors.rightMargin: Style.space(2)
+                background: Rectangle {
+                    radius: width / 2
+                    color: Color.accent
+                    width: transfersBadge.implicitWidth + Style.space(4)
+                    height: transfersBadge.implicitHeight + Style.space(2)
+                    anchors.centerIn: transfersBadge
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: { if (root.onTransfersClicked) root.onTransfersClicked() }
             }
         }
 
