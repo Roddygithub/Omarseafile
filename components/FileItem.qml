@@ -1,7 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
-import "Models.js" as Models
+import "../js/Models.js" as Models
 
 Item {
     id: root

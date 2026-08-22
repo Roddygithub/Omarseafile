@@ -488,7 +488,7 @@ Item {
 
                 Text {
                     text: "Link created!"
-                    color: Color.success
+                    color: Color.accent
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
                     font.bold: true
