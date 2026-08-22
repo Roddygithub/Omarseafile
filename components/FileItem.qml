@@ -14,6 +14,9 @@ Item {
     required property var onShareClicked
     required property var findTransfer
     required property int transferRevision
+    required property var onSelectionToggle
+    required property var onSelectionRange
+    required property bool selected
     property QtObject bar: null
 
     property bool isDir: item.type === "dir"
@@ -22,6 +25,7 @@ Item {
     property bool isUploading: activeTransfer !== null && activeTransfer.type === "upload" && (activeTransfer.state === "pending" || activeTransfer.state === "uploading")
     property real transferProgress: activeTransfer ? activeTransfer.progress : 0
     property string transferSpeed: activeTransfer ? activeTransfer.speed : ""
+    property bool isSelected: root.selected
 
     onTransferRevisionChanged: root.activeTransfer = root.findTransfer(root.item)
 
@@ -39,7 +43,7 @@ Item {
         Text {
             id: icon
             text: root.isDir ? "\uf07b" : "\uf15b"
-            color: root.bar.foreground
+            color: root.isSelected ? Color.accent : root.bar.foreground
             font.family: "Noto Sans"
             font.pixelSize: Style.font.title
             width: Style.space(24)
@@ -50,7 +54,7 @@ Item {
         Text {
             id: nameLabel
             text: item.name
-            color: root.bar.foreground
+            color: root.isSelected ? Color.accent : root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
             elide: Text.ElideRight
@@ -111,13 +115,23 @@ Item {
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         onClicked: {
             if (mouse.button === Qt.LeftButton) {
-                if (root.isDir) {
-                    if (root.onItemClicked) root.onItemClicked(root.item)
+                if (mouse.modifiers & Qt.ControlModifier) {
+                    if (root.onSelectionToggle) root.onSelectionToggle(root.item)
+                } else if (mouse.modifiers & Qt.ShiftModifier) {
+                    if (root.onSelectionRange) root.onSelectionRange(root.item)
                 } else {
-                    if (root.onDownloadClicked) root.onDownloadClicked(root.item)
+                    if (root.selected) {
+                        if (root.onSelectionToggle) root.onSelectionToggle(root.item)
+                    } else {
+                        if (root.isDir) {
+                            if (root.onItemClicked) root.onItemClicked(root.item)
+                        } else {
+                            if (root.onDownloadClicked) root.onDownloadClicked(root.item)
+                        }
+                    }
                 }
             } else if (mouse.button === Qt.RightButton) {
-                if (root.onRenameClicked || root.onMoveClicked || root.onDeleteClicked) {
+                if (root.onRenameClicked || root.onMoveClicked || root.onDeleteClicked || root.onShareClicked) {
                     root.showContextMenu(mouse)
                 }
             }

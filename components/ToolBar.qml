@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "./BatchActionBar.qml" as BatchActionBar
 
 Item {
     id: root
@@ -15,7 +16,12 @@ Item {
     property bool showTransfers: false
     property int activeTransferCount: 0
     property bool hasTransferFailures: false
+    property int selectionCount: 0
     property var onTransfersClicked: null
+    property var onMoveBatch: null
+    property var onCopyBatch: null
+    property var onDeleteBatch: null
+    property var onClearSelection: null
     property string searchQuery: ""
     property bool searchActive: false
     property var onBackClicked: null
@@ -56,7 +62,18 @@ Item {
             elide: Text.ElideRight
             width: parent.width - backButton.width - searchField.width - searchButton.width - refreshButton.width - uploadButton.width - offlineIndicator.width - Style.space(24)
             anchors.verticalCenter: parent.verticalCenter
-            visible: !root.searchActive
+            visible: !root.searchActive && root.selectionCount === 0
+        }
+
+        BatchActionBar {
+            id: batchActionBar
+            bar: root.bar
+            count: root.selectionCount
+            visible: root.selectionCount > 0
+            onMove: { if (root.onMoveBatch) root.onMoveBatch() }
+            onCopy: { if (root.onCopyBatch) root.onCopyBatch() }
+            onDelete: { if (root.onDeleteBatch) root.onDeleteBatch() }
+            onClear: { if (root.onClearSelection) root.onClearSelection() }
         }
 
         TextField {

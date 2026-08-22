@@ -13,6 +13,10 @@ ListView {
     required property var onShareClicked
     required property var findTransfer
     required property int transferRevision
+    required property var onSelectionToggle
+    required property var onSelectionRange
+    required property var selectedItems
+    required property var selectionAnchor
 
     width: parent.width
     height: parent.height
@@ -33,6 +37,17 @@ ListView {
         required property var onShareClicked: root.onShareClicked
         required property var findTransfer: root.findTransfer
         required property int transferRevision: root.transferRevision
+        required property var onSelectionToggle: root.onSelectionToggle
+        required property var onSelectionRange: root.onSelectionRange
+        required property bool selected: {
+            for (var i = 0; i < root.selectedItems.length; i++) {
+                if (root.selectedItems[i].id === modelData.id && root.selectedItems[i].repoId === modelData.repoId) {
+                    return true
+                }
+            }
+            return false
+        }
+        required property var selectionAnchor: root.selectionAnchor
     }
 
     ScrollBar.vertical: ScrollBar {

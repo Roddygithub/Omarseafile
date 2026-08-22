@@ -8,6 +8,7 @@ import "./js/Models.js" as Models
 import "./js/TransferService.js" as TransferService
 import "./js/Cache.js" as Cache
 import "./js/ConnectionService.js" as ConnectionService
+import "./js/SelectionHelper.js" as SelectionHelper
 import "./components/LoginDialog.qml" as LoginDialog
 import "./components/FileList.qml" as FileList
 import "./components/Breadcrumbs.qml" as Breadcrumbs
@@ -22,6 +23,7 @@ import "./components/ShareDialog.qml" as ShareDialog
 import "./components/SearchResults.qml" as SearchResults
 import "./components/Toast.qml" as Toast
 import "./components/TransferManager.qml" as TransferManager
+import "./components/CopyDialog.qml" as CopyDialog
 
 Panel {
     id: root
@@ -50,17 +52,86 @@ Panel {
     property int transferRevision: 0
     property bool showTransfers: false
 
-    function findTransfer(item) {
-        if (!item) return null
-        var id = item.id
-        if (id && root.fileTransfers[id]) return root.fileTransfers[id]
-        if (item.name) {
-            for (var key in root.fileTransfers) {
-                var t = root.fileTransfers[key]
-                if (t.fileName === item.name) return t
+    // ===== SELECTION STATE =====
+    property var selectedItems: []
+    property var selectionAnchor: null
+
+    function selectionKey(item) {
+        if (!item) return ""
+        return (item.repoId || item.repoId) + ":" + (item.fullPath || item.path || item.name) + ":" + (item.type || (item.isDir ? "dir" : "file"))
+    }
+
+    function isSelected(item) {
+        if (!item) return false
+        var key = item.repoId + ":" + (item.fullPath || item.path || item.name) + ":" + (item.type || (item.isDir ? "dir" : "file"))
+        for (var i = 0; i < root.selectedItems.length; i++) {
+            var sel = root.selectedItems[i]
+            var selKey = sel.repoId + ":" + (sel.fullPath || sel.path || sel.name) + ":" + (sel.type || (sel.isDir ? "dir" : "file"))
+            if (sel.repoId === item.repoId && (sel.fullPath || sel.path || sel.name) === (item.fullPath || item.path || item.name)) {
+                return true
             }
         }
-        return null
+        return false
+    }
+
+    function selectionKeyForItem(item) {
+        if (!item) return ""
+        var repoId = item.repoId || ""
+        var path = item.fullPath || item.path || item.name || ""
+        var type = item.type || (item.isDir ? "dir" : "file")
+        return repoId + ":" + path + ":" + type
+    }
+
+    function isItemSelected(item) {
+        var key = root.selectionKeyForItem(item)
+        if (!key) return false
+        for (var i = 0; i < root.selectedItems.length; i++) {
+            if (root.selectionKeyForItem(root.selectedItems[i]) === key) return true
+        }
+        return false
+    }
+
+    function toggleSelection(item) {
+        var key = root.selectionKeyForItem(item)
+        if (!key) return
+        var idx = -1
+        for (var i = 0; i < root.selectedItems.length; i++) {
+            if (root.selectionKeyForItem(root.selectedItems[i]) === key) {
+                idx = i
+                break
+            }
+        }
+        if (idx >= 0) {
+            root.selectedItems.splice(idx, 1)
+        } else {
+            root.selectedItems.push(item)
+        }
+    }
+
+    function selectAll() {
+        root.selectedItems = root.currentItems.slice()
+    }
+
+    function clearSelection() {
+        root.selectedItems = []
+        root.selectionAnchor = null
+    }
+
+    function pruneSelection() {
+        if (!root.currentItems || root.currentItems.length === 0) {
+            root.selectedItems = []
+            return
+        }
+        var validKeys = {}
+        for (var i = 0; i < root.currentItems.length; i++) {
+            var item = root.currentItems[i]
+            var key = item.repoId + ":" + (item.fullPath || item.path || item.name) + ":" + (item.type || (item.isDir ? "dir" : "file"))
+            validKeys[key] = true
+        }
+        root.selectedItems = root.selectedItems.filter(function(item) {
+            var key = item.repoId + ":" + (item.fullPath || item.path || item.name) + ":" + (item.type || (item.isDir ? "dir" : "file"))
+            return validKeys[key] === true
+        })
     }
 
     Connections {
@@ -193,6 +264,7 @@ Panel {
                     showOffline: !connectionService.online
                     searchActive: root.searchActive
                     searchQuery: root.searchQuery
+                    selectionCount: root.selectedItems.length
                     onBackClicked: {
                         if (root.showTransfers) { root.showTransfers = false }
                         else { root.goBack() }
@@ -203,6 +275,10 @@ Panel {
                     onSearchActiveChanged: root.onSearchActiveToggle(active)
                     onLogoutClicked: root.doLogout()
                     onTransfersClicked: root.toggleTransfersView()
+                    onMoveBatch: root.moveItems
+                    onCopyBatch: root.copyItems
+                    onDeleteBatch: root.deleteItems
+                    onClearSelection: root.clearSelection
                 }
 
                 Loader {
@@ -303,6 +379,10 @@ Panel {
                             onDeleteClicked: root.pickDelete(item)
                             onShareClicked: root.pickShare(item)
                             visible: !root.loading && root.errorMessage === "" && !root.searchActive && !root.showTransfers
+                            selectedItems: root.selectedItems
+                            selectionAnchor: root.selectionAnchor
+                            onSelectionToggle: root.onSelectionToggle
+                            onSelectionRange: root.onSelectionRange
                         }
 
                         SearchResults {
@@ -503,6 +583,7 @@ Panel {
     }
 
     function goBack() {
+        root.clearSelection()
         if (root.pathHistory.length <= 1) {
             root.currentRepo = null
             root.currentPath = "/"
@@ -520,6 +601,7 @@ Panel {
     }
 
     function navigateToPath(index) {
+        root.clearSelection()
         if (index >= root.pathHistory.length - 1) return
         root.pathHistory = root.pathHistory.slice(0, index + 1)
         var target = root.pathHistory[index]
@@ -531,6 +613,7 @@ Panel {
     }
 
     function refresh() {
+        root.clearSelection()
         root.forceRefresh = true
         if (root.state === "browse") {
             if (root.currentRepo) {
@@ -566,6 +649,8 @@ Panel {
             root.searchResults = []
             root.searchState = "idle"
             fileList.forceActiveFocus()
+        } else {
+            root.clearSelection()
         }
     }
 
@@ -642,6 +727,7 @@ Panel {
     }
 
     function onSearchResultClicked(result) {
+        root.clearSelection()
         if (result.type === "folder") {
             var repo = null
             for (var i = 0; i < root.libraries.length; i++) {
@@ -703,6 +789,72 @@ Panel {
     function pickFileForUpload() { uploadLoader.sourceComponent = uploadComponent }
     function cancelFilePicker() { uploadLoader.sourceComponent = undefined }
     function confirmUpload(filePath) { uploadLoader.sourceComponent = undefined; startUpload(filePath) }
+
+    // ===== COPY =====
+
+    function pickCopy() {
+        if (!root.currentRepo) { root.errorMessage = "No library selected"; return }
+        if (root.selectedItems.length === 0) { root.errorMessage = "No items selected"; return }
+        copyLoader.sourceComponent = copyComponent
+    }
+
+    function cancelCopy() { copyLoader.sourceComponent = undefined }
+
+    function confirmCopy(destPath) {
+        if (!destPath || destPath.trim() === "") { root.errorMessage = "Destination path cannot be empty"; return }
+        copyLoader.sourceComponent = undefined
+        var token = Auth.getToken()
+        if (!token) { root.errorMessage = "Not authenticated"; return }
+        var destPathTrimmed = destPath.trim()
+        root.loading = true
+        root.errorMessage = ""
+
+        if (root.moveItemData.items && root.moveItemData.items.length > 1) {
+            // Batch copy
+            SeafileAPI.copyItems(root.moveItemData.items, root.currentRepo.id, destPathTrimmed, function(success, error) {
+                root.loading = false
+                if (success) {
+                    Cache.invalidatePath(root.currentRepo.id, destPathTrimmed)
+                    root.refresh()
+                    root.showToast(root.moveItemData.items.length + " items copied")
+                    root.clearSelection()
+                } else {
+                    root.errorMessage = error || "Failed to copy items"
+                }
+            })
+        } else {
+            // Single item copy
+            var item = root.moveItemData.items[0]
+            var token = Auth.getToken()
+            var baseUrl = root.serverUrl
+            if (item.type === "dir") {
+                SeafileAPI.copyFolder(root.currentRepo.id, item.name, root.currentPath, root.currentRepo.id, destPathTrimmed, token, function(success, error) {
+                    root.loading = false
+                    if (success) {
+                        Cache.invalidatePath(root.currentRepo.id, destPathTrimmed)
+                        root.refresh()
+                        root.showToast("Folder copied")
+                    } else {
+                        root.errorMessage = error || "Failed to copy folder"
+                    }
+                })
+            } else {
+                var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
+                SeafileAPI.copyFile(root.currentRepo.id, fullPath, destPathTrimmed, token, baseUrl, function(success, error) {
+                    root.loading = false
+                    if (success) {
+                        Cache.invalidatePath(root.currentRepo.id, destPathTrimmed)
+                        root.refresh()
+                        root.showToast("File copied")
+                    } else {
+                        root.errorMessage = error || "Failed to copy file"
+                    }
+                })
+            }
+        }
+    }
+
+    function cancelCopy() { copyLoader.sourceComponent = undefined }
 
     function startUpload(localFilePath) {
         var token = Auth.getToken()
@@ -825,37 +977,60 @@ Panel {
 
     function cancelMove() { moveLoader.sourceComponent = undefined; root.moveItemData = null }
 
-    function confirmMove(destPath) {
+function confirmMove(destPath) {
         if (!destPath || destPath.trim() === "") { root.errorMessage = "Destination path cannot be empty"; return }
         moveLoader.sourceComponent = undefined
         var token = Auth.getToken()
         if (!token) { root.errorMessage = "Not authenticated"; return }
-        var item = root.moveItemData.item
-        var isDir = root.moveItemData.isDir
-        var srcPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
+        var items = root.moveItemData.items
+        var isBatch = items && items.length > 1
+        var destPathTrimmed = destPath.trim()
         root.loading = true
         root.errorMessage = ""
-        if (isDir) {
-            SeafileAPI.moveFolder(root.currentRepo.id, item.name, root.currentPath, root.currentRepo.id, destPath.trim(), token, function(success, error) {
+
+        if (items && items.length > 1) {
+            // Batch move
+            SeafileAPI.moveItems(root.moveItemData.items, root.currentRepo.id, destPathTrimmed, function(success, error) {
                 root.loading = false
                 if (success) {
                     Cache.invalidatePath(root.currentRepo.id, root.currentPath)
                     Cache.invalidatePath(root.currentRepo.id, destPath.trim())
                     root.refresh()
-                    root.showToast("Moved successfully")
-                } else { root.errorMessage = error || "Failed to move folder" }
+                    root.showToast(root.moveItemData.items.length + " items moved")
+                    root.clearSelection()
+                } else {
+                    root.errorMessage = error || "Failed to move items"
+                }
             })
         } else {
-            SeafileAPI.moveFile(root.currentRepo.id, srcPath, destPath.trim(), token, function(success, error) {
-                root.loading = false
-                if (success) {
-                    Cache.invalidatePath(root.currentRepo.id, root.currentPath)
-                    Cache.invalidatePath(root.currentRepo.id, destPath.trim())
-                    root.refresh()
-                    root.showToast("Moved successfully")
-                } else { root.errorMessage = error || "Failed to move file" }
-            })
+            // Single item move (existing logic)
+            var item = root.moveItemData.item
+            var isDir = root.moveItemData.isDir
+            var srcPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
+            if (isDir) {
+                SeafileAPI.moveFolder(root.currentRepo.id, item.name, root.currentPath, root.currentRepo.id, destPathTrimmed, token, function(success, error) {
+                    root.loading = false
+                    if (success) {
+                        Cache.invalidatePath(root.currentRepo.id, root.currentPath)
+                        Cache.invalidatePath(root.currentRepo.id, destPathTrimmed)
+                        root.refresh()
+                        root.showToast("Moved successfully")
+                    } else { root.errorMessage = error || "Failed to move folder" }
+                })
+            } else {
+                var srcPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
+                SeafileAPI.moveFile(root.currentRepo.id, srcPath, destPathTrimmed, token, function(success, error) {
+                    root.loading = false
+                    if (success) {
+                        Cache.invalidatePath(root.currentRepo.id, root.currentPath)
+                        Cache.invalidatePath(root.currentRepo.id, destPathTrimmed)
+                        root.refresh()
+                        root.showToast("Moved successfully")
+                    } else { root.errorMessage = error || "Failed to move file" }
+                })
+            }
         }
+    }
     }
 
     // ===== DELETE =====
@@ -870,6 +1045,11 @@ Panel {
     function cancelDelete() { confirmLoader.sourceComponent = undefined; root.deleteItemData = null }
 
     function confirmDelete() {
+        if (root.deleteItemData.items && root.deleteItemData.items.length > 1) {
+            // Batch delete - handled by deleteItems()
+            root.deleteItems()
+            return
+        }
         confirmLoader.sourceComponent = undefined
         var token = Auth.getToken()
         if (!token) { root.errorMessage = "Not authenticated"; return }
@@ -905,6 +1085,167 @@ Panel {
     }
 
     function cancelShare() { shareLoader.sourceComponent = undefined; root.shareItemData = null }
+
+    // ===== BATCH OPERATIONS =====
+
+function moveItems() {
+    if (!root.currentRepo || root.selectedItems.length === 0) return
+    moveLoader.sourceComponent = moveComponent
+    root.moveItemData = { items: root.selectedItems.slice(), isDir: false }
+}
+
+function copyItems() {
+    if (!root.currentRepo || root.selectedItems.length === 0) return
+    copyLoader.sourceComponent = copyComponent
+    root.moveItemData = { items: root.selectedItems.slice(), isDir: false }
+}
+
+function deleteItems() {
+    if (root.selectedItems.length === 0) return
+    var token = Auth.getToken()
+    if (!token) { root.errorMessage = "Not authenticated"; return }
+
+    var itemsToDelete = root.selectedItems.slice()
+    var msg = "Delete " + root.selectedItems.length + " item(s)?"
+    confirmLoader.sourceComponent = confirmComponent
+    root.deleteItemData = { items: root.selectedItems.slice(), isDir: false }
+    root.confirmDelete = function() {
+        confirmLoader.sourceComponent = undefined
+        root.loading = true
+        root.errorMessage = ""
+        var itemsToDelete = root.selectedItems.slice()
+        root.clearSelection()
+        var token = Auth.getToken()
+        if (!token) { root.errorMessage = "Not authenticated"; root.loading = false; return }
+
+        var results = { success: [], failed: [] }
+        var index = 0
+
+        function deleteNext() {
+            if (index >= itemsToDelete.length) {
+                root.loading = false
+                var msg = results.success.length + " deleted"
+                if (results.failed.length > 0) {
+                    msg += ", " + results.failed.length + " failed"
+                }
+                root.showToast(msg, results.failed.length > 0 ? "error" : "success")
+                if (results.failed.length > 0) {
+                    root.selectedItems = results.failed
+                } else {
+                    root.clearSelection()
+                }
+                Cache.invalidatePath(root.currentRepo.id, root.currentPath)
+                root.refresh()
+                return
+            }
+
+            var item = itemsToDelete[index]
+            if (item.type === "dir") {
+                SeafileAPI.deleteFolder(root.currentRepo.id, item.fullPath, Auth.getToken(), function(success, error) {
+                    if (success) {
+                        results.success.push(item)
+                    } else {
+                        results.failed.push({ item: item, error: error })
+                    }
+                    index++
+                    deleteNext()
+                })
+            } else {
+                SeafileAPI.deleteFile(root.currentRepo.id, item.fullPath, token, function(success, error) {
+                    if (success) {
+                        results.success.push(item)
+                    } else {
+                        results.failed.push({ item: item, error: error })
+                    }
+                    index++
+                    deleteNext()
+                })
+            }
+            index = 0
+            results = { success: [], failed: [] }
+            deleteNext()
+        }
+    }
+
+    function moveItems() {
+        if (!root.currentRepo || root.selectedItems.length === 0) return
+        moveLoader.sourceComponent = moveComponent
+        root.moveItemData = { items: root.selectedItems.slice(), isDir: false }
+    }
+
+    function copyItems() {
+        if (!root.currentRepo || root.selectedItems.length === 0) return
+        copyLoader.sourceComponent = copyComponent
+        root.moveItemData = { items: root.selectedItems.slice(), isDir: false }
+    }
+
+    function deleteItems() {
+        if (root.selectedItems.length === 0) return
+        var token = Auth.getToken()
+        if (!token) { root.errorMessage = "Not authenticated"; return }
+
+        var itemsToDelete = root.selectedItems.slice()
+        var confirmMsg = "Delete " + root.selectedItems.length + " item(s)?"
+        confirmLoader.sourceComponent = confirmComponent
+        root.deleteItemData = { items: root.selectedItems.slice(), isDir: false }
+        root.confirmDelete = function() {
+            confirmLoader.sourceComponent = undefined
+            root.loading = true
+            root.errorMessage = ""
+            var itemsToDelete = root.selectedItems.slice()
+            root.clearSelection()
+            var token = Auth.getToken()
+            if (!token) { root.errorMessage = "Not authenticated"; root.loading = false; return }
+
+            var results = { success: [], failed: [] }
+            var index = 0
+
+            function deleteNext() {
+                if (index >= itemsToDelete.length) {
+                    root.loading = false
+                    var msg = results.success.length + " deleted"
+                    if (results.failed.length > 0) {
+                        msg += ", " + results.failed.length + " failed"
+                    }
+                    root.showToast(msg, results.failed.length > 0 ? "error" : "success")
+                    if (results.failed.length > 0) {
+                        root.selectedItems = results.failed
+                    } else {
+                        root.clearSelection()
+                    }
+                    Cache.invalidatePath(root.currentRepo.id, root.currentPath)
+                    root.refresh()
+                    return
+                }
+
+                var item = itemsToDelete[index]
+                if (item.type === "dir") {
+                    SeafileAPI.deleteFolder(root.currentRepo.id, item.fullPath, Auth.getToken(), function(success, error) {
+                        if (success) {
+                            results.success.push(item)
+                        } else {
+                            results.failed.push({ item: item, error: error })
+                        }
+                        index++
+                        deleteNext()
+                    })
+                } else {
+                    SeafileAPI.deleteFile(root.currentRepo.id, item.fullPath, token, function(success, error) {
+                        if (success) {
+                            results.success.push(item)
+                        } else {
+                            results.failed.push({ item: item, error: error })
+                        }
+                        index++
+                        deleteNext()
+                    })
+                }
+                index = 0
+                results = { success: [], failed: [] }
+                deleteNext()
+            }
+        }
+    }
 
     // ===== INIT =====
 

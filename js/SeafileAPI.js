@@ -361,9 +361,206 @@ QtObject {
         xhr.send()
     }
 
-    // ===== SEARCH =====
+    // ===== COPY =====
 
-    function searchFilesInRepo(query, repoId, callback) {
+    function copyFile(repoId, filePath, dstRepoId, dstDir, newName, callback) {
+        var url = "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
+        var xhr = new XMLHttpRequest()
+        xhr.open("POST", baseUrl + url, true)
+        xhr.setRequestHeader("Authorization", "Token " + token)
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    var response = JSON.parse(xhr.responseText)
+                    callback(true, response, null)
+                } else {
+                    callback(false, null, parseError(xhr))
+                }
+            }
+        }
+        var body = "operation=copy&dst_repo=" + encodeURIComponent(dstRepoId) + "&dst_dir=" + encodeURIComponent(dstDir) + "&newname=" + encodeURIComponent(newName)
+        xhr.send(body)
+    }
+
+    function copyFolder(repoId, folderName, srcParentDir, dstRepoId, dstParentDir, callback) {
+        var url = baseUrl + "/api/v2.1/repos/sync-batch-copy-item/"
+        var xhr = new XMLHttpRequest()
+        xhr.open("POST", url, true)
+        xhr.setRequestHeader("Authorization", "Token " + token)
+        xhr.setRequestHeader("Content-Type", "application/json")
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    callback(true, null)
+                } else {
+                    callback(false, parseError(xhr))
+                }
+            }
+        }
+        var body = JSON.stringify({
+            src_repo_id: repoId,
+            src_parent_dir: srcParentDir,
+            src_dirents: [folderName],
+            dst_repo_id: dstRepoId,
+            dst_parent_dir: dstParentDir
+        })
+        xhr.send(body)
+    }
+
+    function copyItems(items, dstRepoId, dstParentDir, callback) {
+        if (!items || items.length === 0) {
+            callback(false, null, "No items to copy")
+            return
+        }
+
+        var groups = {}
+        for (var i = 0; i < items.length; i++) {
+            var item = items[i]
+            var key = item.repoId + ":" + (item.srcParentDir || "/")
+            if (!groups[key]) {
+                groups[key] = {
+                    srcRepoId: item.repoId,
+                    srcParentDir: item.srcParentDir || "/",
+                    srcDirents: [],
+                    dstRepoId: dstRepoId,
+                    dstParentDir: dstParentDir
+                }
+            }
+            groups[key].srcDirents.push(item.name)
+        }
+
+        var groupKeys = Object.keys(groups)
+        var completed = 0
+        var hasError = false
+
+        function checkComplete() {
+            completed++
+            if (completed === groupKeys.length) {
+                if (!hasError) {
+                    callback(true, null)
+                }
+            }
+        }
+
+        for (var key in groups) {
+            var group = groups[key]
+            var xhr = new XMLHttpRequest()
+            var url = baseUrl + "/api/v2.1/repos/sync-batch-copy-item/"
+            xhr.open("POST", url, true)
+            xhr.setRequestHeader("Authorization", "Token " + token)
+            xhr.setRequestHeader("Content-Type", "application/json")
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === XMLHttpRequest.DONE) {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        // success
+                    } else {
+                        hasError = true
+                    }
+                    checkComplete()
+                }
+            }
+            xhr.send(JSON.stringify(group))
+        }
+    }
+
+    function moveItems(items, dstRepoId, dstParentDir, callback) {
+        if (!items || items.length === 0) {
+            callback(false, null, "No items to move")
+            return
+        }
+
+        var groups = {}
+        for (var i = 0; i < items.length; i++) {
+            var item = items[i]
+            var key = item.repoId + ":" + (item.srcParentDir || "/")
+            if (!groups[key]) {
+                groups[key] = {
+                    srcRepoId: item.repoId,
+                    srcParentDir: item.srcParentDir || "/",
+                    srcDirents: [],
+                    dstRepoId: dstRepoId,
+                    dstParentDir: dstParentDir
+                }
+            }
+            groups[key].srcDirents.push(item.name)
+        }
+
+        var groupKeys = Object.keys(groups)
+        var completed = 0
+        var hasError = false
+
+        function checkComplete() {
+            completed++
+            if (completed === groupKeys.length) {
+                if (!hasError) {
+                    callback(true, null)
+                }
+            }
+        }
+
+        for (var key in groups) {
+            var group = groups[key]
+            var xhr = new XMLHttpRequest()
+            var url = baseUrl + "/api/v2.1/repos/sync-batch-move-item/"
+            xhr.open("POST", url, true)
+            xhr.setRequestHeader("Authorization", "Token " + token)
+            xhr.setRequestHeader("Content-Type", "application/json")
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === XMLHttpRequest.DONE) {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        // success
+                    } else {
+                        hasError = true
+                    }
+                    checkComplete()
+                }
+            }
+            xhr.send(JSON.stringify(group))
+        }
+    }
+
+    function deleteItemsSequentially(items, callback) {
+        if (!items || items.length === 0) {
+            callback(false, null, "No items to delete")
+            return
+        }
+
+        var results = { success: [], failed: [] }
+        var index = 0
+
+        function deleteNext() {
+            if (index >= items.length) {
+                callback(true, results, null)
+                return
+            }
+
+            var item = items[index]
+            if (item.type === "dir") {
+                deleteFolder(item.repoId, item.fullPath, token, function(success, error) {
+                    if (success) {
+                        results.success.push(item)
+                    } else {
+                        results.failed.push({ item: item, error: error })
+                    }
+                    index++
+                    deleteNext()
+                })
+            } else {
+                deleteFile(item.repoId, item.fullPath, token, function(success, error) {
+                    if (success) {
+                        results.success.push(item)
+                    } else {
+                        results.failed.push({ item: item, error: error })
+                    }
+                    index++
+                    deleteNext()
+                })
+            }
+        }
+
+        deleteNext()
+    }
         var url = "/api/v2.1/search-file/?q=" + encodeURIComponent(query) + "&repo_id=" + encodeURIComponent(repoId)
         var xhr = new XMLHttpRequest()
         xhr.open("GET", baseUrl + url, true)
