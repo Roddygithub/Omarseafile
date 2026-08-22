@@ -26,6 +26,7 @@ import "./components/TransferManager.qml" as TransferManager
 import "./components/CopyDialog.qml" as CopyDialog
 import "./components/HistoryPanel.qml" as HistoryPanel
 import "./components/TrashPanel.qml" as TrashPanel
+import "./components/SettingsDialog.qml" as SettingsDialog
 
 Panel {
     id: root
@@ -46,6 +47,8 @@ Panel {
     property var currentItems: []
     property bool loading: false
     property string errorMessage: ""
+    property string depErrorMessage: ""
+    property bool depsChecked: false
     property bool forceRefresh: false
 
     property int activeTransferCount: TransferService.getActiveCount()
@@ -284,6 +287,7 @@ Panel {
                     showLogout: root.state === "browse"
                     showTransfers: root.state === "browse"
                     showTrash: root.state === "browse"
+                    showSettings: root.state === "browse"
                     activeTransferCount: root.activeTransferCount
                     hasTransferFailures: root.hasTransferFailures()
                     showOffline: !connectionService.online
@@ -295,6 +299,7 @@ Panel {
                         if (root.showTransfers) { root.showTransfers = false }
                         else if (root.showHistory) { root.showHistory = false }
                         else if (root.showTrash) { root.showTrash = false }
+                        else if (settingsLoader.sourceComponent) { root.closeSettings() }
                         else { root.goBack() }
                     }
                     onRefreshClicked: root.refresh()
@@ -304,6 +309,7 @@ Panel {
                     onLogoutClicked: root.doLogout()
                     onTransfersClicked: root.toggleTransfersView()
                     onTrashClicked: root.showTrash()
+                    onSettingsClicked: root.openSettings()
                     onMoveBatch: root.moveItems
                     onCopyBatch: root.copyItems
                     onDeleteBatch: root.deleteItems
@@ -322,6 +328,7 @@ Panel {
                         bar: root.bar
                         serverField.text: root.serverUrl
                         emailField.text: Auth.getEmail() || ""
+                        depErrorMessage: root.depErrorMessage
                         onLogin: root.doLogin(serverField.text, emailField.text, passwordField.text)
                     }
                 }
@@ -569,19 +576,46 @@ Panel {
         }
     }
 
+    Loader { id: settingsLoader; sourceComponent: undefined }
+    Component {
+        id: settingsComponent
+        SettingsDialog {
+            bar: root.bar
+            serverUrl: root.serverUrl
+            accountEmail: Auth.getEmail()
+            pluginVersion: "0.8.0"
+            autoLogin: setting("autoLogin", true)
+            onClose: root.closeSettings()
+            onLogout: root.doLogout()
+            onClearCache: root.clearCache()
+            onChangeServer: root.changeServerUrl
+            onTestConnection: root.testConnection
+            onAutoLoginChanged: function(enabled) { setting("autoLogin", enabled) }
+        }
+    }
+
     // ===== AUTH =====
 
     function doLogin(url, email, password) {
+        var normalized = normalizeUrl(url)
+        if (!normalized) {
+            root.loading = false
+            root.errorMessage = "Invalid URL format. Use https://domain.com or http://ip:port"
+            return
+        }
+        if (normalized.startsWith("http://")) {
+            root.showToast("Warning: Using HTTP — credentials sent in cleartext", "error")
+        }
         root.loading = true
         root.errorMessage = ""
-        SeafileAPI.setBaseUrl(url)
+        SeafileAPI.setBaseUrl(normalized)
         SeafileAPI.auth(email, password, function(success, token, error) {
             root.loading = false
             if (success) {
                 SeafileAPI.setToken(token)
-                Auth.storeToken(token, url, email)
-                root.serverUrl = url
-                connectionService.setServerUrl(url)
+                Auth.storeToken(token, normalized, email)
+                root.serverUrl = normalized
+                connectionService.setServerUrl(normalized)
                 connectionService.forceCheck()
                 root.state = "browse"
                 root.loadLibraries()
@@ -979,6 +1013,96 @@ Panel {
         root.errorMessage = ""
     }
 
+    function openSettings() {
+        settingsLoader.sourceComponent = settingsComponent
+    }
+
+    function closeSettings() {
+        settingsLoader.sourceComponent = undefined
+    }
+
+    function clearCache() {
+        Cache.clear()
+        root.showToast("Cache cleared")
+    }
+
+    function changeServerUrl(newUrl, apply) {
+        var normalized = normalizeUrl(newUrl)
+        if (!normalized) {
+            root.showToast("Invalid URL format", "error")
+            return
+        }
+        if (apply && normalized !== root.serverUrl) {
+            root.doLogout()
+            root.serverUrl = normalized
+            root.errorMessage = "Server changed. Please log in again."
+        }
+    }
+
+    function normalizeUrl(url) {
+        try {
+            var u = new URL(url)
+            if (u.protocol !== "http:" && u.protocol !== "https:") return null
+            u.pathname = u.pathname.replace(/\/+$/, "")
+            if (u.pathname === "") u.pathname = "/"
+            return u.toString()
+        } catch (e) {
+            return null
+        }
+    }
+
+    function testConnection(url) {
+        var normalized = normalizeUrl(url)
+        if (!normalized) {
+            root.showToast("Invalid URL format", "error")
+            return
+        }
+        // Update the connection test result in settings dialog
+        var settingsDialog = settingsLoader.item
+        if (settingsDialog) {
+            settingsDialog.connectionTestRunning = true
+            settingsDialog.connectionTestSuccess = false
+            settingsDialog.connectionTestResult.text = "Testing connection..."
+        }
+
+        var xhr = new XMLHttpRequest()
+        var testUrl = normalized + "/api2/ping/"
+        xhr.open("GET", testUrl, true)
+        xhr.timeout = 10000
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                var dialog = settingsLoader.item
+                if (!dialog) return
+                dialog.connectionTestRunning = false
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    dialog.connectionTestSuccess = true
+                    dialog.connectionTestResult.text = "Connection successful"
+                } else if (xhr.status === 0) {
+                    dialog.connectionTestSuccess = false
+                    dialog.connectionTestResult.text = "Connection failed: Network error"
+                } else {
+                    dialog.connectionTestSuccess = false
+                    dialog.connectionTestResult.text = "Connection failed: HTTP " + xhr.status
+                }
+            }
+        }
+        xhr.ontimeout = function() {
+            var dialog = settingsLoader.item
+            if (!dialog) return
+            dialog.connectionTestRunning = false
+            dialog.connectionTestSuccess = false
+            dialog.connectionTestResult.text = "Connection timed out"
+        }
+        xhr.onerror = function() {
+            var dialog = settingsLoader.item
+            if (!dialog) return
+            dialog.connectionTestRunning = false
+            dialog.connectionTestSuccess = false
+            dialog.connectionTestResult.text = "Connection error"
+        }
+        xhr.send()
+    }
+
     // ===== CREATE FOLDER =====
 
     function pickCreateFolder() {
@@ -1342,8 +1466,25 @@ function deleteItems() {
 
     // ===== INIT =====
 
+    property bool depsChecked: false
+    property string depErrorMessage: ""
+
     Component.onCompleted: {
-        if (Auth.isAuthenticated()) {
+        var missing = Auth.checkDependencies()
+        var hasRequiredMissing = false
+        for (var i = 0; i < missing.length; i++) {
+            if (missing[i].required) hasRequiredMissing = true
+        }
+        if (missing.length > 0) {
+            var msg = "Missing dependencies:\n"
+            for (var j = 0; j < missing.length; j++) {
+                msg += "  • " + missing[j].name + " — install: " + missing[j].install + (missing[j].required ? " (required)" : " (optional)") + "\n"
+            }
+            root.depErrorMessage = msg
+        }
+        root.depsChecked = true
+
+        if (Auth.isAuthenticated() && !hasRequiredMissing) {
             SeafileAPI.setBaseUrl(root.serverUrl)
             SeafileAPI.setToken(Auth.getToken())
             connectionService.setServerUrl(root.serverUrl)

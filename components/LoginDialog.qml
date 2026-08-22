@@ -10,6 +10,7 @@ Item {
     property alias serverField: serverField
     property alias loginButton: loginButton
     property alias errorText: errorText
+    property string depErrorMessage: ""
     property var onLogin: null
 
     width: parent.width
@@ -36,6 +37,16 @@ Item {
             font.pixelSize: Style.font.body
             wrapMode: Text.WordWrap
             width: parent.width
+        }
+
+        Text {
+            width: parent.width
+            color: Color.urgent
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+            visible: root.depErrorMessage !== ""
+            wrapMode: Text.WordWrap
+            text: root.depErrorMessage
         }
 
         TextField {

@@ -1,0 +1,76 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Static Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install jq and shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq shellcheck
+
+      - name: Run validation script (CI-capable checks)
+        run: ./scripts/validate.sh
+
+      - name: Validate manifest.json with omarchy schema (if available)
+        run: |
+          # Basic manifest structure validation
+          jq -e '.schemaVersion == 1' manifest.json
+          jq -e '.id == "roddy.seafile"' manifest.json
+          jq -e '.kinds | index("bar-widget")' manifest.json
+          jq -e '.entryPoints.barWidget' manifest.json
+          jq -e '.barWidget.schema[] | select(.key == "autoLogin")' manifest.json
+          echo "Manifest validation passed"
+
+      - name: Check for forbidden patterns
+        run: |
+          # No hardcoded private IPs
+          if grep -rE "192\.168\.[0-9]+\.[0-9]+" --include="*.qml" --include="*.js" .; then
+            echo "FAIL: Hardcoded private IP found"
+            exit 1
+          fi
+          # No hardcoded localhost with port
+          if grep -rE "localhost:[0-9]+" --include="*.qml" --include="*.js" . | grep -v "placeholderText"; then
+            echo "FAIL: Hardcoded localhost:port found"
+            exit 1
+          fi
+          echo "Forbidden pattern checks passed"
+
+      - name: Verify required files exist
+        run: |
+          test -f README.md
+          test -f CHANGELOG.md
+          test -f BarWidget.qml
+          test -f Panel.qml
+          test -f components/SettingsDialog.qml
+          test -f js/Auth.js
+          test -f js/SeafileAPI.js
+          test -f js/TransferService.js
+          echo "Required files present"
+
+      - name: Check keybindings consistency
+        run: |
+          test -f docs/KEYBINDINGS.md
+          grep -q "Key_F2\|Qt.Key_F2" Panel.qml
+          grep -q "Key_Delete\|Qt.Key_Delete" Panel.qml
+          grep -q "Key_Escape\|Qt.Key_Escape" Panel.qml
+          echo "Keybindings consistency passed"
+
+      - name: Check shell syntax
+        run: shellcheck deploy.sh
+
+      - name: Deploy dry-run
+        run: ./deploy.sh --check
+
+  # Note: Runtime validation (omarchy plugin validate, Quickshell load test,
+  # real Seafile API tests) requires an Omarchy environment and runs locally.

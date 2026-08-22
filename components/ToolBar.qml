@@ -15,6 +15,7 @@ Item {
     property bool showLogout: false
     property bool showTransfers: false
     property bool showTrash: false
+    property bool showSettings: false
     property int activeTransferCount: 0
     property bool hasTransferFailures: false
     property int selectionCount: 0
@@ -33,6 +34,7 @@ Item {
     property var onSearchChanged: null
     property var onSearchActiveChanged: null
     property var onLogoutClicked: null
+    property var onSettingsClicked: null
 
     implicitHeight: row.implicitHeight
     width: parent.width
@@ -145,6 +147,18 @@ Item {
             visible: root.showRefresh && !root.searchActive
             onClicked: {
                 if (root.onRefreshClicked) root.onRefreshClicked()
+            }
+        }
+
+        Button {
+            id: settingsButton
+            text: "\uf013"
+            font.family: "Noto Sans"
+            font.pixelSize: Style.font.title
+            visible: root.showSettings && !root.searchActive
+            tooltipText: "Settings"
+            onClicked: {
+                if (root.onSettingsClicked) root.onSettingsClicked()
             }
         }
 

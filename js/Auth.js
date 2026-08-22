@@ -81,4 +81,24 @@ QtObject {
         if (!token) return false
         return token.length > 20
     }
+
+    function checkDependency(cmd) {
+        var proc = Process.run(["which", cmd])
+        return proc.exitCode === 0
+    }
+
+    function checkDependencies() {
+        var missing = []
+        var checks = [
+            { cmd: "curl", name: "curl", install: "sudo pacman -S curl", required: true },
+            { cmd: "secret-tool", name: "secret-tool (libsecret)", install: "sudo pacman -S libsecret", required: true },
+            { cmd: "wl-copy", name: "wl-copy (wl-clipboard)", install: "sudo pacman -S wl-clipboard", required: false }
+        ]
+        for (var i = 0; i < checks.length; i++) {
+            if (!checkDependency(checks[i].cmd)) {
+                missing.push(checks[i])
+            }
+        }
+        return missing
+    }
 }
