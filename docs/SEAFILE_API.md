@@ -130,8 +130,96 @@
 
 | Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
 |---------|--------|----------|---------|--------|-----------------|-------|
-| Search Files (Global) | GET | `/api2/search/` | v2 | DOCUMENTED_UNVERIFIED | — | `q`, `repo_id` optional |
-| Search Files in Repo | GET | `/api/v2.1/search-file/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `q`, `repo_id` |
+| Search Files (Global) | GET | `/api2/search/` | v2 | **NOT_ACCESSIBLE** | — | Returns 403 "permission denied" on CE 12.0.14 |
+| Search Files in Repo | GET | `/api/v2.1/search-file/` | v2.1 | **VERIFIED** | v0.2.3 | `q` required, `repo_id` required |
+
+#### `/api2/search/` (v2) — NOT ACCESSIBLE
+
+**Status**: Returns `{"detail":"You do not have permission to perform this action."}` on Seafile CE 12.0.14 with admin account.
+
+**Hypothesis**: This endpoint may require Seafile Pro/Enterprise features, a specific admin configuration, or full-text search indexing to be enabled. Not usable for v0.2.3.
+
+**Official Documentation** (for reference only):
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `q` | **Yes** | — | Search keyword |
+| `page` | No | `1` | Page number (1-based) |
+| `per_page` | No | (server default ~25) | Results per page |
+| `search_repo` | No | `all` | Scope: `all`, `mine`, `shared`, `group`, `public`, or specific `repo_id` |
+| `search_path` | No | — | Path within repo (only when `search_repo` is a single `repo_id`) |
+
+**Response (from docs, NOT VERIFIED):**
+```json
+{
+  "total": 2,
+  "has_more": false,
+  "results": [
+    {
+      "name": "3a",
+      "is_dir": false,
+      "fullpath": "/testtest/3a",
+      "repo_id": "2628a63b-cfad-41f5-a748-392ec9287686",
+      "repo_name": "dev",
+      "repo_owner_name": "admin",
+      "repo_owner_email": "admin@admin.com",
+      "repo_encrypted": false,
+      "last_modified": 1520836447,
+      "size": 0,
+      "content_highlight": ""
+    }
+  ]
+}
+```
+
+#### `/api/v2.1/search-file/` (v2.1) — VERIFIED
+
+**SPIKED**: 2026-08-22 against Seafile CE 12.0.14
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `q` | **Yes** | Search keyword (min 1 char, empty returns `{"error_msg":"q invalid."}`) |
+| `repo_id` | **Yes** | Library UUID to search within |
+
+**Response (VERIFIED):**
+```json
+{
+  "data": [
+    {
+      "path": "/notes.docx",
+      "size": 9368,
+      "mtime": "2026-07-29T00:13:54+00:00",
+      "type": "file"
+    }
+  ]
+}
+```
+
+**Result Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `path` | string | Full path including filename (e.g., `/Non triées/P1050683.JPG`) |
+| `size` | integer | File size in bytes (0 for folders) |
+| `mtime` | string | ISO 8601 timestamp with timezone |
+| `type` | string | `"file"` or `"folder"` (NOT `"dir"`) |
+
+**Verified Behaviors:**
+- ✅ Case-insensitive matching ("Github" finds "github-recovery-codes.txt")
+- ✅ Recursive search (finds files in subdirectories like `/Non triées/P1050683.JPG`)
+- ✅ Folder results included (type="folder")
+- ✅ Partial matching works ("notes" finds "notes.docx" and "notes(1).docx")
+- ✅ Underscore matching works ("contrat_theses" finds "contrat_theses_ul_septembre_2016.pdf")
+- ✅ Single-char queries work ("p" returns 11 results)
+- ✅ Extension search works (".pdf" finds all PDFs)
+- ✅ Empty query returns `{"error_msg":"q invalid."}`
+- ✅ Invalid token returns `{"detail":"Invalid token"}` (401)
+- ✅ Invalid repo_id returns HTML error page (500 server error)
+- ❌ **No pagination** (ignores `page`/`per_page` params)
+- ❌ **No total count** (no `total` or `has_more` fields)
+- ❌ **No repo context** in response (no `repo_id`, `repo_name`)
+- ❌ **No owner info** in response
+- ❌ **No file type filtering**
+- ❌ **No size/date filtering**
 
 ### STARRED / FAVORITES
 
@@ -203,12 +291,12 @@
 | Query Async Progress | GET | `/api/v2.1/query-copy-move-progress/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `task_id` |
 | Cancel Async | DELETE | `/api/v2.1/copy-move-task/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `task_id` |
 
-### SEARCH
+### SEARCH (Duplicate — see primary entry above)
 
 | Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
 |---------|--------|----------|---------|--------|-----------------|-------|
-| Search Global | GET | `/api2/search/` | v2 | DOCUMENTED_UNVERIFIED | — | `q`, `repo_id` optional |
-| Search in Repo | GET | `/api/v2.1/search-file/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `q`, `repo_id` |
+| Search Global | GET | `/api2/search/` | v2 | DOCUMENTED_UNVERIFIED | — | See primary SEARCH entry for full documentation |
+| Search in Repo | GET | `/api/v2.1/search-file/` | v2.1 | DOCUMENTED_UNVERIFIED | — | See primary SEARCH entry for full documentation |
 
 ---
 
@@ -216,14 +304,15 @@
 
 | Status | Count |
 |--------|-------|
-| **VERIFIED** | 19 |
+| **VERIFIED** | 28 |
 | **PARTIALLY_VERIFIED** | 3 |
-| **DOCUMENTED_UNVERIFIED** | 87 |
+| **DOCUMENTED_UNVERIFIED** | 81 |
+| **NOT_ACCESSIBLE** | 1 |
 | **NOT_SUPPORTED_BY_SERVER** | 0 |
 | **DEPRECATED** | 0 |
 | **NOT_RELEVANT** | 0 |
 
-**Total Endpoints Catalogued**: 109
+**Total Endpoints Catalogued**: 113
 
 ---
 
@@ -274,6 +363,15 @@
 | **Delete Share Link** | ✅ | `DELETE /api/v2.1/share-links/{token}/` → `{"success":true}` |
 | **Share Link Password Short** | ⚠️ | Password < 6 chars → `{"error_msg":"Password is too short."}` (400) |
 | **Share Link Duplicate** | ⚠️ | Creating link for same path twice → `{"error_msg":"Share link already exists."}` (400) |
+| **Search (Global)** | ❌ | `GET /api2/search/?q=term` → 403 "permission denied" on CE 12.0.14 |
+| **Search (Repo-scoped)** | ✅ | `GET /api/v2.1/search-file/?q=term&repo_id={id}` → `{data: [{path, size, mtime, type}]}` |
+| **Search (Empty query)** | ✅ | `GET /api/v2.1/search-file/?q=&repo_id={id}` → `{"error_msg":"q invalid."}` |
+| **Search (Invalid token)** | ✅ | `GET /api/v2.1/search-file/?q=test&repo_id={id}` with bad token → `{"detail":"Invalid token"}` |
+| **Search (Invalid repo)** | ⚠️ | `GET /api/v2.1/search-file/?q=test&repo_id=invalid` → HTML error page (500) |
+| **Search (Case-insensitive)** | ✅ | "Github" finds "github-recovery-codes.txt" |
+| **Search (Recursive)** | ✅ | Finds files in subdirectories (e.g., `/Non triées/P1050683.JPG`) |
+| **Search (Folders)** | ✅ | Returns folders with type="folder", size=0 |
+| **Search (No pagination)** | ✅ | `page`/`per_page` params are ignored |
 
 ---
 
@@ -299,6 +397,10 @@
 | **Share Link `expire_days`** | Parameter is string, not integer; format: "7" not 7 | Send as string |
 | **Share Link Permissions** | `can_edit` automatically set to `true` if not specified | Explicitly set `permissions` object |
 | **Share Link `can_copy_content`** | Server always returns this field; not settable | Ignore in UI |
+| **Search `/api2/search/`** | Returns 403 on CE 12.0.14 even with admin account | Use `/api/v2.1/search-file/` instead |
+| **Search invalid repo_id** | Returns HTML error page instead of JSON | Check repo_id validity before calling; handle gracefully |
+| **Search no pagination** | `/api/v2.1/search-file/` ignores `page`/`per_page` params | All results returned at once; no way to limit |
+| **Search type field** | Returns `"folder"` not `"dir"` for directories | Use `type === "folder"` not `type === "dir"` |
 
 ---
 
@@ -326,7 +428,7 @@ Based on API documentation review, these features are available for future Omars
 | Chunked Upload | **Defer to v0.3.0** | Not needed yet; standard upload handles 400KB+ |
 | Folder Move Sync | **Available** | `/api/v2.1/move-folder-merge/` exists |
 | Batch Copy | **Available** | `/api/v2.1/repos/sync-batch-copy-item/` |
-| File Search | **Available** | `/api2/search/` + `/api/v2.1/search-file/` |
+| File Search | **Available** | `/api2/search/` + `/api/v2.1/search-file/` — **Recommended: `/api2/search/` for v0.2.3** |
 | File Locking | **Available** | `/api/v2.1/via-repo-token/file/` (lock/unlock) |
 | Trash/Restore | **Available** | `/api/v2.1/repos/{id}/trash/` |
 
@@ -348,9 +450,10 @@ Based on API documentation review, these features are available for future Omars
 ## Maintenance
 
 - **Last Audit**: 2026-08-22
-- **Server Tested**: `http://192.168.1.108:8000` (Seafile CE)
+- **Server Tested**: `http://192.168.1.108:8000` (Seafile CE 12.0.14)
 - **Auditor**: Omarseafile bootstrap process
-- **Next Review**: Before v0.2.2 implementation
+- **Next Review**: Before v0.2.4 implementation
+- **Search API Audit**: 2026-08-22 — SPIKEs completed; `/api2/search/` NOT_ACCESSIBLE, `/api/v2.1/search-file/` VERIFIED
 
 ---
 

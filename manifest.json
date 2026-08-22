@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "roddy.seafile",
+  "name": "Seafile",
+  "version": "0.2.3",
+  "author": "Roddy",
+  "description": "Seafile cloud file client for Omarchy",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Seafile",
+    "description": "Seafile cloud file client",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

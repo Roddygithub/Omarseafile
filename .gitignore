@@ -1,0 +1,5 @@
+# Deployment artifacts — not part of the canonical source
+deploy.sh.bak
+*.swp
+*.swo
+*~
