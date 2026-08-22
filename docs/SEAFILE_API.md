@@ -169,11 +169,11 @@
 
 | Feature | Method | Endpoint | API Ver | Status | Omarseafile Ver | Notes |
 |---------|--------|----------|---------|--------|-----------------|-------|
-| List All Share Links | GET | `/api/v2.1/share-links/` | v2.1 | DOCUMENTED_UNVERIFIED | v0.2.2 | |
-| Create Share Link | POST | `/api/v2.1/share-links/` | v2.1 | DOCUMENTED_UNVERIFIED | v0.2.2 | `repo_id`, `path`, `password`, `expire`, `permission` |
-| List Share Links of Repo | GET | `/api/v2.1/share-links/{repo_id}/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
-| Get Share Link Info | GET | `/api/v2.1/share-links/{repo_id}/path/` | v2.1 | DOCUMENTED_UNVERIFIED | — | `path` |
-| Delete Share Link | DELETE | `/api/v2.1/share-links/{token}/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
+| List All Share Links | GET | `/api/v2.1/share-links/` | v2.1 | **VERIFIED** | v0.2.2 | Returns array |
+| Create Share Link | POST | `/api/v2.1/share-links/` | v2.1 | **VERIFIED** | v0.2.2 | `repo_id`, `path`, `password`, `expire_days`, `permissions` |
+| List Share Links by Repo | GET | `/api/v2.1/share-links/?repo_id={repo_id}` | v2.1 | **VERIFIED** | v0.2.2 | Query param filter |
+| List Share Links by Path | GET | `/api/v2.1/share-links/?repo_id={repo_id}&path={path}` | v2.1 | **VERIFIED** | v0.2.2 | Query param filter |
+| Delete Share Link | DELETE | `/api/v2.1/share-links/{token}/` | v2.1 | **VERIFIED** | v0.2.2 | Uses `token` |
 | Send Share Link Email | POST | `/api2/send-share-link/` | v2 | DOCUMENTED_UNVERIFIED | — | |
 
 ### UPLOAD LINKS
@@ -263,6 +263,17 @@
 | **Folder Not Found** | ✅ | 404 for invalid path |
 | **Async Move Folder** | ✅ | `POST /api/v2.1/repos/async-batch-move-item/` with JSON body → returns `task_id` |
 | **Create Folder** | ⚠️ | **API ignores `p` parameter** — creates at repo root regardless of `p=` |
+| **List Share Links** | ✅ | `GET /api/v2.1/share-links/` → returns array of all user's share links |
+| **Create Share Link (File)** | ✅ | `POST /api/v2.1/share-links/` with `repo_id`, `path` → returns link object |
+| **Create Share Link (Folder)** | ✅ | `POST /api/v2.1/share-links/` with `repo_id`, `path` → returns link object |
+| **Share Link Password** | ✅ | `POST /api/v2.1/share-links/` with `password` → min 6 chars required |
+| **Share Link Expiration** | ✅ | `POST /api/v2.1/share-links/` with `expire_days` (string) → sets expiry |
+| **Share Link Permissions** | ✅ | `POST /api/v2.1/share-links/` with `permissions` object → `can_edit`, `can_download`, `can_upload` |
+| **List Share Links by Repo** | ✅ | `GET /api/v2.1/share-links/?repo_id={id}` → query param filter |
+| **List Share Links by Path** | ✅ | `GET /api/v2.1/share-links/?repo_id={id}&path={path}` → query param filter |
+| **Delete Share Link** | ✅ | `DELETE /api/v2.1/share-links/{token}/` → `{"success":true}` |
+| **Share Link Password Short** | ⚠️ | Password < 6 chars → `{"error_msg":"Password is too short."}` (400) |
+| **Share Link Duplicate** | ⚠️ | Creating link for same path twice → `{"error_msg":"Share link already exists."}` (400) |
 
 ---
 
@@ -283,6 +294,11 @@
 | **Upload Link Reuse** | `reuse=1` makes link reusable; without it link is single-use | Use `reuse=1` for multiple uploads |
 | **Delete Root Protection** | Must prevent deleting `/` path manually | Check `path === "/"` before delete |
 | **Folder Rename Path** | `p=` must be **parent directory**, not folder path | Use `p=/parent` not `p=/parent/folder` |
+| **Share Link Password Min** | Password must be ≥ 6 characters | Use `SecureP@ssw0rd!` or similar |
+| **Share Link Duplicate** | Cannot create two links for same file/folder | Check existing links before creating |
+| **Share Link `expire_days`** | Parameter is string, not integer; format: "7" not 7 | Send as string |
+| **Share Link Permissions** | `can_edit` automatically set to `true` if not specified | Explicitly set `permissions` object |
+| **Share Link `can_copy_content`** | Server always returns this field; not settable | Ignore in UI |
 
 ---
 
