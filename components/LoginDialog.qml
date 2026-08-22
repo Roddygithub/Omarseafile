@@ -41,8 +41,8 @@ Item {
         TextField {
             id: serverField
             width: parent.width
-            placeholderText: "Server URL (e.g. http://192.168.1.108:8000)"
-            text: "http://192.168.1.108:8000"
+            placeholderText: "Server URL (e.g. https://seafile.example.com)"
+            text: ""
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
         }
@@ -51,7 +51,7 @@ Item {
             id: emailField
             width: parent.width
             placeholderText: "Email"
-            text: "admin@seafile.local"
+            text: ""
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
         }

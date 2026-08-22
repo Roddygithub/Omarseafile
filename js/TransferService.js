@@ -13,27 +13,6 @@ QtObject {
 
     // ===== COMMON =====
 
-    function cancelTransfer(transferId) {
-        for (var i = 0; i < root.activeTransfers.length; i++) {
-            var t = root.activeTransfers[i]
-            if (t.id === transferId) {
-                if (t.process) {
-                    t.state = "cancelled"
-                    t.process.kill()
-                    t.process = null
-                    if (t.destPath && t.type === "download") Qt.callLater(function() { Qt.deleteFile(t.destPath) })
-                }
-                transferProgressChanged(t)
-                return true
-            }
-        }
-        return false
-    }
-
-    function transferProgressChanged(transfer) {
-        // Signal handled by Panel.qml via property binding
-    }
-
     function parseError(xhr) {
         try {
             var response = JSON.parse(xhr.responseText)

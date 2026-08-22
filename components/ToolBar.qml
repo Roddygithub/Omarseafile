@@ -11,6 +11,7 @@ Item {
     property bool showUpload: false
     property bool showOffline: false
     property bool showSearch: false
+    property bool showLogout: false
     property string searchQuery: ""
     property bool searchActive: false
     property var onBackClicked: null
@@ -18,6 +19,7 @@ Item {
     property var onUploadClicked: null
     property var onSearchChanged: null
     property var onSearchActiveChanged: null
+    property var onLogoutClicked: null
 
     implicitHeight: row.implicitHeight
     width: parent.width
@@ -119,6 +121,18 @@ Item {
             visible: root.showRefresh && !root.searchActive
             onClicked: {
                 if (root.onRefreshClicked) root.onRefreshClicked()
+            }
+        }
+
+        Button {
+            id: logoutButton
+            text: "\uf08b"
+            font.family: "Noto Sans"
+            font.pixelSize: Style.font.title
+            visible: root.showLogout && !root.searchActive
+            tooltipText: "Logout"
+            onClicked: {
+                if (root.onLogoutClicked) root.onLogoutClicked()
             }
         }
 

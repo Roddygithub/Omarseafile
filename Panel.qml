@@ -20,6 +20,7 @@ import "./components/MoveDialog.qml" as MoveDialog
 import "./components/ConfirmDialog.qml" as ConfirmDialog
 import "./components/ShareDialog.qml" as ShareDialog
 import "./components/SearchResults.qml" as SearchResults
+import "./components/Toast.qml" as Toast
 
 Panel {
     id: root
@@ -32,7 +33,7 @@ Panel {
     property var bar: null
 
     property string state: Auth.isAuthenticated() ? "browse" : "login"
-    property string serverUrl: Auth.getServerUrl() || "http://192.168.1.108:8000"
+    property string serverUrl: Auth.getServerUrl() || ""
     property var currentRepo: null
     property string currentPath: "/"
     property var pathHistory: []
@@ -65,6 +66,10 @@ Panel {
     function toggle() { opened ? close() : open() }
     function closeForPopoutSwitch() { if (panelController.open) panelController.hide() }
 
+    function showToast(message, type) {
+        toast.show(message, type || "success")
+    }
+
     PanelController { id: panelController }
 
     ConnectionService {
@@ -85,12 +90,49 @@ Panel {
         PanelKeyCatcher {
             id: keyCatcher
             anchors.fill: parent
+            blocked: root.searchActive
             onCloseRequested: root.close()
+            onMoveRequested: function(dx, dy) {
+                if (root.state !== "browse" || root.searchActive) return
+                var list = fileList
+                if (dy > 0) list.incrementCurrentIndex()
+                else if (dy < 0) list.decrementCurrentIndex()
+            }
+            onActivateRequested: {
+                if (root.state !== "browse" || root.searchActive) return
+                var list = fileList
+                if (!list.currentItem) return
+                var item = list.currentItem.item
+                if (item.type === "dir") root.onItemClicked(item)
+                else root.onDownloadClicked(item)
+            }
+            onDeleteRequested: {
+                if (root.state !== "browse" || root.searchActive) return
+                var list = fileList
+                if (!list.currentItem) return
+                root.pickDelete(list.currentItem.item)
+            }
 
             Column {
                 id: content
                 width: parent.width
                 spacing: 0
+                focus: true
+                Keys.onPressed: function(event) {
+                    if (root.searchActive || root.state !== "browse") return
+                    if (event.key === Qt.Key_F2) {
+                        var list = fileList
+                        if (!list.currentItem) return
+                        root.pickRename(list.currentItem.item)
+                        event.accepted = true
+                    }
+                }
+
+                Toast {
+                    id: toast
+                    width: parent.width
+                    bar: root.bar
+                }
 
                 ToolBar {
                     id: toolBar
@@ -101,6 +143,7 @@ Panel {
                     showRefresh: root.state === "browse" && !root.searchActive
                     showUpload: root.state === "browse" && !root.searchActive
                     showSearch: root.state === "browse"
+                    showLogout: root.state === "browse"
                     showOffline: !connectionService.online
                     searchActive: root.searchActive
                     searchQuery: root.searchQuery
@@ -109,6 +152,7 @@ Panel {
                     onUploadClicked: root.pickFileForUpload()
                     onSearchChanged: root.onSearchQueryChanged(query)
                     onSearchActiveChanged: root.onSearchActiveToggle(active)
+                    onLogoutClicked: root.doLogout()
                 }
 
                 Loader {
@@ -199,6 +243,7 @@ Panel {
                             width: parent.width
                             height: parent.height - toolBar.height - (breadcrumbs.visible ? breadcrumbs.height : 0) - (root.loading ? loadingIndicator.height : 0) - (root.errorMessage && !root.searchActive ? errorOverlay.height : 0) - (!connectionService.online ? offlineBanner.height : 0) - (searchStatusText.visible ? searchStatusText.height : 0) - (searchErrorOverlay.visible ? searchErrorOverlay.height : 0)
                             items: root.currentItems
+                            focus: true
                             onItemClicked: root.onItemClicked(item)
                             onDownloadClicked: root.onDownloadClicked(item)
                             onRenameClicked: root.pickRename(item)
@@ -282,6 +327,7 @@ Panel {
             isDir: root.shareItemData.isDir
             onDone: root.cancelShare()
             onCancel: root.cancelShare()
+            onToast: function(msg) { root.showToast(msg) }
         }
     }
 
@@ -455,6 +501,7 @@ Panel {
             root.searchQuery = ""
             root.searchResults = []
             root.searchState = "idle"
+            fileList.forceActiveFocus()
         }
     }
 
@@ -634,12 +681,33 @@ Panel {
             if (transfer.type === "upload") {
                 Cache.invalidatePath(root.currentRepo.id, root.currentPath)
                 root.refresh()
+                root.showToast("Uploaded " + transfer.fileName)
+            } else if (transfer.type === "download") {
+                root.showToast("Downloaded " + transfer.fileName)
             }
         } else if (transfer.state === "auth_failed") {
-            Auth.clearSession()
-            root.state = "login"
-            root.errorMessage = "Session expired. Please login again."
+            root.doLogout()
+        } else if (transfer.state === "failed") {
+            root.showToast("Transfer failed: " + (transfer.error || "unknown error"), "error")
         }
+    }
+
+    function doLogout() {
+        Auth.clearSession()
+        SeafileAPI.setToken("")
+        Cache.clear()
+        root.state = "login"
+        root.serverUrl = ""
+        root.currentRepo = null
+        root.currentPath = "/"
+        root.pathHistory = []
+        root.libraries = []
+        root.currentItems = []
+        root.searchQuery = ""
+        root.searchResults = []
+        root.searchActive = false
+        root.searchState = "idle"
+        root.errorMessage = ""
     }
 
     // ===== CREATE FOLDER =====
@@ -663,6 +731,7 @@ Panel {
             if (success) {
                 Cache.invalidatePath(root.currentRepo.id, root.currentPath)
                 root.refresh()
+                root.showToast("Folder created")
             } else {
                 root.errorMessage = error || "Failed to create folder"
             }
@@ -694,14 +763,14 @@ Panel {
         if (isDir) {
             SeafileAPI.renameFolder(root.currentRepo.id, parentPath, item.name, newName.trim(), token, function(success, error) {
                 root.loading = false
-                if (success) { Cache.invalidatePath(root.currentRepo.id, parentPath); root.refresh() }
+                if (success) { Cache.invalidatePath(root.currentRepo.id, parentPath); root.refresh(); root.showToast("Renamed to " + newName.trim()) }
                 else { root.errorMessage = error || "Failed to rename folder" }
             })
         } else {
             var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
             SeafileAPI.renameFile(root.currentRepo.id, fullPath, newName.trim(), token, function(success, error) {
                 root.loading = false
-                if (success) { Cache.invalidatePath(root.currentRepo.id, parentPath); root.refresh() }
+                if (success) { Cache.invalidatePath(root.currentRepo.id, parentPath); root.refresh(); root.showToast("Renamed to " + newName.trim()) }
                 else { root.errorMessage = error || "Failed to rename file" }
             })
         }
@@ -735,6 +804,7 @@ Panel {
                     Cache.invalidatePath(root.currentRepo.id, root.currentPath)
                     Cache.invalidatePath(root.currentRepo.id, destPath.trim())
                     root.refresh()
+                    root.showToast("Moved successfully")
                 } else { root.errorMessage = error || "Failed to move folder" }
             })
         } else {
@@ -744,6 +814,7 @@ Panel {
                     Cache.invalidatePath(root.currentRepo.id, root.currentPath)
                     Cache.invalidatePath(root.currentRepo.id, destPath.trim())
                     root.refresh()
+                    root.showToast("Moved successfully")
                 } else { root.errorMessage = error || "Failed to move file" }
             })
         }
@@ -773,13 +844,13 @@ Panel {
             if (fullPath === "/") { root.errorMessage = "Cannot delete root directory"; root.loading = false; root.deleteItemData = null; return }
             SeafileAPI.deleteFolder(root.currentRepo.id, fullPath, token, function(success, error) {
                 root.loading = false
-                if (success) { Cache.invalidatePath(root.currentRepo.id, root.currentPath); root.refresh() }
+                if (success) { Cache.invalidatePath(root.currentRepo.id, root.currentPath); root.refresh(); root.showToast("Deleted") }
                 else { root.errorMessage = error || "Failed to delete folder" }
             })
         } else {
             SeafileAPI.deleteFile(root.currentRepo.id, fullPath, token, function(success, error) {
                 root.loading = false
-                if (success) { Cache.invalidatePath(root.currentRepo.id, root.currentPath); root.refresh() }
+                if (success) { Cache.invalidatePath(root.currentRepo.id, root.currentPath); root.refresh(); root.showToast("Deleted") }
                 else { root.errorMessage = error || "Failed to delete file" }
             })
         }

@@ -13,6 +13,7 @@ Item {
     property bool isDir: false
     property var onDone: null
     property var onCancel: null
+    property var onToast: null
 
     property var existingLinks: []
     property bool loading: true
@@ -86,6 +87,7 @@ Item {
                 root.showCreateForm = false
                 root.existingLinks.push(data)
                 root.existingLinks = root.existingLinks.slice()
+                if (root.onToast) root.onToast("Share link copied")
             } else {
                 root.errorMessage = error || "Failed to create share link"
             }
@@ -108,6 +110,7 @@ Item {
                 if (root.existingLinks.length === 0) {
                     root.showCreateForm = true
                 }
+                if (root.onToast) root.onToast("Share link revoked")
             } else {
                 root.errorMessage = error || "Failed to delete share link"
             }
