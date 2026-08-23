@@ -1,3 +1,4 @@
+pragma Singleton
 import QtQuick
 
 QtObject {
@@ -44,7 +45,31 @@ QtObject {
     }
 
     function formatDate(timestamp) {
+        if (!timestamp) return ""
         var date = new Date(timestamp * 1000)
-        return date.toLocaleDateString() + " " + date.toLocaleTimeString()
+        var y = date.getFullYear()
+        var m = ("0" + (date.getMonth() + 1)).slice(-2)
+        var d = ("0" + date.getDate()).slice(-2)
+        var h = ("0" + date.getHours()).slice(-2)
+        var mi = ("0" + date.getMinutes()).slice(-2)
+        return y + "-" + m + "-" + d + " " + h + ":" + mi
+    }
+
+    // Safe file:// URL construction from absolute POSIX path
+    // Encodes each path component separately with encodeURIComponent
+    function toFileUrl(path) {
+        var parts = path.split('/').filter(function(p) { return p !== '' })
+        var encodedParts = parts.map(function(p) { return encodeURIComponent(p) })
+        return 'file:///' + encodedParts.join('/')
+    }
+
+    // Parent directory file:// URL for "Show in Folder"
+    function toParentFileUrl(path) {
+        var lastSlash = path.lastIndexOf('/')
+        var parentPath = '/'
+        if (lastSlash > 0) {
+            parentPath = path.substring(0, lastSlash)
+        }
+        return root.toFileUrl(parentPath)
     }
 }

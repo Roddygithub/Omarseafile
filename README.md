@@ -22,6 +22,11 @@ Omarseafile integrates into the Omarchy bar as a widget. Click to open a panel f
 - **Trash browser** — View deleted items and restore folders
 - **Keyboard navigation** — F2=rename, Delete=delete, Enter=activate, Arrows=navigate, Esc=close, Ctrl+A=Select All
 - **Offline detection** — Automatic connectivity monitoring with offline banner
+- **Post-download Open / Show in Folder** — Right-click completed downloads to open in default application or show in file manager
+- **File list sorting** — Sort by Name, Size, Modified date, or Type with ascending/descending toggle
+- **Search result cap** — Global limit of 100 results with truncation notice
+- **Enhanced empty states** — Visual icons and descriptive text for History, Trash, Search, Transfers
+- **Transfer action tooltips** — Hover tooltips for all transfer actions
 
 ## Requirements
 
@@ -105,12 +110,14 @@ Trailing slashes are normalized automatically.
 ### Download/Upload
 - **Download**: Click any file — saves to `~/Downloads` with progress
 - **Upload**: Click ↑ Upload button → enter local file path → uploads to current folder
+- **Post-download actions**: Right-click completed download → **Open** (launches default app) or **Show in Folder** (opens parent directory)
 
 ### File Operations
 - **Right-click** any item for context menu
 - **Rename**: F2 or context menu
 - **Move/Copy/Delete**: Context menu or BatchActionBar (appears when items selected)
 - **Create Folder**: Right-click → New Folder
+- **Sorting**: Click column headers (Name, Size, Modified, Type) to sort; click again to reverse
 
 ### Multi-selection & Batch Operations
 - **Ctrl+Click**: Toggle selection
@@ -122,6 +129,8 @@ Trailing slashes are normalized automatically.
 - Click 🔍 Search icon in toolbar
 - Type query (min 2 chars) — searches current repo or all accessible repos
 - Click result to navigate (folder) or download (file)
+- **Global result cap**: Maximum 100 results shown with truncation notice
+- **Progress feedback**: "Searching X of Y libraries..." during execution
 
 ### Sharing
 - Right-click item → Share
@@ -132,6 +141,7 @@ Trailing slashes are normalized automatically.
 - Click 📥 Transfer icon in toolbar (shows active count)
 - Tabs: Active / Completed / Failed
 - Retry failed transfers, clear history
+- **Action tooltips**: Hover Cancel, Retry, Clear, Open, Show in Folder for hints
 
 ### File History
 - Right-click file → History
@@ -190,6 +200,30 @@ omarchy plugin update roddy.seafile
 git pull
 ./deploy.sh
 ```
+
+## Development Workflow — Runtime Reload (MANDATORY)
+
+Omarchy starts Quickshell with `QS_DISABLE_FILE_WATCHER=1`: **hot reload is
+disabled**. Deploying changed source does NOT guarantee the running shell
+picks it up — the plugin-manager "reloading" log line does not replace
+already-instantiated components.
+
+The authoritative runtime validation procedure is:
+
+```
+SOURCE CHANGE
+→ ./deploy.sh
+→ omarchy-restart-shell
+→ wait for the fresh Quickshell PID
+→ inspect ONLY logs from that PID (journalctl --user _PID=<pid>)
+→ perform runtime validation
+```
+
+Never infer runtime behavior from freshly deployed source without a shell
+restart. Never use logs from an old PID as evidence.
+
+For convenience, `./scripts/dev-deploy.sh` chains deploy + restart + fresh-PID
+log tail. `./deploy.sh` itself stays deployment-only (used by CI/validation).
 
 ## Uninstalling
 

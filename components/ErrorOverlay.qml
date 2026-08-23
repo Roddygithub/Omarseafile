@@ -5,12 +5,12 @@ import qs.Ui
 Item {
     id: root
     property string message: "An error occurred"
-    property bool visible: false
+    property bool showError: false
+    property var onRetry: null
+    property QtObject bar: null
 
     width: parent.width
-    height: parent.height
-
-    visible: root.visible
+    height: showError ? column.implicitHeight + Style.space(40) : 0
 
     Rectangle {
         anchors.fill: parent
@@ -18,6 +18,7 @@ Item {
     }
 
     Column {
+        id: column
         anchors.centerIn: parent
         spacing: Style.space(16)
 
@@ -33,7 +34,6 @@ Item {
 
         Button {
             text: "Retry"
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
             onClicked: {
                 root.visible = false
                 if (root.onRetry) root.onRetry()

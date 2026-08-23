@@ -1,32 +1,10 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import qs.Commons
 import qs.Ui
-import "./js/Auth.js" as Auth
-import "./js/SeafileAPI.js" as SeafileAPI
-import "./js/Models.js" as Models
-import "./js/TransferService.js" as TransferService
-import "./js/Cache.js" as Cache
-import "./js/ConnectionService.js" as ConnectionService
-import "./js/SelectionHelper.js" as SelectionHelper
-import "./components/LoginDialog.qml" as LoginDialog
-import "./components/FileList.qml" as FileList
-import "./components/Breadcrumbs.qml" as Breadcrumbs
-import "./components/LoadingIndicator.qml" as LoadingIndicator
-import "./components/ErrorOverlay.qml" as ErrorOverlay
-import "./components/UploadDialog.qml" as UploadDialog
-import "./components/CreateFolderDialog.qml" as CreateFolderDialog
-import "./components/RenameDialog.qml" as RenameDialog
-import "./components/MoveDialog.qml" as MoveDialog
-import "./components/ConfirmDialog.qml" as ConfirmDialog
-import "./components/ShareDialog.qml" as ShareDialog
-import "./components/SearchResults.qml" as SearchResults
-import "./components/Toast.qml" as Toast
-import "./components/TransferManager.qml" as TransferManager
-import "./components/CopyDialog.qml" as CopyDialog
-import "./components/HistoryPanel.qml" as HistoryPanel
-import "./components/TrashPanel.qml" as TrashPanel
-import "./components/SettingsDialog.qml" as SettingsDialog
+import "./js"
+import "./components"
 
 Panel {
     id: root
@@ -38,8 +16,8 @@ Panel {
     property var anchorItem: null
     property var bar: null
 
-    property string state: Auth.isAuthenticated() ? "browse" : "login"
-    property string serverUrl: Auth.getServerUrl() || ""
+    property string state: "login"
+    property string serverUrl: ""
     property var currentRepo: null
     property string currentPath: "/"
     property var pathHistory: []
@@ -51,8 +29,8 @@ Panel {
     property bool depsChecked: false
     property bool forceRefresh: false
 
-    property int activeTransferCount: TransferService.getActiveCount()
-    property bool hasTransferFailures: TransferService.hasFailures()
+    property int activeTransferCount: 0
+    property bool hasTransferFailures: false
     property var fileTransfers: ({})
     property int transferRevision: 0
     property bool showTransfers: false
@@ -107,18 +85,30 @@ Panel {
     function toggleSelection(item) {
         var key = root.selectionKeyForItem(item)
         if (!key) return
-        var idx = -1
-        for (var i = 0; i < root.selectedItems.length; i++) {
-            if (root.selectionKeyForItem(root.selectedItems[i]) === key) {
-                idx = i
-                break
-            }
+        root.selectedItems = SelectionHelper.toggleSelection(root.selectedItems, item)
+        root.selectionAnchor = item
+    }
+
+    function selectOnly(item) {
+        if (!item) return
+        root.selectedItems = [item]
+        root.selectionAnchor = item
+    }
+
+    function selectRange(item) {
+        var anchor = root.selectionAnchor
+        if (!anchor) {
+            anchor = root.currentItems.length > 0 ? root.currentItems[0] : null
         }
-        if (idx >= 0) {
-            root.selectedItems.splice(idx, 1)
-        } else {
-            root.selectedItems.push(item)
-        }
+        root.selectedItems = SelectionHelper.rangeSelect(root.selectedItems, anchor, item, root.currentItems)
+        root.selectionAnchor = item
+    }
+
+    // Plain click on a file: clear batch selection but keep the file as the
+    // Shift+click range anchor and keyboard cursor position.
+    function positionOn(item) {
+        root.selectedItems = []
+        root.selectionAnchor = item
     }
 
     function hasTrashItems() {
@@ -134,6 +124,32 @@ Panel {
     function clearSelection() {
         root.selectedItems = []
         root.selectionAnchor = null
+    }
+
+    function handleBackClick() {
+        if (root.showTransfers) { root.showTransfers = false }
+        else if (root.showHistory) { root.showHistory = false; historyLoader.sourceComponent = undefined }
+        else if (root.showTrash) { root.showTrash = false; trashLoader.sourceComponent = undefined }
+        else if (settingsLoader.sourceComponent) { root.closeSettings() }
+        else { root.goBack() }
+    }
+
+    // Closes the topmost open modal, if any. Returns true when a dialog was
+    // dismissed so Escape can close dialogs before it closes the panel.
+    function closeTopDialog() {
+        if (shareLoader.item) { root.cancelShare(); return true }
+        if (copyLoader.item) { root.cancelCopy(); return true }
+        if (uploadLoader.item) { root.cancelFilePicker(); return true }
+        if (confirmLoader.item) { root.cancelDelete(); return true }
+        if (moveLoader.item) { root.cancelMove(); return true }
+        if (renameLoader.item) { root.cancelRename(); return true }
+        if (createFolderLoader.item) { root.cancelCreateFolder(); return true }
+        if (settingsLoader.item) { root.closeSettings(); return true }
+        return false
+    }
+
+    function showTrashPanel() {
+        root.openTrash()
     }
 
     function pruneSelection() {
@@ -195,15 +211,45 @@ Panel {
 
     function open() { panelController.show() }
     function close() { panelController.hide() }
-    function toggle() { opened ? close() : open() }
+    function toggle() { panelController.open ? close() : open() }
     function closeForPopoutSwitch() { if (panelController.open) panelController.hide() }
-    function toggleTransfersView() { root.showTransfers = !root.showTransfers }
+    function toggleTransfersView() {
+        root.showTransfers = !root.showTransfers
+    }
 
     function showToast(message, type) {
         toast.show(message, type || "success")
     }
 
     PanelController { id: panelController }
+
+    // Rename target: the single selected item, else the list's current item.
+    function renameTarget() {
+        if (!root.currentRepo) return null
+        if (root.selectedItems.length === 1) return root.selectedItems[0]
+        var list = root.fileListRef
+        if (!list) return null
+        if (list.currentItem) return list.currentItem.item
+        if (list.count > 0) {
+            list.currentIndex = 0
+            return list.itemAtIndex(0)
+        }
+        return null
+    }
+
+    function showItemContextMenu(item, x, y) {
+        if (!item) return
+        if (!root.isItemSelected(item)) root.selectOnly(item)
+        contextMenu.item = item
+        contextMenu.isDir = item.type === "dir"
+        contextMenu.selectionCount = root.selectedItems.length > 0 ? root.selectedItems.length : 1
+        // Parent to the keyboard-panel window's overlay: never clipped by the
+        // file list, and rendered in the window that owns pointer/keyboard.
+        contextMenu.parent = keyCatcher.Overlay.overlay
+        contextMenu.x = Math.max(0, Math.min(x, contextMenu.parent.width - contextMenu.width))
+        contextMenu.y = Math.max(0, Math.min(y, contextMenu.parent.height - contextMenu.implicitHeight))
+        contextMenu.open()
+    }
 
     ConnectionService {
         id: connectionService
@@ -215,35 +261,89 @@ Panel {
         anchorItem: root.anchorItem
         owner: root.hostWidget || root
         bar: root.bar
-        open: root.opened
+        open: panelController.open
         focusTarget: keyCatcher
         contentWidth: panel.fittedContentWidth(Style.space(400))
-        contentHeight: panel.fittedContentHeight(content.implicitHeight, Style.space(500))
+        contentHeight: panel.fittedContentHeight(content.implicitHeight)
 
         PanelKeyCatcher {
             id: keyCatcher
             anchors.fill: parent
             blocked: root.searchActive
-            onCloseRequested: root.close()
+            onCloseRequested: {
+                if (root.closeTopDialog()) return
+                root.close()
+            }
             onMoveRequested: function(dx, dy) {
                 if (root.state !== "browse" || root.searchActive) return
-                var list = fileList
+                var list = root.fileListRef
+                if (!list) return
                 if (dy > 0) list.incrementCurrentIndex()
                 else if (dy < 0) list.decrementCurrentIndex()
             }
             onActivateRequested: {
                 if (root.state !== "browse" || root.searchActive) return
-                var list = fileList
-                if (!list.currentItem) return
+                var list = root.fileListRef
+                if (!list || !list.currentItem) return
                 var item = list.currentItem.item
                 if (item.type === "dir") root.onItemClicked(item)
                 else root.onDownloadClicked(item)
             }
             onDeleteRequested: {
                 if (root.state !== "browse" || root.searchActive) return
-                var list = fileList
-                if (!list.currentItem) return
+                var list = root.fileListRef
+                if (!list || !list.currentItem) return
                 root.pickDelete(list.currentItem.item)
+            }
+
+            // Window-level shortcuts. They must live inside the KeyboardPanel
+            // window (key events land here, not in the bar window), and they
+            // fire before focus-item delivery, so they work even though the
+            // PanelKeyCatcher holds active focus. Disabled while a text field
+            // or dialog owns the UI so editing keys pass through untouched.
+            Shortcut {
+                sequence: "F2"
+                enabled: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.showTransfers && root.currentRepo !== null
+                onActivated: {
+                    var target = root.renameTarget()
+                    if (target) root.pickRename(target)
+                }
+            }
+
+            Shortcut {
+                sequence: "Ctrl+A"
+                enabled: root.state === "browse" && !root.searchActive && !root.dialogOpen && root.currentRepo !== null
+                onActivated: root.selectAll()
+            }
+
+            // The shell's PanelKeyCatcher only maps "x" to deleteRequested —
+            // bind the real Delete key here so it deletes the positioned item.
+            Shortcut {
+                sequence: "Delete"
+                enabled: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.showTransfers && root.currentRepo !== null
+                onActivated: {
+                    var list = root.fileListRef
+                    if (!list || !list.currentItem) return
+                    root.pickDelete(list.currentItem.item)
+                }
+            }
+
+            // Single context menu at panel level, parented to the window
+            // overlay so the file list never clips it.
+            ContextMenu {
+                id: contextMenu
+                bar: root.bar
+                onOpenClicked: root.onItemClicked
+                onDownloadClicked: root.onDownloadClicked
+                onRenameClicked: root.pickRename
+                onMoveClicked: root.moveItems
+                onCopyClicked: root.copyItems
+                onShareClicked: root.pickShare
+                onHistoryClicked: root.openHistory
+                onDeleteClicked: function(item) {
+                    if (item) root.pickDelete(item)
+                    else root.deleteItems()
+                }
             }
 
             Column {
@@ -251,23 +351,6 @@ Panel {
                 width: parent.width
                 spacing: 0
                 focus: true
-                Keys.onPressed: function(event) {
-                    if (root.searchActive || root.state !== "browse") return
-                    if (event.key === Qt.Key_F2) {
-                        var list = fileList
-                        if (!list.currentItem) return
-                        if (root.selectedItems.length === 1 && root.isItemSelected(list.currentItem.item)) {
-                            root.pickRename(list.currentItem.item)
-                        } else {
-                            root.pickRename(list.currentItem.item)
-                        }
-                        event.accepted = true
-                    } else if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
-                        // Ctrl+A for Select All
-                        root.selectAll()
-                        event.accepted = true
-                    }
-                }
 
                 Toast {
                     id: toast
@@ -279,37 +362,31 @@ Panel {
                     id: toolBar
                     width: parent.width
                     bar: root.bar
-                    title: root.state === "login" ? "Seafile" : (root.searchActive ? "Search" : (root.currentRepo ? root.currentRepo.name : "Libraries"))
-                    showBack: root.state === "browse" && root.pathHistory.length > 0 && !root.searchActive
-                    showRefresh: root.state === "browse" && !root.searchActive
-                    showUpload: root.state === "browse" && !root.searchActive
-                    showSearch: root.state === "browse"
-                    showLogout: root.state === "browse"
-                    showTransfers: root.state === "browse"
-                    showTrash: root.state === "browse"
-                    showSettings: root.state === "browse"
+                    title: root.state === "login" ? "Seafile" : (root.settingsOpen ? "Settings" : (root.searchActive ? "Search" : (root.currentRepo ? root.currentRepo.name : "Libraries")))
+                    showBack: root.state === "browse" && !root.searchActive && (!root.dialogOpen || root.settingsOpen) && (root.pathHistory.length > 0 || root.settingsOpen)
+                    showRefresh: root.state === "browse" && !root.searchActive && !root.dialogOpen
+                    showUpload: root.state === "browse" && !root.searchActive && !root.dialogOpen
+                    showSearch: root.state === "browse" && !root.dialogOpen
+                    showLogout: root.state === "browse" && !root.dialogOpen
+                    showTransfers: root.state === "browse" && !root.dialogOpen
+                    showTrash: root.state === "browse" && !root.dialogOpen
+                    showSettings: root.state === "browse" && !root.dialogOpen
                     activeTransferCount: root.activeTransferCount
-                    hasTransferFailures: root.hasTransferFailures()
+                    hasTransferFailures: root.hasTransferFailures
                     showOffline: !connectionService.online
                     searchActive: root.searchActive
                     searchQuery: root.searchQuery
                     selectionCount: root.selectedItems.length
-                    hasTrashItems: root.hasTrashItems()
-                    onBackClicked: {
-                        if (root.showTransfers) { root.showTransfers = false }
-                        else if (root.showHistory) { root.showHistory = false }
-                        else if (root.showTrash) { root.showTrash = false }
-                        else if (settingsLoader.sourceComponent) { root.closeSettings() }
-                        else { root.goBack() }
-                    }
-                    onRefreshClicked: root.refresh()
-                    onUploadClicked: root.pickFileForUpload()
-                    onSearchChanged: root.onSearchQueryChanged(query)
-                    onSearchActiveChanged: root.onSearchActiveToggle(active)
-                    onLogoutClicked: root.doLogout()
-                    onTransfersClicked: root.toggleTransfersView()
-                    onTrashClicked: root.showTrash()
-                    onSettingsClicked: root.openSettings()
+                    hasTrashItems: root.hasTrashItems
+                    onBackClicked: root.handleBackClick
+                    onRefreshClicked: root.refresh
+                    onUploadClicked: root.pickFileForUpload
+                    onSearchChanged: root.onSearchQueryChanged
+                    onSearchActiveToggled: root.onSearchActiveToggle
+                    onLogoutClicked: root.doLogout
+                    onTransfersClicked: root.toggleTransfersView
+                    onTrashClicked: root.showTrashPanel
+                    onSettingsClicked: root.openSettings
                     onMoveBatch: root.moveItems
                     onCopyBatch: root.copyItems
                     onDeleteBatch: root.deleteItems
@@ -319,7 +396,20 @@ Panel {
                 Loader {
                     id: stateLoader
                     sourceComponent: root.state === "login" ? loginComponent : browseComponent
+                    width: parent.width
+                    visible: !root.dialogOpen
+                    height: visible ? implicitHeight : 0
                 }
+                Loader { id: createFolderLoader; sourceComponent: undefined; width: parent.width; height: item ? item.implicitHeight : 0 }
+                Loader { id: renameLoader; sourceComponent: undefined; width: parent.width; height: item ? item.implicitHeight : 0 }
+                Loader { id: moveLoader; sourceComponent: undefined; width: parent.width; height: item ? item.implicitHeight : 0 }
+                Loader { id: confirmLoader; sourceComponent: undefined; width: parent.width; height: item ? item.implicitHeight : 0 }
+                Loader { id: shareLoader; sourceComponent: undefined; width: parent.width; height: item ? item.implicitHeight : 0 }
+                Loader { id: uploadLoader; sourceComponent: undefined; width: parent.width; height: item ? item.implicitHeight : 0 }
+                Loader { id: historyLoader; sourceComponent: undefined; width: parent.width; height: item ? item.implicitHeight : 0 }
+                Loader { id: trashLoader; sourceComponent: undefined; width: parent.width; height: item ? item.implicitHeight : 0 }
+                Loader { id: copyLoader; sourceComponent: undefined; width: parent.width; height: item ? item.implicitHeight : 0 }
+                Loader { id: settingsLoader; sourceComponent: undefined; width: parent.width; height: item ? item.implicitHeight : 0 }
 
                 Component {
                     id: loginComponent
@@ -327,9 +417,8 @@ Panel {
                         id: loginDialog
                         bar: root.bar
                         serverField.text: root.serverUrl
-                        emailField.text: Auth.getEmail() || ""
                         depErrorMessage: root.depErrorMessage
-                        onLogin: root.doLogin(serverField.text, emailField.text, passwordField.text)
+                        onLogin: function(url, email, pass) { root.doLogin(url, email, pass) }
                     }
                 }
 
@@ -342,10 +431,11 @@ Panel {
                         Breadcrumbs {
                             id: breadcrumbs
                             width: parent.width
+                            height: visible ? implicitHeight : 0
                             path: root.pathHistory
                             bar: root.bar
                             visible: !root.searchActive
-                            onSegmentClicked: root.navigateToPath(index)
+                            onSegmentClicked: function(index) { root.navigateToPath(index) }
                         }
 
                         LoadingIndicator {
@@ -359,10 +449,10 @@ Panel {
                         ErrorOverlay {
                             id: errorOverlay
                             width: parent.width
-                            visible: root.errorMessage !== "" && !root.searchActive
+                            showError: root.errorMessage !== "" && !root.searchActive
                             message: root.errorMessage
                             bar: root.bar
-                            onRetry: root.refresh()
+                            onRetry: function() { root.refresh() }
                         }
 
                         OfflineBanner {
@@ -376,12 +466,14 @@ Panel {
                         Text {
                             id: searchStatusText
                             width: parent.width
-                            height: implicitHeight + Style.space(8)
+                            height: visible ? contentHeight + topPadding : 0
                             visible: root.searchActive && (root.searchState === "loading" || root.searchState === "results" || root.searchState === "empty")
                             text: root.searchState === "loading"
-                                ? "Searching across libraries..."
+                                ? ("Searching " + (root.libraries.length - root.searchPendingCount) + " of " + root.libraries.length + " libraries...")
                                 : (root.searchState === "results"
-                                    ? root.searchResults.length + " result(s) found"
+                                    ? (root.searchTruncated
+                                        ? "Showing first " + root.maxSearchResults + " results. Refine your search."
+                                        : root.searchResults.length + " result(s) found")
                                     : "No results found")
                             color: Qt.darker(root.bar.foreground, 1.4)
                             font.family: root.bar.fontFamily
@@ -394,48 +486,55 @@ Panel {
                         ErrorOverlay {
                             id: searchErrorOverlay
                             width: parent.width
-                            visible: root.searchActive && root.searchState === "error"
+                            showError: root.searchActive && root.searchState === "error"
                             message: root.searchErrorMessage
                             bar: root.bar
-                            onRetry: root.executeSearch()
+                            onRetry: function() { root.executeSearch() }
                         }
 
                         FileList {
                             id: fileList
                             width: parent.width
-                            height: parent.height - toolBar.height - (breadcrumbs.visible ? breadcrumbs.height : 0) - (root.loading ? loadingIndicator.height : 0) - (root.errorMessage && !root.searchActive ? errorOverlay.height : 0) - (!connectionService.online ? offlineBanner.height : 0) - (searchStatusText.visible ? searchStatusText.height : 0) - (searchErrorOverlay.visible ? searchErrorOverlay.height : 0)
+                            bar: root.bar
+                            Component.onCompleted: root.fileListRef = fileList
+                            Component.onDestruction: if (root.fileListRef === fileList) root.fileListRef = null
+                            height: fileList.contentHeight > 0 ? Math.min(fileList.contentHeight, Style.space(420)) : Style.space(120)
                             items: root.currentItems
                             focus: true
-                            findTransfer: root.findTransfer
+                            findTransfer: TransferService.findTransfer
                             transferRevision: root.transferRevision
-                            onItemClicked: root.onItemClicked(item)
-                            onDownloadClicked: root.onDownloadClicked(item)
-                            onRenameClicked: root.pickRename(item)
-                            onMoveClicked: root.pickMove(item)
-                            onDeleteClicked: root.pickDelete(item)
-                            onShareClicked: root.pickShare(item)
-                            onHistoryClicked: root.showHistory
+                            onItemClicked: function(item) { root.onItemClicked(item) }
+                            onDownloadClicked: function(item) { root.onDownloadClicked(item) }
+                            onRenameClicked: function(item) { root.pickRename(item) }
+                            onMoveClicked: function(item) { root.pickMove(item) }
+                            onDeleteClicked: function(item) { root.pickDelete(item) }
+                            onShareClicked: function(item) { root.pickShare(item) }
+                            onHistoryClicked: root.openHistory
                             visible: !root.loading && root.errorMessage === "" && !root.searchActive && !root.showTransfers
                             selectedItems: root.selectedItems
                             selectionAnchor: root.selectionAnchor
-                            onSelectionToggle: root.onSelectionToggle
-                            onSelectionRange: root.onSelectionRange
+                            onSelectionToggle: root.toggleSelection
+                            onSelectionRange: root.selectRange
+                            onSelectOnly: root.selectOnly
+                            onPositionClicked: root.positionOn
+                            onContextMenuRequested: root.showItemContextMenu
                         }
 
                         SearchResults {
                             id: searchResultsList
                             width: parent.width
-                            height: parent.height - toolBar.height - (searchStatusText.visible ? searchStatusText.height : 0) - (searchErrorOverlay.visible ? searchErrorOverlay.height : 0) - (!connectionService.online ? offlineBanner.height : 0)
+                            height: visible ? (contentHeight > 0 ? Math.min(contentHeight, Style.space(420)) : Style.space(120)) : 0
                             results: root.searchResults
                             bar: root.bar
                             visible: root.searchActive && root.searchState !== "loading"
-                            onResultClicked: root.onSearchResultClicked(result)
+                            onResultClicked: function(result) { root.onSearchResultClicked(result) }
+                            onResultRightClicked: function(result, mouse) { root.onSearchResultClicked(result) }
                         }
 
                         TransferManager {
                             id: transferManager
                             width: parent.width
-                            height: parent.height - toolBar.height - (breadcrumbs.visible ? breadcrumbs.height : 0)
+                            height: visible ? Style.space(360) : 0
                             bar: root.bar
                             visible: root.showTransfers && !root.searchActive
                             transferRevision: root.transferRevision
@@ -445,89 +544,129 @@ Panel {
                                 var baseUrl = Auth.getServerUrl()
                                 TransferService.retryTransfer(transfer.id, token, baseUrl)
                             }
-                            onClearCompleted: TransferService.clearCompleted()
-                            onClearFailed: TransferService.clearFailed()
+                            onClearCompleted: function() { TransferService.clearCompleted() }
+                            onClearFailed: function() { TransferService.clearFailed() }
+                            onOpen: function(transfer) {
+                                var url = Models.toFileUrl(transfer.destPath)
+                                var success = Qt.openUrlExternally(url)
+                                if (!success) root.showToast("Could not open file", "error")
+                                root.showTransfers = false
+                            }
+                            onShowInFolder: function(transfer) {
+                                var url = Models.toParentFileUrl(transfer.destPath)
+                                var success = Qt.openUrlExternally(url)
+                                if (!success) root.showToast("Could not open folder", "error")
+                                root.showTransfers = false
+                            }
                         }
                     }
                 }
             }
         }
+
     }
+
+    property var fileListRef: null
+
+    readonly property bool settingsOpen: settingsLoader.item !== null
+    readonly property bool dialogOpen: settingsLoader.item !== null || createFolderLoader.item !== null || renameLoader.item !== null || moveLoader.item !== null || confirmLoader.item !== null || shareLoader.item !== null || uploadLoader.item !== null || historyLoader.item !== null || trashLoader.item !== null || copyLoader.item !== null
 
     // ===== DIALOG LOADERS =====
 
-    Loader { id: createFolderLoader; sourceComponent: undefined }
     Component {
         id: createFolderComponent
         CreateFolderDialog {
             bar: root.bar
-            onCreate: root.confirmCreateFolder(nameField.text)
-            onCancel: root.cancelCreateFolder()
+            onCreate: function() { root.confirmCreateFolder(nameField.text) }
+            onCancel: function() { root.cancelCreateFolder() }
         }
     }
 
-    Loader { id: renameLoader; sourceComponent: undefined }
     Component {
         id: renameComponent
         RenameDialog {
             bar: root.bar
-            title: root.renameItemData.isDir ? "Rename Folder" : "Rename File"
-            nameField.text: root.renameItemData.item.name
-            onRename: root.confirmRename(nameField.text)
-            onCancel: root.cancelRename()
+            title: {
+                var d = root.renameItemData
+                if (!d || d.items.length === 0) return "Rename"
+                return d.items[0].type === "dir" ? "Rename Folder" : "Rename File"
+            }
+            nameField.text: root.renameItemData && root.renameItemData.items.length > 0 ? (root.renameItemData.items[0].name || "") : ""
+            onRename: function() { root.confirmRename(nameField.text) }
+            onCancel: function() { root.cancelRename() }
         }
     }
 
-    Loader { id: moveLoader; sourceComponent: undefined }
     Component {
         id: moveComponent
         MoveDialog {
             bar: root.bar
-            title: root.moveItemData.isDir ? "Move Folder" : "Move File"
+            title: {
+                var d = root.moveItemData
+                if (!d || !d.items || d.items.length === 0) return "Move"
+                return d.items[0].type === "dir" ? "Move Folder" : "Move File"
+            }
             destField.text: root.currentPath
-            onMove: root.confirmMove(destField.text)
-            onCancel: root.cancelMove()
+            onMove: function() { root.confirmMove(destField.text) }
+            onCancel: function() { root.cancelMove() }
         }
     }
 
-    Loader { id: confirmLoader; sourceComponent: undefined }
+    Component {
+        id: copyComponent
+        CopyDialog {
+            bar: root.bar
+            title: "Copy To"
+            destField.text: root.currentPath
+            onCopy: function() { root.confirmCopy(destField.text) }
+            onCancel: function() { root.cancelCopy() }
+        }
+    }
+
     Component {
         id: confirmComponent
         ConfirmDialog {
             bar: root.bar
-            message: "Delete " + (root.deleteItemData.isDir ? "folder" : "file") + " \"" + root.deleteItemData.item.name + "\"?"
-            onConfirm: root.confirmDelete()
-            onCancel: root.cancelDelete()
+            // Canonical item-context shape: { items: [...], isDir }. The legacy
+            // { item } field is honored only as a safety fallback.
+            message: {
+                var d = root.deleteItemData
+                if (!d) return "Are you sure?"
+                var list = d.items && d.items.length > 0 ? d.items : (d.item ? [d.item] : [])
+                if (list.length === 0) return "Delete selection?"
+                if (list.length > 1) return "Delete " + list.length + " item(s)?"
+                var it = list[0]
+                return "Delete " + (it.type === "dir" ? "folder" : "file") + " \"" + (it.name || "") + "\"?"
+            }
+            onConfirm: function() { root.confirmDelete() }
+            onCancel: function() { root.cancelDelete() }
         }
     }
 
-    Loader { id: shareLoader; sourceComponent: undefined }
     Component {
         id: shareComponent
         ShareDialog {
             bar: root.bar
-            item: root.shareItemData.item
+            item: root.shareItemData ? root.shareItemData.item : null
             repoId: root.currentRepo ? root.currentRepo.id : ""
             repoName: root.currentRepo ? root.currentRepo.name : ""
-            itemPath: root.shareItemData.fullPath
-            isDir: root.shareItemData.isDir
-            onDone: root.cancelShare()
-            onCancel: root.cancelShare()
+            itemPath: root.shareItemData ? root.shareItemData.fullPath : ""
+            isDir: root.shareItemData ? root.shareItemData.isDir : false
+            onDone: function() { root.cancelShare() }
+            onCancel: function() { root.cancelShare() }
             onToast: function(msg) { root.showToast(msg) }
         }
     }
 
-    Loader { id: uploadLoader; sourceComponent: undefined }
     Component {
         id: uploadComponent
         UploadDialog {
             bar: root.bar
-            onUpload: root.confirmUpload(pathField.text)
-            onCancel: root.cancelFilePicker()
+            onUpload: function() { root.confirmUpload(pathField.text) }
+            onCancel: function() { root.cancelFilePicker() }
         }
     }
 
-    Loader { id: historyLoader; sourceComponent: undefined }
     Component {
         id: historyComponent
         HistoryPanel {
@@ -550,11 +689,10 @@ Panel {
                     }
                 })
             }
-            onClose: function() { root.showHistory = false }
+            onClose: function() { root.showHistory = false; historyLoader.sourceComponent = undefined }
         }
     }
 
-    Loader { id: trashLoader; sourceComponent: undefined }
     Component {
         id: trashComponent
         TrashPanel {
@@ -572,25 +710,23 @@ Panel {
                     }
                 })
             }
-            onClose: function() { root.showTrash = false }
+            onClose: function() { root.showTrash = false; trashLoader.sourceComponent = undefined }
         }
     }
 
-    Loader { id: settingsLoader; sourceComponent: undefined }
     Component {
         id: settingsComponent
         SettingsDialog {
             bar: root.bar
             serverUrl: root.serverUrl
-            accountEmail: Auth.getEmail()
-            pluginVersion: "0.8.0"
+            pluginVersion: "0.9.0"
             autoLogin: setting("autoLogin", true)
-            onClose: root.closeSettings()
-            onLogout: root.doLogout()
-            onClearCache: root.clearCache()
+            onClose: function() { root.closeSettings() }
+            onLogout: function() { root.doLogout() }
+            onClearCache: function() { root.clearCache() }
             onChangeServer: root.changeServerUrl
             onTestConnection: root.testConnection
-            onAutoLoginChanged: function(enabled) { setting("autoLogin", enabled) }
+            onAutoLoginToggled: function(enabled) { setting("autoLogin", enabled) }
         }
     }
 
@@ -613,12 +749,15 @@ Panel {
             root.loading = false
             if (success) {
                 SeafileAPI.setToken(token)
-                Auth.storeToken(token, normalized, email)
-                root.serverUrl = normalized
-                connectionService.setServerUrl(normalized)
-                connectionService.forceCheck()
-                root.state = "browse"
-                root.loadLibraries()
+                Auth.storeToken(token, normalized, email).then(function() {
+                    root.serverUrl = normalized
+                    connectionService.setServerUrl(normalized)
+                    connectionService.forceCheck()
+                    root.state = "browse"
+                    root.loadLibraries()
+                }).catch(function(err) {
+                    root.errorMessage = "Failed to store credentials: " + err
+                })
             } else {
                 root.errorMessage = error || "Authentication failed"
             }
@@ -651,10 +790,30 @@ Panel {
         })
     }
 
+    // Items arrive from the API without repo/full-path identity; selection,
+    // delete and move all need a stable unique key, so enrich each entry.
+    function enrichItems(repoId, path, items) {
+        var prefix = path === "/" ? "/" : path + "/"
+        var out = []
+        for (var i = 0; i < items.length; i++) {
+            var it = items[i]
+            out.push({
+                name: it.name,
+                type: it.type,
+                size: it.size,
+                mtime: it.mtime,
+                sizeFormatted: it.sizeFormatted,
+                repoId: repoId,
+                fullPath: prefix + it.name
+            })
+        }
+        return out
+    }
+
     function loadFolder(repoId, path) {
         var cached = Cache.getFolder(repoId, path)
         if (cached && !root.forceRefresh) {
-            root.currentItems = cached
+            root.currentItems = root.enrichItems(repoId, path, cached)
             root.currentPath = path
             return
         }
@@ -663,9 +822,9 @@ Panel {
         SeafileAPI.listFolder(repoId, path, function(success, data, error) {
             root.loading = false
             if (success) {
-                root.currentItems = data
-                root.currentPath = path
                 Cache.setFolder(repoId, path, data)
+                root.currentItems = root.enrichItems(repoId, path, data)
+                root.currentPath = path
             } else {
                 root.errorMessage = error || "Failed to load folder"
             }
@@ -674,6 +833,7 @@ Panel {
 
     function onItemClicked(item) {
         if (item.type === "dir") {
+            root.clearSelection()
             if (root.currentRepo) {
                 var newPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
                 root.pathHistory.push({ name: item.name, path: newPath, repoId: root.currentRepo.id })
@@ -761,11 +921,14 @@ Panel {
             root.searchQuery = ""
             root.searchResults = []
             root.searchState = "idle"
-            fileList.forceActiveFocus()
         } else {
             root.clearSelection()
         }
     }
+
+    property bool searchTruncated: false
+
+    readonly property int maxSearchResults: 100
 
     function executeSearch() {
         searchDebounceTimer.stop()
@@ -778,15 +941,14 @@ Panel {
         var generation = ++root.searchGeneration
         root.searchState = "loading"
         root.searchErrorMessage = ""
+        root.searchTruncated = false
 
+        // Global search: always cover every non-encrypted library. Results
+        // carry repoId so a click navigates into the right library/folder.
         var reposToSearch = []
-        if (root.currentRepo) {
-            reposToSearch = [root.currentRepo]
-        } else {
-            for (var i = 0; i < root.libraries.length; i++) {
-                if (root.libraries[i].encrypted !== true) {
-                    reposToSearch.push(root.libraries[i])
-                }
+        for (var i = 0; i < root.libraries.length; i++) {
+            if (root.libraries[i].encrypted !== true) {
+                reposToSearch.push(root.libraries[i])
             }
         }
 
@@ -797,30 +959,41 @@ Panel {
 
         root.searchPendingCount = reposToSearch.length
         root.searchResults = []
+        root.searchTruncated = false
 
         var maxConcurrent = 4
         var queue = reposToSearch.slice()
         var running = 0
+        var totalResultsCount = 0
 
         function searchNext() {
             if (queue.length === 0) return
+            if (totalResultsCount >= root.maxSearchResults) return
+
             var repo = queue.shift()
             running++
 
-            SeafileAPI.searchFilesInRepo(query, repo.id, function(success, results, error) {
+            SeafileAPI.search(query, repo.id, function(success, results, error) {
                 if (generation !== root.searchGeneration) return
 
                 running--
                 root.searchPendingCount--
 
                 if (success && results) {
-                    for (var j = 0; j < results.length; j++) {
-                        results[j].repoName = repo.name
+                    var remaining = root.maxSearchResults - totalResultsCount
+                    var resultsToAdd = results
+                    if (results.length > remaining) {
+                        resultsToAdd = results.slice(0, remaining)
+                        root.searchTruncated = true
                     }
-                    root.searchResults = root.searchResults.concat(results)
+                    for (var j = 0; j < resultsToAdd.length; j++) {
+                        resultsToAdd[j].repoName = repo.name
+                    }
+                    totalResultsCount += resultsToAdd.length
+                    root.searchResults = root.searchResults.concat(resultsToAdd)
                 }
 
-                if (root.searchPendingCount === 0) {
+                if (root.searchPendingCount === 0 || totalResultsCount >= root.maxSearchResults) {
                     if (root.searchResults.length === 0) {
                         root.searchState = "empty"
                     } else {
@@ -828,7 +1001,9 @@ Panel {
                     }
                 }
 
-                searchNext()
+                if (totalResultsCount < root.maxSearchResults) {
+                    searchNext()
+                }
             })
         }
 
@@ -953,7 +1128,7 @@ Panel {
                 })
             } else {
                 var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
-                SeafileAPI.copyFile(root.currentRepo.id, fullPath, destPathTrimmed, token, baseUrl, function(success, error) {
+                SeafileAPI.copyFile(root.currentRepo.id, fullPath, root.currentRepo.id, destPathTrimmed, item.name, token, function(success, error) {
                     root.loading = false
                     if (success) {
                         Cache.invalidatePath(root.currentRepo.id, destPathTrimmed)
@@ -967,16 +1142,15 @@ Panel {
         }
     }
 
-    function cancelCopy() { copyLoader.sourceComponent = undefined }
-
     function startUpload(localFilePath) {
+        if (!root.currentRepo) { root.errorMessage = "No library selected"; return }
         var token = Auth.getToken()
         if (!token) { root.errorMessage = "Not authenticated"; return }
         var fileName = localFilePath.split("/").pop()
         TransferService.startUpload(localFilePath, token, root.serverUrl, root.currentRepo.id, root.currentPath, fileName)
     }
 
-    function getDownloadsDir() { return Qt.getenv("HOME") + "/Downloads" }
+    function getDownloadsDir() { return Quickshell.env("HOME") + "/Downloads" }
 
     function handleTransferCompletion(transfer) {
         if (transfer.state === "completed") {
@@ -1044,7 +1218,6 @@ Panel {
             var u = new URL(url)
             if (u.protocol !== "http:" && u.protocol !== "https:") return null
             u.pathname = u.pathname.replace(/\/+$/, "")
-            if (u.pathname === "") u.pathname = "/"
             return u.toString()
         } catch (e) {
             return null
@@ -1136,7 +1309,8 @@ Panel {
     property var renameItemData: null
 
     function pickRename(item) {
-        root.renameItemData = { item: item, isDir: item.type === "dir" }
+        if (!item) return
+        root.renameItemData = { items: [item], isDir: item.type === "dir" }
         renameLoader.sourceComponent = renameComponent
     }
 
@@ -1144,12 +1318,14 @@ Panel {
 
     function confirmRename(newName) {
         if (!newName || newName.trim() === "") { root.errorMessage = "Name cannot be empty"; return }
-        if (newName === root.renameItemData.item.name) { cancelRename(); return }
+        var d = root.renameItemData
+        var item = d && d.items && d.items.length > 0 ? d.items[0] : null
+        if (!item) { cancelRename(); return }
+        if (newName === item.name) { cancelRename(); return }
         renameLoader.sourceComponent = undefined
         var token = Auth.getToken()
         if (!token) { root.errorMessage = "Not authenticated"; return }
-        var isDir = root.renameItemData.isDir
-        var item = root.renameItemData.item
+        var isDir = d.isDir || item.type === "dir"
         var parentPath = root.currentPath
         root.loading = true
         root.errorMessage = ""
@@ -1174,7 +1350,8 @@ Panel {
     property var moveItemData: null
 
     function pickMove(item) {
-        root.moveItemData = { item: item, isDir: item.type === "dir" }
+        if (!item) return
+        root.moveItemData = { items: [item], isDir: item.type === "dir" }
         moveLoader.sourceComponent = moveComponent
     }
 
@@ -1185,13 +1362,13 @@ function confirmMove(destPath) {
         moveLoader.sourceComponent = undefined
         var token = Auth.getToken()
         if (!token) { root.errorMessage = "Not authenticated"; return }
-        var items = root.moveItemData.items
-        var isBatch = items && items.length > 1
+        var items = root.moveItemData.items || []
+        var isBatch = items.length > 1
         var destPathTrimmed = destPath.trim()
         root.loading = true
         root.errorMessage = ""
 
-        if (items && items.length > 1) {
+        if (isBatch) {
             // Batch move
             SeafileAPI.moveItems(root.moveItemData.items, root.currentRepo.id, destPathTrimmed, function(success, error) {
                 root.loading = false
@@ -1206,9 +1383,9 @@ function confirmMove(destPath) {
                 }
             })
         } else {
-            // Single item move (existing logic)
-            var item = root.moveItemData.item
-            var isDir = root.moveItemData.isDir
+            // Single item move
+            var item = items[0]
+            var isDir = root.moveItemData.isDir || item.type === "dir"
             var srcPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
             if (isDir) {
                 SeafileAPI.moveFolder(root.currentRepo.id, item.name, root.currentPath, root.currentRepo.id, destPathTrimmed, token, function(success, error) {
@@ -1221,8 +1398,7 @@ function confirmMove(destPath) {
                     } else { root.errorMessage = error || "Failed to move folder" }
                 })
             } else {
-                var srcPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
-                SeafileAPI.moveFile(root.currentRepo.id, srcPath, destPathTrimmed, token, function(success, error) {
+                SeafileAPI.moveFile(root.currentRepo ? root.currentRepo.id : "", srcPath, destPathTrimmed, token, function(success, error) {
                     root.loading = false
                     if (success) {
                         Cache.invalidatePath(root.currentRepo.id, root.currentPath)
@@ -1234,47 +1410,80 @@ function confirmMove(destPath) {
             }
         }
     }
-    }
 
     // ===== DELETE =====
 
     property var deleteItemData: null
 
     function pickDelete(item) {
-        root.deleteItemData = { item: item, isDir: item.type === "dir" }
+        if (!item) return
+        root.deleteItemData = { items: [item], isDir: item.type === "dir" }
         confirmLoader.sourceComponent = confirmComponent
     }
 
     function cancelDelete() { confirmLoader.sourceComponent = undefined; root.deleteItemData = null }
 
     function confirmDelete() {
-        if (root.deleteItemData.items && root.deleteItemData.items.length > 1) {
-            // Batch delete - handled by deleteItems()
-            root.deleteItems()
-            return
-        }
+        var data = root.deleteItemData
+        if (!data) { confirmLoader.sourceComponent = undefined; return }
         confirmLoader.sourceComponent = undefined
         var token = Auth.getToken()
-        if (!token) { root.errorMessage = "Not authenticated"; return }
-        var item = root.deleteItemData.item
-        var isDir = root.deleteItemData.isDir
-        var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
+        if (!token) { root.errorMessage = "Not authenticated"; root.deleteItemData = null; return }
+        var items = (data.items && data.items.length > 0) ? data.items : []
+        root.deleteItemData = null
+        if (items.length === 0) return
+
+        if (items.length === 1) {
+            var item = items[0]
+            var isDir = data.isDir || item.type === "dir"
+            var fullPath = item.fullPath || (root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name)
+            root.loading = true
+            root.errorMessage = ""
+            if (isDir && fullPath === "/") {
+                root.errorMessage = "Cannot delete root directory"
+                root.loading = false
+                return
+            }
+            var done = function(success, error) {
+                root.loading = false
+                if (success) { Cache.invalidatePath(root.currentRepo.id, root.currentPath); root.refresh(); root.showToast("Deleted") }
+                else { root.errorMessage = error || "Failed to delete" }
+            }
+            if (isDir) SeafileAPI.deleteFolder(root.currentRepo.id, fullPath, token, done)
+            else SeafileAPI.deleteFile(root.currentRepo ? root.currentRepo.id : "", fullPath, token, done)
+            return
+        }
+
+        // Batch delete: sequential, keep failures selected
         root.loading = true
         root.errorMessage = ""
-        if (isDir) {
-            if (fullPath === "/") { root.errorMessage = "Cannot delete root directory"; root.loading = false; root.deleteItemData = null; return }
-            SeafileAPI.deleteFolder(root.currentRepo.id, fullPath, token, function(success, error) {
+        root.clearSelection()
+        var results = { success: 0, failed: [] }
+        var index = 0
+
+        function deleteNext() {
+            if (index >= items.length) {
                 root.loading = false
-                if (success) { Cache.invalidatePath(root.currentRepo.id, root.currentPath); root.refresh(); root.showToast("Deleted") }
-                else { root.errorMessage = error || "Failed to delete folder" }
-            })
-        } else {
-            SeafileAPI.deleteFile(root.currentRepo.id, fullPath, token, function(success, error) {
-                root.loading = false
-                if (success) { Cache.invalidatePath(root.currentRepo.id, root.currentPath); root.refresh(); root.showToast("Deleted") }
-                else { root.errorMessage = error || "Failed to delete file" }
-            })
+                var msg = results.success + " deleted"
+                if (results.failed.length > 0) msg += ", " + results.failed.length + " failed"
+                root.showToast(msg, results.failed.length > 0 ? "error" : "success")
+                if (results.failed.length > 0) root.selectedItems = results.failed
+                Cache.invalidatePath(root.currentRepo.id, root.currentPath)
+                root.refresh()
+                return
+            }
+            var it = items[index]
+            var path = it.fullPath || (root.currentPath === "/" ? "/" + it.name : root.currentPath + "/" + it.name)
+            var step = function(success, error) {
+                if (success) results.success++
+                else results.failed.push(it)
+                index++
+                deleteNext()
+            }
+            if (it.type === "dir") SeafileAPI.deleteFolder(root.currentRepo.id, path, token, step)
+            else SeafileAPI.deleteFile(root.currentRepo.id, path, token, step)
         }
+        deleteNext()
     }
 
     // ===== SHARE =====
@@ -1291,205 +1500,74 @@ function confirmMove(destPath) {
 
     // ===== BATCH OPERATIONS =====
 
-function moveItems() {
-    if (!root.currentRepo || root.selectedItems.length === 0) return
-    moveLoader.sourceComponent = moveComponent
-    root.moveItemData = { items: root.selectedItems.slice(), isDir: false }
-}
-
-function copyItems() {
-    if (!root.currentRepo || root.selectedItems.length === 0) return
-    copyLoader.sourceComponent = copyComponent
-    root.moveItemData = { items: root.selectedItems.slice(), isDir: false }
-}
-
-function deleteItems() {
-    if (root.selectedItems.length === 0) return
-    var token = Auth.getToken()
-    if (!token) { root.errorMessage = "Not authenticated"; return }
-
-    var itemsToDelete = root.selectedItems.slice()
-    var msg = "Delete " + root.selectedItems.length + " item(s)?"
-    confirmLoader.sourceComponent = confirmComponent
-    root.deleteItemData = { items: root.selectedItems.slice(), isDir: false }
-    root.confirmDelete = function() {
-        confirmLoader.sourceComponent = undefined
-        root.loading = true
-        root.errorMessage = ""
-        var itemsToDelete = root.selectedItems.slice()
-        root.clearSelection()
-        var token = Auth.getToken()
-        if (!token) { root.errorMessage = "Not authenticated"; root.loading = false; return }
-
-        var results = { success: [], failed: [] }
-        var index = 0
-
-        function deleteNext() {
-            if (index >= itemsToDelete.length) {
-                root.loading = false
-                var msg = results.success.length + " deleted"
-                if (results.failed.length > 0) {
-                    msg += ", " + results.failed.length + " failed"
-                }
-                root.showToast(msg, results.failed.length > 0 ? "error" : "success")
-                if (results.failed.length > 0) {
-                    root.selectedItems = results.failed
-                } else {
-                    root.clearSelection()
-                }
-                Cache.invalidatePath(root.currentRepo.id, root.currentPath)
-                root.refresh()
-                return
-            }
-
-            var item = itemsToDelete[index]
-            if (item.type === "dir") {
-                SeafileAPI.deleteFolder(root.currentRepo.id, item.fullPath, Auth.getToken(), function(success, error) {
-                    if (success) {
-                        results.success.push(item)
-                    } else {
-                        results.failed.push({ item: item, error: error })
-                    }
-                    index++
-                    deleteNext()
-                })
-            } else {
-                SeafileAPI.deleteFile(root.currentRepo.id, item.fullPath, token, function(success, error) {
-                    if (success) {
-                        results.success.push(item)
-                    } else {
-                        results.failed.push({ item: item, error: error })
-                    }
-                    index++
-                    deleteNext()
-                })
-            }
-            index = 0
-            results = { success: [], failed: [] }
-            deleteNext()
-        }
-    }
-
     function moveItems() {
         if (!root.currentRepo || root.selectedItems.length === 0) return
-        moveLoader.sourceComponent = moveComponent
         root.moveItemData = { items: root.selectedItems.slice(), isDir: false }
+        moveLoader.sourceComponent = moveComponent
     }
 
     function copyItems() {
         if (!root.currentRepo || root.selectedItems.length === 0) return
-        copyLoader.sourceComponent = copyComponent
         root.moveItemData = { items: root.selectedItems.slice(), isDir: false }
+        copyLoader.sourceComponent = copyComponent
     }
 
     function deleteItems() {
         if (root.selectedItems.length === 0) return
-        var token = Auth.getToken()
-        if (!token) { root.errorMessage = "Not authenticated"; return }
-
-        var itemsToDelete = root.selectedItems.slice()
-        var confirmMsg = "Delete " + root.selectedItems.length + " item(s)?"
-        confirmLoader.sourceComponent = confirmComponent
         root.deleteItemData = { items: root.selectedItems.slice(), isDir: false }
-        root.confirmDelete = function() {
-            confirmLoader.sourceComponent = undefined
-            root.loading = true
-            root.errorMessage = ""
-            var itemsToDelete = root.selectedItems.slice()
-            root.clearSelection()
-            var token = Auth.getToken()
-            if (!token) { root.errorMessage = "Not authenticated"; root.loading = false; return }
-
-            var results = { success: [], failed: [] }
-            var index = 0
-
-            function deleteNext() {
-                if (index >= itemsToDelete.length) {
-                    root.loading = false
-                    var msg = results.success.length + " deleted"
-                    if (results.failed.length > 0) {
-                        msg += ", " + results.failed.length + " failed"
-                    }
-                    root.showToast(msg, results.failed.length > 0 ? "error" : "success")
-                    if (results.failed.length > 0) {
-                        root.selectedItems = results.failed
-                    } else {
-                        root.clearSelection()
-                    }
-                    Cache.invalidatePath(root.currentRepo.id, root.currentPath)
-                    root.refresh()
-                    return
-                }
-
-                var item = itemsToDelete[index]
-                if (item.type === "dir") {
-                    SeafileAPI.deleteFolder(root.currentRepo.id, item.fullPath, Auth.getToken(), function(success, error) {
-                        if (success) {
-                            results.success.push(item)
-                        } else {
-                            results.failed.push({ item: item, error: error })
-                        }
-                        index++
-                        deleteNext()
-                    })
-                } else {
-                    SeafileAPI.deleteFile(root.currentRepo.id, item.fullPath, token, function(success, error) {
-                        if (success) {
-                            results.success.push(item)
-                        } else {
-                            results.failed.push({ item: item, error: error })
-                        }
-                        index++
-                        deleteNext()
-                    })
-                }
-                index = 0
-                results = { success: [], failed: [] }
-                deleteNext()
-            }
-        }
+        confirmLoader.sourceComponent = confirmComponent
     }
 
-    function showHistory(item) {
+    function openHistory(item) {
         if (!root.currentRepo || !item || item.type !== "file") return
         root.historyRepoId = root.currentRepo.id
         root.historyFileName = item.name
         root.historyFilePath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
-        root.historyRepoId = root.currentRepo.id
         root.showHistory = true
+        historyLoader.sourceComponent = historyComponent
     }
 
-    function showTrash() {
-        if (!root.currentRepo) return
+    function openTrash() {
+        if (!root.currentRepo) {
+            root.showToast("Open a library to browse its trash", "error")
+            return
+        }
         root.showTrash = true
+        trashLoader.sourceComponent = trashComponent
     }
 
     // ===== INIT =====
 
-    property bool depsChecked: false
-    property string depErrorMessage: ""
-
     Component.onCompleted: {
-        var missing = Auth.checkDependencies()
-        var hasRequiredMissing = false
-        for (var i = 0; i < missing.length; i++) {
-            if (missing[i].required) hasRequiredMissing = true
-        }
-        if (missing.length > 0) {
-            var msg = "Missing dependencies:\n"
-            for (var j = 0; j < missing.length; j++) {
-                msg += "  • " + missing[j].name + " — install: " + missing[j].install + (missing[j].required ? " (required)" : " (optional)") + "\n"
+        Auth.checkDependencies().then(function(missing) {
+                        var hasRequiredMissing = false
+            for (var i = 0; i < missing.length; i++) {
+                if (missing[i].required) hasRequiredMissing = true
             }
-            root.depErrorMessage = msg
-        }
-        root.depsChecked = true
+            if (missing.length > 0) {
+                var msg = "Missing dependencies:\n"
+                for (var j = 0; j < missing.length; j++) {
+                    msg += "  • " + missing[j].name + " — install: " + missing[j].install + (missing[j].required ? " (required)" : " (optional)") + "\n"
+                }
+                root.depErrorMessage = msg
+            }
+            root.depsChecked = true
 
-        if (Auth.isAuthenticated() && !hasRequiredMissing) {
-            SeafileAPI.setBaseUrl(root.serverUrl)
-            SeafileAPI.setToken(Auth.getToken())
-            connectionService.setServerUrl(root.serverUrl)
-            root.state = "browse"
-            root.loadLibraries()
-        }
+            Auth.isAuthenticated().then(function(authenticated) {
+                    if (authenticated && !hasRequiredMissing) {
+                    var token = Auth.getToken()
+                    var serverUrl = Auth.getServerUrl()
+                    root.serverUrl = serverUrl
+                    SeafileAPI.setBaseUrl(serverUrl)
+                    SeafileAPI.setToken(token)
+                    connectionService.setServerUrl(serverUrl)
+                    root.state = "browse"
+                    root.loadLibraries()
+                }
+            })
+        })
+
+        root.activeTransferCount = TransferService.getActiveCount()
+        root.hasTransferFailures = TransferService.hasFailures()
     }
 }

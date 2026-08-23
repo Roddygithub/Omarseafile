@@ -1,0 +1,8 @@
+module roddy.seafile
+ConnectionService 1.0 ConnectionService.qml
+singleton Auth 1.0 Auth.qml
+singleton SeafileAPI 1.0 SeafileAPI.qml
+singleton Models 1.0 Models.qml
+singleton TransferService 1.0 TransferService.qml
+singleton Cache 1.0 Cache.qml
+singleton SelectionHelper 1.0 SelectionHelper.qml

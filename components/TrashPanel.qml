@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../js"
 
 Column {
     id: root
@@ -134,8 +135,6 @@ Column {
                         Button {
                             id: restoreBtn
                             text: "Restore"
-                            font.family: root.bar.fontFamily
-                            font.pixelSize: Style.font.caption
                             visible: modelData.isDir
                             onClicked: {
                                 if (root.onRestoreFolder) root.onRestoreFolder(trashItem)
@@ -157,17 +156,17 @@ Column {
         }
 
         // Empty state
-        Text {
-            width: parent.width
-            text: "Trash is empty"
-            color: Qt.darker(root.bar.foreground, 1.4)
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.caption
-            horizontalAlignment: Text.AlignHCenter
-            topPadding: Style.space(16)
-            bottomPadding: Style.space(16)
-            visible: root.trashData.length === 0
-        }
+        EmptyState {
+                id: emptyState
+                bar: root.bar
+                icon: "\uf1f8"
+                title: "Trash is empty"
+                subtitle: "Deleted items appear here"
+                width: parent.width
+                height: trashList.height
+                anchors.centerIn: trashList
+                visible: root.trashData.length === 0
+            }
     }
 
     // Bottom close button
@@ -175,8 +174,6 @@ Column {
         width: parent.width
         height: Style.space(40)
         text: "Close"
-        font.family: root.bar.fontFamily
-        font.pixelSize: Style.font.body
         onClicked: {
             if (root.onClose) root.onClose()
         }

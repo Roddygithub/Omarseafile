@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-23
+
+### Added
+- **Post-download Open / Show in Folder** — Right-click completed downloads to open in default application or show in file manager
+- **File list sorting** — Click column headers to sort by Name, Size, Modified date, or Type (ascending/descending)
+- **Search global result cap** — Limited to 100 results globally with truncation notice
+- **Search feedback** — "Searching X of Y libraries..." progress, result counts, truncation notices
+- **Empty state illustrations** — Icon + title + subtitle for History, Trash, Search, and Transfers
+- **Transfer action tooltips** — Hover tooltips for Cancel, Retry, Clear, Open, Show in Folder
+
+### Changed
+- **Empty states** — Visual icons + titles + subtitles for History, Trash, Search, Transfers
+- **TransferItem actions** — Added Open and Show in Folder for completed downloads
+- **File list sorting** — Clickable column headers for Name, Size, Modified date
+
+### Security
+- **Desktop integration** — User-initiated `Qt.openUrlExternally()` only, no auto-execution
+
 ## [0.8.0] - 2026-08-22
 
 ### Added

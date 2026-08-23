@@ -12,35 +12,32 @@ QtObject {
     property int maxConsecutiveFailures: 3
 
     property int consecutiveFailures: 0
-    property var checkTimer: null
+
+    property Timer connectionCheckTimer: Timer {
+        interval: root.checkInterval
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.checkConnectivity()
+    }
 
     function setServerUrl(url) {
         root.serverUrl = url.replace(/\/+$/, "")
     }
 
     function start() {
-        if (root.checkTimer) return
-        root.checkTimer = Timer {
-            interval: root.checkInterval
-            running: true
-            repeat: true
-            triggeredOnStart: true
-            onTriggered: root.checkConnectivity()
-        }
+        if (root.connectionCheckTimer.running) return
+        root.connectionCheckTimer.start()
     }
 
     function stop() {
-        if (root.checkTimer) {
-            root.checkTimer.stop()
-            root.checkTimer = null
-        }
+        root.connectionCheckTimer.stop()
     }
 
     function checkConnectivity() {
         if (!root.serverUrl) return
 
         var xhr = new XMLHttpRequest()
-        var url = root.serverUrl + "/api2/ping/"
+        var url = root.serverUrl.replace(/\/+$/, "") + "/api2/ping/"
         xhr.open("GET", url, true)
         xhr.timeout = 5000
         xhr.onreadystatechange = function() {
@@ -72,10 +69,6 @@ QtObject {
             root.online = false
             onlineChanged()
         }
-    }
-
-    function onlineChanged() {
-        // Signal handled by Panel.qml via property binding
     }
 
     function forceCheck() {

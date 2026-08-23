@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../js"
 
 Item {
     id: root
@@ -13,7 +14,12 @@ Item {
     property string depErrorMessage: ""
     property var onLogin: null
 
-    width: parent.width
+Component.onCompleted: {
+        var email = Auth.getEmail()
+        if (email) emailField.text = email
+    }
+
+    width: parent ? Math.max(parent.width, 300) : 380
     implicitHeight: column.implicitHeight
 
     Column {
@@ -90,10 +96,8 @@ Item {
             id: loginButton
             width: parent.width
             text: "Connect"
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.body
             onClicked: {
-                if (root.onLogin) root.onLogin()
+                if (root.onLogin) root.onLogin(serverField.text, emailField.text, passwordField.text)
             }
         }
     }

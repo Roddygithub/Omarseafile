@@ -1,3 +1,4 @@
+pragma Singleton
 import QtQuick
 
 QtObject {
@@ -40,6 +41,7 @@ QtObject {
                     return {
                         id: repo.id,
                         name: repo.name,
+                        type: "dir",
                         size: repo.size,
                         sizeFormatted: repo.size_formatted,
                         mtime: repo.mtime,
@@ -96,9 +98,11 @@ QtObject {
     }
 
     function createFolder(repoId, parentPath, folderName, token, callback) {
-        var url = "/api/v2.1/repos/" + repoId + "/dir/?p=" + encodeURIComponent(parentPath)
+        var parent = parentPath === "/" ? "" : parentPath
+        var fullPath = parent + "/" + folderName
+        var url = "/api2/repos/" + repoId + "/dir/?p=" + encodeURIComponent(fullPath)
         var xhr = new XMLHttpRequest()
-        xhr.open("POST", url, true)
+        xhr.open("POST", baseUrl + url, true)
         xhr.setRequestHeader("Authorization", "Token " + token)
         xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
         xhr.onreadystatechange = function() {
@@ -110,11 +114,11 @@ QtObject {
                 }
             }
         }
-        xhr.send("operation=mkdir&dir_name=" + encodeURIComponent(folderName))
+        xhr.send("operation=mkdir")
     }
 
     function renameFile(repoId, filePath, newName, token, callback) {
-        var url = "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
+        var url = baseUrl + "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
         var xhr = new XMLHttpRequest()
         xhr.open("POST", url, true)
         xhr.setRequestHeader("Authorization", "Token " + token)
@@ -132,7 +136,9 @@ QtObject {
     }
 
     function renameFolder(repoId, parentPath, oldName, newName, token, callback) {
-        var url = "/api/v2.1/repos/" + repoId + "/dir/?p=" + encodeURIComponent(parentPath)
+        var parent = parentPath === "/" ? "" : parentPath
+        var fullPath = parent + "/" + oldName
+        var url = baseUrl + "/api2/repos/" + repoId + "/dir/?p=" + encodeURIComponent(fullPath)
         var xhr = new XMLHttpRequest()
         xhr.open("POST", url, true)
         xhr.setRequestHeader("Authorization", "Token " + token)
@@ -146,11 +152,11 @@ QtObject {
                 }
             }
         }
-        xhr.send("operation=rename&oldname=" + encodeURIComponent(oldName) + "&newname=" + encodeURIComponent(newName))
+        xhr.send("operation=rename&newname=" + encodeURIComponent(newName))
     }
 
     function moveFile(repoId, filePath, destPath, token, callback) {
-        var url = "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
+        var url = baseUrl + "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
         var xhr = new XMLHttpRequest()
         xhr.open("POST", url, true)
         xhr.setRequestHeader("Authorization", "Token " + token)
@@ -168,7 +174,7 @@ QtObject {
     }
 
     function deleteFile(repoId, filePath, token, callback) {
-        var url = "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
+        var url = baseUrl + "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
         var xhr = new XMLHttpRequest()
         xhr.open("DELETE", url, true)
         xhr.setRequestHeader("Authorization", "Token " + token)
@@ -185,7 +191,7 @@ QtObject {
     }
 
     function deleteFolder(repoId, folderPath, token, callback) {
-        var url = "/api2/repos/" + repoId + "/dir/?p=" + encodeURIComponent(folderPath)
+        var url = baseUrl + "/api2/repos/" + repoId + "/dir/?p=" + encodeURIComponent(folderPath)
         var xhr = new XMLHttpRequest()
         xhr.open("DELETE", url, true)
         xhr.setRequestHeader("Authorization", "Token " + token)
@@ -202,7 +208,7 @@ QtObject {
     }
 
     function moveFolder(repoId, folderName, srcParentPath, destRepoId, destParentPath, token, callback) {
-        var url = "/api/v2.1/repos/async-batch-move-item/"
+        var url = baseUrl + "/api/v2.1/repos/async-batch-move-item/"
         var xhr = new XMLHttpRequest()
         xhr.open("POST", url, true)
         xhr.setRequestHeader("Authorization", "Token " + token)
@@ -226,18 +232,6 @@ QtObject {
         xhr.send(body)
     }
 
-    function getDownloadLink(repoId, path, reuse, callback) {
-        var url = "/api2/repos/" + repoId + "/file/?p=" + encodeURIComponent(path)
-        if (reuse) url += "&reuse=1"
-        request("GET", url, null, function(success, data, error) {
-            if (success) {
-                callback(true, data, null)
-            } else {
-                callback(false, null, error)
-            }
-        })
-    }
-
     function request(method, path, body, callback) {
         if (!token) {
             callback(false, null, "No authentication token")
@@ -254,7 +248,13 @@ QtObject {
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    var data = xhr.responseText ? JSON.parse(xhr.responseText) : null
+                    var data = null
+                    try {
+                        data = xhr.responseText ? JSON.parse(xhr.responseText) : null
+                    } catch (e) {
+                        callback(false, null, "Invalid server response")
+                        return
+                    }
                     callback(true, data, null)
                 } else {
                     var error = parseError(xhr)
@@ -363,7 +363,7 @@ QtObject {
 
     // ===== COPY =====
 
-    function copyFile(repoId, filePath, dstRepoId, dstDir, newName, callback) {
+    function copyFile(repoId, filePath, dstRepoId, dstDir, newName, token, callback) {
         var url = "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
         var xhr = new XMLHttpRequest()
         xhr.open("POST", baseUrl + url, true)
@@ -372,10 +372,9 @@ QtObject {
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    var response = JSON.parse(xhr.responseText)
-                    callback(true, response, null)
+                    callback(true, null)
                 } else {
-                    callback(false, null, parseError(xhr))
+                    callback(false, parseError(xhr))
                 }
             }
         }
@@ -383,7 +382,7 @@ QtObject {
         xhr.send(body)
     }
 
-    function copyFolder(repoId, folderName, srcParentDir, dstRepoId, dstParentDir, callback) {
+    function copyFolder(repoId, folderName, srcParentDir, dstRepoId, dstParentDir, token, callback) {
         var url = baseUrl + "/api/v2.1/repos/sync-batch-copy-item/"
         var xhr = new XMLHttpRequest()
         xhr.open("POST", url, true)
@@ -561,6 +560,8 @@ QtObject {
 
         deleteNext()
     }
+
+    function search(query, repoId, callback) {
         var url = "/api/v2.1/search-file/?q=" + encodeURIComponent(query) + "&repo_id=" + encodeURIComponent(repoId)
         var xhr = new XMLHttpRequest()
         xhr.open("GET", baseUrl + url, true)
@@ -604,7 +605,7 @@ QtObject {
         var url = "/api2/repos/" + repoId + "/file/history/?p=" + encodeURIComponent(path)
         request("GET", url, null, function(success, data, error) {
             if (success) {
-                var history = data.map(function(commit) {
+                var history = (data.commits || []).map(function(commit) {
                     return {
                         commitId: commit.id,
                         id: commit.id,
@@ -646,7 +647,7 @@ QtObject {
         var url = "/api/v2.1/repos/" + repoId + "/trash/"
         request("GET", url, null, function(success, data, error) {
             if (success) {
-                var trash = data.map(function(item) {
+                var trash = (data.data || []).map(function(item) {
                     return {
                         parentDir: item.parent_dir,
                         objName: item.obj_name,
@@ -654,8 +655,6 @@ QtObject {
                         commitId: item.commit_id,
                         isDir: item.is_dir,
                         size: item.size || 0,
-                        objId: item.obj_id || "",
-                        isDir: item.is_dir,
                         objId: item.obj_id || ""
                     }
                 })

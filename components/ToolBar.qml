@@ -1,7 +1,6 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
-import "./BatchActionBar.qml" as BatchActionBar
 
 Item {
     id: root
@@ -32,7 +31,7 @@ Item {
     property var onRefreshClicked: null
     property var onUploadClicked: null
     property var onSearchChanged: null
-    property var onSearchActiveChanged: null
+    property var onSearchActiveToggled: null
     property var onLogoutClicked: null
     property var onSettingsClicked: null
 
@@ -46,11 +45,25 @@ Item {
         anchors.rightMargin: Style.space(12)
         spacing: Style.space(8)
 
+        // AUDIT-FIX: reserve width for ALL action buttons so the title cannot push them off-card
+        readonly property int _fixedButtons: (backButton.visible ? backButton.width : 0)
+            + (searchButton.visible ? searchButton.width : 0)
+            + (uploadButton.visible ? uploadButton.width : 0)
+            + (refreshButton.visible ? refreshButton.width : 0)
+            + (settingsButton.visible ? settingsButton.width : 0)
+            + (logoutButton.visible ? logoutButton.width : 0)
+            + (transfersButton.visible ? transfersButton.width : 0)
+            + (trashButton.visible ? trashButton.width : 0)
+            + (offlineIndicator.visible ? offlineIndicator.width : 0)
+            + (batchActionBar.visible ? batchActionBar.width : 0)
+        readonly property int _visibleCount: (backButton.visible ? 1 : 0) + (searchButton.visible ? 1 : 0)
+            + (uploadButton.visible ? 1 : 0) + (refreshButton.visible ? 1 : 0) + (settingsButton.visible ? 1 : 0)
+            + (logoutButton.visible ? 1 : 0) + (transfersButton.visible ? 1 : 0) + (trashButton.visible ? 1 : 0)
+            + (offlineIndicator.visible ? 1 : 0) + (batchActionBar.visible ? 1 : 0) + (searchField.visible ? 1 : 0)
+
         Button {
             id: backButton
             text: "\uf053"
-            font.family: "Noto Sans"
-            font.pixelSize: Style.font.title
             visible: root.showBack
             onClicked: {
                 if (root.onBackClicked) root.onBackClicked()
@@ -65,7 +78,7 @@ Item {
             font.pixelSize: Style.font.title
             font.bold: true
             elide: Text.ElideRight
-            width: parent.width - backButton.width - searchField.width - searchButton.width - refreshButton.width - uploadButton.width - offlineIndicator.width - Style.space(24)
+            width: Math.max(Style.space(24), row.width - row._fixedButtons - Style.space(8) * Math.max(0, row._visibleCount - 1))
             anchors.verticalCenter: parent.verticalCenter
             visible: !root.searchActive && root.selectionCount === 0
         }
@@ -75,21 +88,24 @@ Item {
             bar: root.bar
             count: root.selectionCount
             visible: root.selectionCount > 0
-            onMove: { if (root.onMoveBatch) root.onMoveBatch() }
-            onCopy: { if (root.onCopyBatch) root.onCopyBatch() }
-            onDelete: { if (root.onDeleteBatch) root.onDeleteBatch() }
-            onClear: { if (root.onClearSelection) root.onClearSelection() }
+            // property var targets: assign callable function EXPRESSIONS.
+            // A bare block `{ ... }` would be evaluated as a binding body at
+            // creation (ghost calls) and leave the property undefined (dead buttons).
+            onMove: function() { if (root.onMoveBatch) root.onMoveBatch() }
+            onCopy: function() { if (root.onCopyBatch) root.onCopyBatch() }
+            onDelete: function() { if (root.onDeleteBatch) root.onDeleteBatch() }
+            onClear: function() { if (root.onClearSelection) root.onClearSelection() }
         }
 
         TextField {
             id: searchField
-            width: root.searchActive ? parent.width - backButton.width - searchButton.width - refreshButton.width - uploadButton.width - offlineIndicator.width - Style.space(24) : 0
+            width: root.searchActive ? Math.max(Style.space(60), row.width - row._fixedButtons - Style.space(8) * Math.max(0, row._visibleCount - 1)) : 0
             height: row.height
             visible: root.searchActive
             placeholderText: "Search..."
             text: root.searchQuery
             color: root.bar.foreground
-            placeholderColor: Qt.darker(root.bar.foreground, 1.4)
+            placeholderTextColor: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
             background: Rectangle {
@@ -105,22 +121,20 @@ Item {
             Keys.onEscapePressed: {
                 root.searchActive = false
                 root.searchQuery = ""
-                if (root.onSearchActiveChanged) root.onSearchActiveChanged(false)
+                if (root.onSearchActiveToggled) root.onSearchActiveToggled(false)
             }
         }
 
         Button {
             id: searchButton
             text: root.searchActive ? "\uf00d" : "\uf002"
-            font.family: "Noto Sans"
-            font.pixelSize: Style.font.title
             visible: root.showSearch
             onClicked: {
                 root.searchActive = !root.searchActive
                 if (!root.searchActive) {
                     root.searchQuery = ""
                 }
-                if (root.onSearchActiveChanged) root.onSearchActiveChanged(root.searchActive)
+                if (root.onSearchActiveToggled) root.onSearchActiveToggled(root.searchActive)
                 if (root.searchActive) {
                     searchField.forceActiveFocus()
                 }
@@ -130,9 +144,7 @@ Item {
         Button {
             id: uploadButton
             text: "\uf093"
-            font.family: "Noto Sans"
-            font.pixelSize: Style.font.title
-            visible: root.showUpload && !root.searchActive
+            visible: root.showUpload && !root.searchActive && !batchActionBar.visible
             tooltipText: "Upload file"
             onClicked: {
                 if (root.onUploadClicked) root.onUploadClicked()
@@ -142,9 +154,7 @@ Item {
         Button {
             id: refreshButton
             text: "\uf021"
-            font.family: "Noto Sans"
-            font.pixelSize: Style.font.title
-            visible: root.showRefresh && !root.searchActive
+            visible: root.showRefresh && !root.searchActive && !batchActionBar.visible
             onClicked: {
                 if (root.onRefreshClicked) root.onRefreshClicked()
             }
@@ -153,8 +163,6 @@ Item {
         Button {
             id: settingsButton
             text: "\uf013"
-            font.family: "Noto Sans"
-            font.pixelSize: Style.font.title
             visible: root.showSettings && !root.searchActive
             tooltipText: "Settings"
             onClicked: {
@@ -165,9 +173,7 @@ Item {
         Button {
             id: logoutButton
             text: "\uf08b"
-            font.family: "Noto Sans"
-            font.pixelSize: Style.font.title
-            visible: root.showLogout && !root.searchActive
+            visible: root.showLogout && !root.searchActive && !batchActionBar.visible
             tooltipText: "Logout"
             onClicked: {
                 if (root.onLogoutClicked) root.onLogoutClicked()
@@ -178,7 +184,7 @@ Item {
             id: transfersButton
             width: Style.space(28)
             height: row.height
-            visible: root.showTransfers && !root.searchActive
+            visible: root.showTransfers && !root.searchActive && !batchActionBar.visible
 
             Text {
                 id: transfersIcon
@@ -194,20 +200,23 @@ Item {
                 text: root.activeTransferCount
                 color: Color.background
                 font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.tiny
+                font.pixelSize: Style.font.caption
                 font.bold: true
                 visible: root.activeTransferCount > 0
                 anchors.top: parent.top
                 anchors.right: parent.right
                 anchors.topMargin: Style.space(2)
                 anchors.rightMargin: Style.space(2)
-                background: Rectangle {
-                    radius: width / 2
-                    color: Color.accent
-                    width: transfersBadge.implicitWidth + Style.space(4)
-                    height: transfersBadge.implicitHeight + Style.space(2)
-                    anchors.centerIn: transfersBadge
-                }
+                z: 1
+            }
+
+            Rectangle {
+                visible: root.activeTransferCount > 0
+                radius: width / 2
+                color: Color.accent
+                width: transfersBadge.implicitWidth + Style.space(4)
+                height: transfersBadge.implicitHeight + Style.space(2)
+                anchors.centerIn: transfersBadge
             }
 
             MouseArea {
@@ -221,7 +230,7 @@ Item {
             id: trashButton
             width: Style.space(28)
             height: row.height
-            visible: root.showTrash && !root.searchActive
+            visible: root.showTrash && !root.searchActive && !batchActionBar.visible
 
             Text {
                 id: trashIcon
@@ -237,20 +246,23 @@ Item {
                 text: "0"
                 color: Color.background
                 font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.tiny
+                font.pixelSize: Style.font.caption
                 font.bold: true
                 visible: root.selectionCount > 0
                 anchors.top: parent.top
                 anchors.right: parent.right
                 anchors.topMargin: Style.space(2)
                 anchors.rightMargin: Style.space(2)
-                background: Rectangle {
-                    radius: width / 2
-                    color: Color.accent
-                    width: trashBadge.implicitWidth + Style.space(4)
-                    height: trashBadge.implicitHeight + Style.space(2)
-                    anchors.centerIn: trashBadge
-                }
+                z: 1
+            }
+
+            Rectangle {
+                visible: root.selectionCount > 0
+                radius: width / 2
+                color: Color.accent
+                width: trashBadge.implicitWidth + Style.space(4)
+                height: trashBadge.implicitHeight + Style.space(2)
+                anchors.centerIn: trashBadge
             }
 
             MouseArea {

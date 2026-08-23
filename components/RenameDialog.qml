@@ -15,6 +15,7 @@ Item {
 
     width: parent.width
     implicitHeight: column.implicitHeight
+    height: implicitHeight
 
     Column {
         id: column
@@ -50,13 +51,12 @@ Item {
 
         Row {
             spacing: Style.space(12)
+            width: parent.width
 
             Button {
                 id: cancelButton
                 width: parent.width / 2 - Style.space(6)
                 text: "Cancel"
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.body
                 onClicked: {
                     if (root.onCancel) root.onCancel()
                 }
@@ -66,8 +66,6 @@ Item {
                 id: renameButton
                 width: parent.width / 2 - Style.space(6)
                 text: "Rename"
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.body
                 onClicked: {
                     if (root.onRename) root.onRename()
                 }

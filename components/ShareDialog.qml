@@ -1,7 +1,10 @@
 import QtQuick
+import QtQuick.Controls
 import qs.Commons
 import qs.Ui
-import "./ConfirmDialog.qml" as ConfirmDialog
+import Quickshell.Io
+import "./"
+import "../js"
 
 Item {
     id: root
@@ -37,6 +40,7 @@ Item {
 
     width: parent.width
     implicitHeight: column.implicitHeight
+    height: implicitHeight
 
     Component.onCompleted: {
         loadExistingLinks()
@@ -48,8 +52,8 @@ Item {
         SeafileAPI.listShareLinks(root.repoId, root.itemPath, function(success, data, error) {
             root.loading = false
             if (success) {
-                root.existingLinks = data
-                if (data.length === 0) {
+                root.existingLinks = Array.isArray(data) ? data : []
+                if (root.existingLinks.length === 0) {
                     root.showCreateForm = true
                 }
             } else {
@@ -151,8 +155,8 @@ Item {
         ConfirmDialog {
             bar: root.bar
             message: "Revoke share link for \"" + root.revokeLinkData.obj_name + "\"?"
-            onConfirm: root.executeRevoke()
-            onCancel: root.cancelRevoke()
+            onConfirm: function() { root.executeRevoke() }
+            onCancel: function() { root.cancelRevoke() }
         }
     }
 
@@ -252,8 +256,6 @@ Item {
                         Button {
                             id: copyBtn
                             text: "Copy"
-                            font.family: root.bar.fontFamily
-                            font.pixelSize: Style.font.caption
                             onClicked: {
                                 root.copyToClipboard(modelData.link)
                             }
@@ -263,8 +265,6 @@ Item {
                             id: deleteBtn
                             text: "Revoke"
                             color: Color.urgent
-                            font.family: root.bar.fontFamily
-                            font.pixelSize: Style.font.caption
                             onClicked: {
                                 root.confirmRevoke(modelData)
                             }
@@ -300,8 +300,6 @@ Item {
             Button {
                 width: parent.width
                 text: "Create New Link"
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.body
                 onClicked: {
                     root.showCreateForm = true
                 }
@@ -519,8 +517,6 @@ Item {
                     Button {
                         id: copyCreatedBtn
                         text: "Copy"
-                        font.family: root.bar.fontFamily
-                        font.pixelSize: Style.font.caption
                         onClicked: {
                             root.copyToClipboard(root.shareUrl)
                         }
@@ -537,8 +533,6 @@ Item {
             Button {
                 width: parent.width / 2 - Style.space(6)
                 text: "Close"
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.body
                 onClicked: {
                     if (root.onDone) root.onDone()
                 }
@@ -548,8 +542,6 @@ Item {
                 width: parent.width / 2 - Style.space(6)
                 text: "Create"
                 visible: root.showCreateForm && root.shareUrl === ""
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.body
                 onClicked: {
                     root.createLink()
                 }

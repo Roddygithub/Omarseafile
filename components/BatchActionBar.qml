@@ -12,8 +12,12 @@ Item {
     property var onClear: null
 
     visible: root.count > 0
-    width: parent.width
+    // Size to content: this bar lives inside the ToolBar Row, so binding
+    // width to parent.width would swallow the whole card width and push
+    // every sibling button off-card.
+    implicitWidth: row.implicitWidth + Style.space(16)
     implicitHeight: row.implicitHeight
+    width: implicitWidth
 
     Row {
         id: row
@@ -40,8 +44,6 @@ Item {
         Button {
             id: moveBtn
             text: "Move"
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.caption
             visible: root.count > 0
             onClicked: {
                 if (root.onMove) root.onMove()
@@ -51,8 +53,6 @@ Item {
         Button {
             id: copyBtn
             text: "Copy"
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.caption
             visible: root.count > 0
             onClicked: {
                 if (root.onCopy) root.onCopy()
@@ -62,8 +62,6 @@ Item {
         Button {
             id: deleteBtn
             text: "Delete"
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.caption
             color: Color.urgent
             visible: root.count > 0
             onClicked: {
@@ -74,8 +72,6 @@ Item {
         Button {
             id: clearBtn
             text: "Clear"
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.caption
             visible: root.count > 0
             onClicked: {
                 if (root.onClear) root.onClear()

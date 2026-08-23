@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../js"
 
 Column {
     id: root
@@ -137,8 +138,6 @@ Column {
                         Button {
                             id: downloadBtn
                             text: "Download"
-                            font.family: root.bar.fontFamily
-                            font.pixelSize: Style.font.caption
                             visible: !revision.isCurrent
                             onClicked: {
                                 if (root.onDownloadRevision) root.onDownloadRevision(revision)
@@ -161,17 +160,17 @@ Column {
         }
 
         // Empty state
-        Text {
-            width: parent.width
-            text: "No history available"
-            color: Qt.darker(root.bar.foreground, 1.4)
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.caption
-            horizontalAlignment: Text.AlignHCenter
-            topPadding: Style.space(16)
-            bottomPadding: Style.space(16)
-            visible: root.historyData.length === 0
-        }
+        EmptyState {
+                id: emptyState
+                bar: root.bar
+                icon: "\uf017"
+                title: "No history"
+                subtitle: "File revisions will appear here"
+                width: parent.width
+                height: historyList.height
+                anchors.centerIn: historyList
+                visible: root.historyData.length === 0
+            }
     }
 
     // Bottom close button
@@ -179,8 +178,6 @@ Column {
         width: parent.width
         height: Style.space(40)
         text: "Close"
-        font.family: root.bar.fontFamily
-        font.pixelSize: Style.font.body
         onClicked: {
             if (root.onClose) root.onClose()
         }

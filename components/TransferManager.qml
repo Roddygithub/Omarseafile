@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../js"
 
 Column {
     id: root
@@ -9,6 +10,8 @@ Column {
     property var onRetry: null
     property var onClearCompleted: null
     property var onClearFailed: null
+    property var onOpen: null
+    property var onShowInFolder: null
     property int activeCount: 0
     property int completedCount: 0
     property int failedCount: 0
@@ -51,7 +54,7 @@ Column {
         Row {
             width: parent.width
             height: Style.space(28)
-            anchors.leftMargin: Style.space(8)
+            leftPadding: Style.space(8)
 
             Text {
                 text: "Active (" + root.activeCount + ")"
@@ -66,6 +69,7 @@ Column {
         Repeater {
             model: root.activeTransfers
             delegate: TransferItem {
+                required property var modelData
                 width: root.width
                 bar: root.bar
                 transfer: modelData
@@ -91,10 +95,9 @@ Column {
                 font.pixelSize: Style.font.caption
                 font.bold: true
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.leftMargin: Style.space(8)
             }
 
-            Item { width: parent.width - completedLabel.width - clearCompletedBtn.width - Style.space(20); height: 1 }
+            Item { width: parent.width - clearCompletedBtn.width - Style.space(20); height: 1 }
 
             Text {
                 id: clearCompletedBtn
@@ -114,10 +117,13 @@ Column {
         Repeater {
             model: root.completedTransfers
             delegate: TransferItem {
+                required property var modelData
                 width: root.width
                 bar: root.bar
                 transfer: modelData
                 onClear: root.onClearCompleted
+                onOpen: root.onOpen
+                onShowInFolder: root.onShowInFolder
             }
         }
     }
@@ -139,10 +145,9 @@ Column {
                 font.pixelSize: Style.font.caption
                 font.bold: true
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.leftMargin: Style.space(8)
             }
 
-            Item { width: parent.width - failedLabel.width - clearFailedBtn.width - Style.space(20); height: 1 }
+            Item { width: parent.width - clearFailedBtn.width - Style.space(20); height: 1 }
 
             Text {
                 id: clearFailedBtn
@@ -162,6 +167,7 @@ Column {
         Repeater {
             model: root.failedTransfers
             delegate: TransferItem {
+                required property var modelData
                 width: root.width
                 bar: root.bar
                 transfer: modelData
@@ -172,15 +178,13 @@ Column {
     }
 
     // Empty state
-    Text {
+    EmptyState {
+        id: emptyState
+        bar: root.bar
+        icon: "\uf0ec"
+        title: "No transfers"
+        subtitle: "Downloads and uploads appear here"
         width: parent.width
-        text: "No transfers"
-        color: Qt.darker(root.bar.foreground, 1.4)
-        font.family: root.bar.fontFamily
-        font.pixelSize: Style.font.caption
-        horizontalAlignment: Text.AlignHCenter
-        topPadding: Style.space(16)
-        bottomPadding: Style.space(16)
         visible: root.activeCount === 0 && root.completedCount === 0 && root.failedCount === 0
     }
 }

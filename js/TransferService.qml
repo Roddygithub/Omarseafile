@@ -1,3 +1,4 @@
+pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -15,12 +16,62 @@ QtObject {
 
     // ===== SIGNALS =====
 
-    signal transfersChanged()
     signal transferProgressChanged(var transfer)
     signal transferStateChanged(var transfer)
     signal transferRetryStarted(var transfer)
 
+    // ===== PROCESS FACTORY =====
+
+    property Component downloadProcessComponent: Component {
+        Process {
+            property var transferRef: null
+            stderr: StdioCollector {
+                onTextChanged: {
+                    if (transferRef && text) {
+                        root.parseProgress(text, transferRef)
+                        root.transferProgressChanged(transferRef)
+                    }
+                }
+            }
+            onExited: function(exitCode, exitStatus) {
+                if (transferRef) {
+                    root.handleDownloadExited(exitCode, transferRef)
+                }
+            }
+        }
+    }
+
+    property Component uploadProcessComponent: Component {
+        Process {
+            property var transferRef: null
+            stderr: StdioCollector {
+                onTextChanged: {
+                    if (transferRef && text) {
+                        root.parseProgress(text, transferRef)
+                        root.transferProgressChanged(transferRef)
+                    }
+                }
+            }
+            onExited: function(exitCode, exitStatus) {
+                if (transferRef) {
+                    root.handleUploadExited(exitCode, transferRef)
+                }
+            }
+        }
+    }
+
     // ===== DERIVED QUERIES =====
+
+    function findTransfer(fileItem) {
+        if (!fileItem) return null
+        var fullPath = fileItem.fullPath || fileItem.path || fileItem.name || ""
+        for (var i = 0; i < root.transfers.length; i++) {
+            var t = root.transfers[i]
+            if (t.state !== "pending" && t.state !== "downloading" && t.state !== "uploading") continue
+            if (t.fileName === fileItem.name && (t.fullPath === fullPath || t.fullPath === "/" + fileItem.name)) return t
+        }
+        return null
+    }
 
     function getActiveTransfers() {
         return root.transfers.filter(function(t) {
@@ -99,42 +150,37 @@ QtObject {
     }
 
     function resolveDestPath(dir, fileName) {
-        var baseName = fileName
-        var ext = ""
-        var dotIndex = fileName.lastIndexOf(".")
-        if (dotIndex > 0) {
-            baseName = fileName.substring(0, dotIndex)
-            ext = fileName.substring(dotIndex)
-        }
-        var finalName = fileName
-        var counter = 1
-        while (Qt.fileExists(dir + "/" + finalName)) {
-            finalName = baseName + " (" + counter + ")" + ext
-            counter++
-        }
-        return dir + "/" + finalName
+        return dir + "/" + fileName
     }
 
     // ===== AUTH HEADER FILE MANAGEMENT =====
 
-    function createAuthHeaderFile(token) {
-        var tempFile = "/tmp/seafile_auth_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9) + ".txt"
-        var headerContent = "Authorization: Token " + token
-        var file = Qt.openFile(tempFile, Qt.WriteOnly | Qt.Text)
-        if (!file) {
-            console.log("TransferService: Failed to create auth header temp file")
-            return null
+    property Component _fileViewFactory: Component {
+        FileView {
+            atomicWrites: true
         }
-        file.write("Authorization: Token " + token)
-        file.close()
-        Qt.chmod(tempFile, 0o600)
+    }
+
+    property Process _cleanupProcess: Process {}
+
+    function createAuthHeaderFile(token) {
+        var runtimeDir = Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"
+        var tempFile = runtimeDir + "/seafile_auth_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9) + ".txt"
+        var fv = _fileViewFactory.createObject(root)
+        if (!fv) return null
+        fv.path = tempFile
+        fv.setText("Authorization: Token " + token)
+        fv.waitForJob()
+        fv.destroy()
+        _cleanupProcess.command = ["chmod", "600", tempFile]
+        _cleanupProcess.running = true
         return tempFile
     }
 
     function cleanupAuthHeaderFile(filePath) {
-        if (filePath && Qt.fileExists(filePath)) {
-            Qt.removeFile(filePath)
-        }
+        if (!filePath) return
+        _cleanupProcess.command = ["rm", "-f", filePath]
+        _cleanupProcess.running = true
     }
 
     function cleanupTransferAuthFile(transfer) {
@@ -164,7 +210,6 @@ QtObject {
         transfer.process = null
         transfer.downloadLink = undefined
         transfer.uploadLink = undefined
-        // Clean up auth header file
         if (transfer.authHeaderFile) {
             cleanupAuthHeaderFile(transfer.authHeaderFile)
         }
@@ -225,7 +270,7 @@ QtObject {
     function getDownloadLinkAndExecute(download) {
         var xhr = new XMLHttpRequest()
         var path = download.fullPath || "/" + download.fileName
-        var url = download.baseUrl + "/api2/repos/" + download.repoId + "/file/?p=" + encodeURIComponent(path) + "&reuse=1"
+        var url = download.baseUrl.replace(/\/+$/, "") + "/api2/repos/" + download.repoId + "/file/?p=" + encodeURIComponent(path) + "&reuse=1"
         xhr.open("GET", url, true)
         xhr.setRequestHeader("Authorization", "Token " + download.token)
         xhr.setRequestHeader("Accept", "application/json")
@@ -267,7 +312,6 @@ QtObject {
     }
 
     function executeCurlDownload(download) {
-        // Create auth header temp file
         var authHeaderFile = createAuthHeaderFile(download.token)
         if (!authHeaderFile) {
             download.state = "failed"
@@ -279,62 +323,62 @@ QtObject {
         }
         download.authHeaderFile = authHeaderFile
 
-        var curlProc = Process {
-            command: [
-                "curl",
-                "-L",
-                "-f",
-                "-H", "@" + authHeaderFile,
-                "-H", "Accept: */*",
-                "--progress-bar",
-                "--output", download.destPath,
-                download.downloadLink
-            ]
-            stderrEnabled: true
-        }
-
-        download.process = curlProc
-
-        curlProc.onStdErrChanged: {
-            var stderr = curlProc.stderr
-            if (stderr) {
-                root.parseProgress(stderr, download)
-                root.transferProgressChanged(download)
-            }
-        }
-
-        curlProc.onExited: function(exitCode) {
-            // Clean up auth header file
-            cleanupTransferAuthFile(download)
-
-            if (exitCode === 0) {
-                download.state = "completed"
-                download.progress = 1.0
-                download.speed = ""
-                root.sanitizeForHistory(download)
-                root.pruneHistory()
-            } else if (download.state !== "cancelled") {
-                if (download.retryCount < root.maxRetries) {
-                    download.retryCount++
-                    var delay = Math.min(root.retryBaseDelay * Math.pow(2, download.retryCount - 1), root.maxRetryDelay)
-                    download.state = "pending"
-                    root.transferRetryStarted(download)
-                    root.transferStateChanged(download)
-                    root.transfersChanged()
-                    setTimeout(function() { root.executeCurlDownload(download) }, delay)
-                    return
-                }
-                download.state = "failed"
-                download.error = "Download failed (exit code: " + exitCode + ")"
-                root.sanitizeForHistory(download)
-                Qt.callLater(function() { Qt.deleteFile(download.destPath) })
-            }
-            download.process = null
+        var curlProc = downloadProcessComponent.createObject(root)
+        if (!curlProc) {
+            download.state = "failed"
+            download.error = "Failed to create download process"
+            root.sanitizeForHistory(download)
             root.transferStateChanged(download)
             root.transfersChanged()
+            cleanupAuthHeaderFile(authHeaderFile)
+            download.authHeaderFile = undefined
+            return
         }
 
-        curlProc.run()
+        curlProc.transferRef = download
+        curlProc.command = [
+            "curl",
+            "-L",
+            "-f",
+            "-H", "@" + authHeaderFile,
+            "-H", "Accept: */*",
+            "--progress-bar",
+            "--output", download.destPath,
+            download.downloadLink
+        ]
+
+        download.process = curlProc
+        curlProc.running = true
+    }
+
+    function handleDownloadExited(exitCode, download) {
+        cleanupTransferAuthFile(download)
+
+        if (exitCode === 0) {
+            download.state = "completed"
+            download.progress = 1.0
+            download.speed = ""
+            root.sanitizeForHistory(download)
+            root.pruneHistory()
+        } else if (download.state !== "cancelled") {
+            if (download.retryCount < root.maxRetries) {
+                download.retryCount++
+                var delay = Math.min(root.retryBaseDelay * Math.pow(2, download.retryCount - 1), root.maxRetryDelay)
+                download.state = "pending"
+                root.transferRetryStarted(download)
+                root.transferStateChanged(download)
+                root.transfersChanged()
+                setTimeout(function() { root.executeCurlDownload(download) }, delay)
+                return
+            }
+            download.state = "failed"
+            download.error = "Download failed (exit code: " + exitCode + ")"
+            root.sanitizeForHistory(download)
+            Qt.callLater(function() { Qt.deleteFile(download.destPath) })
+        }
+        download.process = null
+        root.transferStateChanged(download)
+        root.transfersChanged()
     }
 
     // ===== UPLOAD =====
@@ -370,7 +414,7 @@ QtObject {
 
     function getUploadLinkAndExecute(upload) {
         var xhr = new XMLHttpRequest()
-        var url = upload.baseUrl + "/api2/repos/" + upload.repoId + "/upload-link/?p=" + encodeURIComponent(upload.destUploadPath)
+        var url = upload.baseUrl.replace(/\/+$/, "") + "/api2/repos/" + upload.repoId + "/upload-link/?p=" + encodeURIComponent(upload.destUploadPath)
         xhr.open("GET", url, true)
         xhr.setRequestHeader("Authorization", "Token " + upload.token)
         xhr.setRequestHeader("Accept", "application/json")
@@ -411,7 +455,6 @@ QtObject {
     }
 
     function executeCurlUpload(upload) {
-        // Create auth header temp file
         var authHeaderFile = createAuthHeaderFile(upload.token)
         if (!authHeaderFile) {
             upload.state = "failed"
@@ -423,63 +466,63 @@ QtObject {
         }
         upload.authHeaderFile = authHeaderFile
 
-        var curlProc = Process {
-            command: [
-                "curl",
-                "-L",
-                "-f",
-                "-H", "@" + authHeaderFile,
-                "-H", "Accept: application/json",
-                "--progress-bar",
-                "-F", "file=@" + upload.srcPath,
-                "-F", "parent_dir=" + upload.destUploadPath,
-                "-F", "replace=0",
-                upload.uploadLink + "?ret-json=1"
-            ]
-            stderrEnabled: true
-        }
-
-        upload.process = curlProc
-
-        curlProc.onStdErrChanged: {
-            var stderr = curlProc.stderr
-            if (stderr) {
-                root.parseProgress(stderr, upload)
-                root.transferProgressChanged(upload)
-            }
-        }
-
-        curlProc.onExited: function(exitCode) {
-            // Clean up auth header file
-            cleanupTransferAuthFile(upload)
-
-            if (exitCode === 0) {
-                upload.state = "completed"
-                upload.progress = 1.0
-                upload.speed = ""
-                root.sanitizeForHistory(upload)
-                root.pruneHistory()
-            } else if (upload.state !== "cancelled") {
-                if (upload.retryCount < root.maxRetries) {
-                    upload.retryCount++
-                    var delay = Math.min(root.retryBaseDelay * Math.pow(2, upload.retryCount - 1), root.maxRetryDelay)
-                    upload.state = "pending"
-                    root.transferRetryStarted(upload)
-                    root.transferStateChanged(upload)
-                    root.transfersChanged()
-                    setTimeout(function() { root.executeCurlUpload(upload) }, delay)
-                    return
-                }
-                upload.state = "failed"
-                upload.error = "Upload failed (exit code: " + exitCode + ")"
-                root.sanitizeForHistory(upload)
-            }
-            upload.process = null
+        var curlProc = uploadProcessComponent.createObject(root)
+        if (!curlProc) {
+            upload.state = "failed"
+            upload.error = "Failed to create upload process"
+            root.sanitizeForHistory(upload)
             root.transferStateChanged(upload)
             root.transfersChanged()
+            cleanupAuthHeaderFile(authHeaderFile)
+            upload.authHeaderFile = undefined
+            return
         }
 
-        curlProc.run()
+        curlProc.transferRef = upload
+        curlProc.command = [
+            "curl",
+            "-L",
+            "-f",
+            "-H", "@" + authHeaderFile,
+            "-H", "Accept: application/json",
+            "--progress-bar",
+            "-F", "file=@" + upload.srcPath,
+            "-F", "parent_dir=" + upload.destUploadPath,
+            "-F", "replace=0",
+            upload.uploadLink + "?ret-json=1"
+        ]
+
+        upload.process = curlProc
+        curlProc.running = true
+    }
+
+    function handleUploadExited(exitCode, upload) {
+        cleanupTransferAuthFile(upload)
+
+        if (exitCode === 0) {
+            upload.state = "completed"
+            upload.progress = 1.0
+            upload.speed = ""
+            root.sanitizeForHistory(upload)
+            root.pruneHistory()
+        } else if (upload.state !== "cancelled") {
+            if (upload.retryCount < root.maxRetries) {
+                upload.retryCount++
+                var delay = Math.min(root.retryBaseDelay * Math.pow(2, upload.retryCount - 1), root.maxRetryDelay)
+                upload.state = "pending"
+                root.transferRetryStarted(upload)
+                root.transferStateChanged(upload)
+                root.transfersChanged()
+                setTimeout(function() { root.executeCurlUpload(upload) }, delay)
+                return
+            }
+            upload.state = "failed"
+            upload.error = "Upload failed (exit code: " + exitCode + ")"
+            root.sanitizeForHistory(upload)
+        }
+        upload.process = null
+        root.transferStateChanged(upload)
+        root.transfersChanged()
     }
 
     // ===== CANCEL =====
@@ -490,13 +533,12 @@ QtObject {
             if (t.id === transferId) {
                 if (t.process) {
                     t.state = "cancelled"
-                    t.process.kill()
+                    t.process.running = false
                     t.process = null
                     if (t.destPath && t.type === "download") {
                         Qt.callLater(function() { Qt.deleteFile(t.destPath) })
                     }
                 }
-                // Clean up auth header file on cancel
                 cleanupTransferAuthFile(t)
                 root.sanitizeForHistory(t)
                 root.transferStateChanged(t)
@@ -520,7 +562,6 @@ QtObject {
                 var fileName = t.fileName
                 var repoId = t.repoId
 
-                // Clean up old auth header file before removing
                 cleanupTransferAuthFile(t)
 
                 root.transfers.splice(i, 1)
@@ -549,7 +590,6 @@ QtObject {
     // ===== CLEAR =====
 
     function clearCompleted() {
-        // Clean up auth header files for completed transfers
         for (var i = 0; i < root.transfers.length; i++) {
             var t = root.transfers[i]
             if (t.state === "completed") {
@@ -563,7 +603,6 @@ QtObject {
     }
 
     function clearFailed() {
-        // Clean up auth header files for failed transfers
         for (var i = 0; i < root.transfers.length; i++) {
             var t = root.transfers[i]
             if (t.state === "failed" || t.state === "cancelled" || t.state === "auth_failed") {
@@ -577,7 +616,6 @@ QtObject {
     }
 
     function clearAllTerminal() {
-        // Clean up auth header files for all terminal transfers
         for (var i = 0; i < root.transfers.length; i++) {
             var t = root.transfers[i]
             if (t.state === "completed" || t.state === "failed" || t.state === "cancelled" || t.state === "auth_failed") {
@@ -603,7 +641,6 @@ QtObject {
                     Qt.callLater(function() { Qt.deleteFile(t.destPath) })
                 }
             }
-            // Clean up auth header file
             cleanupTransferAuthFile(t)
         }
         root.transfers = []

@@ -9,7 +9,7 @@ Item {
 
     implicitHeight: banner.implicitHeight
     width: parent.width
-    visible: root.visible
+    height: visible ? implicitHeight : 0
 
     Rectangle {
         id: banner

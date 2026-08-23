@@ -66,10 +66,10 @@ check "No hardcoded personal email pattern" bash -c '! grep -rE "[a-z0-9._%+-]+@
 echo ""
 echo "--- Keybindings Consistency ---"
 check "docs/KEYBINDINGS.md exists" test -f docs/KEYBINDINGS.md
-check "F2 (rename) implemented" grep -q "Key_F2\|Qt.Key_F2" Panel.qml
+check "F2 (rename) implemented" grep -Eq "Key_F2|Qt\.Key_F2|sequence:[[:space:]]*\"F2\"" Panel.qml
 check "Delete implemented" grep -q "onDeleteRequested\|pickDelete" Panel.qml
 check "Escape implemented" grep -q "onCloseRequested\|close()" Panel.qml
-check "Ctrl+A implemented" grep -q "Key_A.*ControlModifier\|Qt.Key_A.*ControlModifier" Panel.qml
+check "Ctrl+A implemented" grep -Eq "Key_A.*ControlModifier|sequence:[[:space:]]*\"Ctrl\+A\"" Panel.qml
 check "No Ctrl+H references (removed per policy)" bash -c '! grep -q "Key_H.*ControlModifier\|Qt.Key_H.*ControlModifier" Panel.qml'
 check "No Ctrl+T references (removed per policy)" bash -c '! grep -q "Key_T.*ControlModifier\|Qt.Key_T.*ControlModifier" Panel.qml'
 
@@ -100,8 +100,8 @@ check "README has Security Model" grep -qi "security" README.md
 # --- CI_CAPABLE: Source Code Patterns ---
 echo ""
 echo "--- Source Code Patterns ---"
-check "SettingsDialog imported in Panel.qml" grep -q 'import.*SettingsDialog' Panel.qml
-check "Auth.checkDependencies exists" grep -q "checkDependencies" js/Auth.js
+check "SettingsDialog imported in Panel.qml" grep -q 'import.*\(SettingsDialog\|"\./components"\)' Panel.qml
+check "Auth.checkDependencies exists" grep -q "checkDependencies" js/Auth.qml
 check "normalizeUrl function exists" grep -q "normalizeUrl" Panel.qml
 check "testConnection function exists" grep -q "testConnection" Panel.qml
 check "autoLogin setting used" grep -q 'setting("autoLogin"' Panel.qml
@@ -120,6 +120,84 @@ if [[ -d "$HOME/.config/omarchy/plugins/roddy.seafile" ]]; then
 else
     echo "  Runtime parity... SKIP (plugin not deployed)"
 fi
+
+# --- QML STRUCTURAL ANTI-PATTERNS ---
+# Detect Qt6/QML-invalid constructs that previously blocked Panel from loading.
+echo ""
+echo "--- QML Structural Anti-Patterns ---"
+check "No QML-in-.js / stale .js module references" bash -c '
+  bad=0
+  # A `.js` file must never carry a QML `pragma Singleton` (that only belongs in
+  # `.qml`). Quickshell JS modules legitimately use `QtObject { }`, `property`,
+  # and `Process { }` extensions, so those are NOT flagged.
+  for f in $(find . -name "*.js" -not -path "*/node_modules/*" 2>/dev/null); do
+    if grep -qE "pragma Singleton" "$f" 2>/dev/null; then
+      echo "  QML-in-JS: $f"; bad=1
+    fi
+  done
+  # JavaScript-style imports of individual .qml files with an alias (invalid Qt6
+  # import for our module layout; .js module imports like "./js/Auth.js" as Auth
+  # are legitimate and must NOT be flagged).
+  if grep -rqE "import \".*\.qml\" as " --include="*.qml" . 2>/dev/null; then
+    grep -rE "import \".*\.qml\" as " --include="*.qml" . 2>/dev/null | sed "s/^/  bad import: /"; bad=1
+  fi
+  exit $bad
+'
+check "No duplicate QML functions / properties / <prop>Changed collisions / uppercase props / illegal QtObject children" python3 - <<"PY"
+import re, glob, sys
+problems = []
+for f in sorted(glob.glob("**/*.qml", recursive=True)):
+    try:
+        src = open(f, encoding="utf-8").read()
+    except Exception:
+        continue
+    lines = src.splitlines()
+    funcs = re.findall(r"^\s{4}function\s+(\w+)\s*\(", src, re.M)
+    props = re.findall(r"^\s{4}(?:readonly )?property\s+\S+\s+(\w+)\s*:", src, re.M)
+    from collections import Counter
+    for nm, c in Counter(funcs).items():
+        if c > 1:
+            problems.append(f"{f}: duplicate function {nm}")
+    for nm, c in Counter(props).items():
+        if c > 1:
+            problems.append(f"{f}: duplicate property {nm}")
+    propnames = set(props)
+    for fn in funcs:
+        if fn.endswith("Changed") and fn[:-7] in propnames:
+            problems.append(f"{f}: function {fn}() collides with auto signal of property {fn[:-7]}")
+    for p in props:
+        if p[0].isupper():
+            problems.append(f"{f}: uppercase-leading property {p}")
+    # illegal direct child object inside QtObject
+    depth = 0
+    stack = []  # list of (indent_of_object_decl, type)
+    for l in lines:
+        s = l.lstrip()
+        if not s:
+            continue
+        m = re.match(r"^([A-Z]\w+)\s*\{", s)
+        if m:
+            indent = len(l) - len(s)
+            # direct child if indent equals parent body indent (parent_indent+4)
+            if stack and indent == stack[-1][0] + 4 and stack[-1][1] == "QtObject":
+                # a property-typed child would be "property X y: Type {" -> indent deeper after colon; here decl at body indent
+                if not re.match(r"^(property|readonly|id|function|signal|Component)", s):
+                    problems.append(f"{f}: illegal direct child object {m.group(1)} inside QtObject")
+            stack.append((indent, m.group(1)))
+        # detect closing braces to pop
+        opens = s.count("{"); closes = s.count("}")
+        # simple pop per close at matching indent (approx)
+        for _ in range(closes):
+            if stack:
+                stack.pop()
+        depth += opens - closes
+# (heuristic; duplicate-closing noise ignored)
+if problems:
+    for p in problems:
+        print("  " + p)
+    sys.exit(1)
+sys.exit(0)
+PY
 
 # --- Dependency Reporting ---
 echo ""

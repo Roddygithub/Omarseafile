@@ -1,6 +1,8 @@
 import QtQuick
+import QtQuick.Controls
 import qs.Commons
 import qs.Ui
+import "../js"
 
 Item {
     id: root
@@ -9,6 +11,8 @@ Item {
     property var onCancel: null
     property var onRetry: null
     property var onClear: null
+    property var onOpen: null
+    property var onShowInFolder: null
 
     implicitHeight: row.implicitHeight + Style.space(8)
     width: parent.width
@@ -16,6 +20,9 @@ Item {
     property bool isActive: transfer.state === "pending" || transfer.state === "downloading" || transfer.state === "uploading"
     property bool isCompleted: transfer.state === "completed"
     property bool isFailed: transfer.state === "failed" || transfer.state === "cancelled" || transfer.state === "auth_failed"
+
+    property bool isDownload: transfer.type === "download"
+    property bool showOpenActions: isCompleted && isDownload
 
     Row {
         id: row
@@ -87,7 +94,6 @@ Item {
                 to: 1
                 value: root.transfer.progress
                 visible: root.isActive && root.transfer.progress > 0
-                bar: root.bar
             }
 
             Text {
@@ -120,6 +126,7 @@ Item {
                     color: root.bar.foreground
                     font.family: "Noto Sans"
                     font.pixelSize: Style.font.caption
+                    ToolTip.text: "Retry transfer"
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
@@ -132,6 +139,7 @@ Item {
                     color: Color.urgent
                     font.family: "Noto Sans"
                     font.pixelSize: Style.font.caption
+                    ToolTip.text: "Remove from history"
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
@@ -145,6 +153,7 @@ Item {
                 color: Color.urgent
                 font.family: "Noto Sans"
                 font.pixelSize: Style.font.caption
+                ToolTip.text: "Cancel transfer"
                 horizontalAlignment: Text.AlignHCenter
                 anchors.horizontalCenter: parent.horizontalCenter
                 visible: root.isActive
@@ -152,6 +161,38 @@ Item {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     onClicked: { if (root.onCancel) root.onCancel(root.transfer) }
+                }
+            }
+
+            Row {
+                spacing: Style.space(4)
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: root.showOpenActions
+
+                Text {
+                    text: "\uf07c"
+                    color: root.bar.foreground
+                    font.family: "Noto Sans"
+                    font.pixelSize: Style.font.caption
+                    ToolTip.text: "Open file"
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: { if (root.onOpen) root.onOpen(root.transfer) }
+                    }
+                }
+
+                Text {
+                    text: "\uf07b"
+                    color: root.bar.foreground
+                    font.family: "Noto Sans"
+                    font.pixelSize: Style.font.caption
+                    ToolTip.text: "Show in file manager"
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: { if (root.onShowInFolder) root.onShowInFolder(root.transfer) }
+                    }
                 }
             }
         }

@@ -1,7 +1,8 @@
 import QtQuick
+import QtQuick.Controls
 import qs.Commons
 import qs.Ui
-import "../js/Models.js" as Models
+import "../js"
 
 ListView {
     id: root
@@ -96,6 +97,18 @@ ListView {
                 }
             }
         }
+    }
+
+    EmptyState {
+        id: emptyState
+        bar: root.bar
+        icon: "\uf002"
+        title: "No results"
+        subtitle: "Try different search terms"
+        width: parent.width
+        height: parent.height
+        anchors.centerIn: parent
+        visible: root.results.length === 0
     }
 
     ScrollBar.vertical: ScrollBar {

@@ -1,6 +1,8 @@
 import QtQuick
+import QtQuick.Controls
 import qs.Commons
 import qs.Ui
+import "../js"
 
 Item {
     id: root
@@ -10,19 +12,25 @@ Item {
     property var onClearCache: null
     property var onChangeServer: null
     property var onTestConnection: null
-    property var onAutoLoginChanged: null
+    property var onAutoLoginToggled: null
+
+    Component.onCompleted: {
+        var email = Auth.getEmail()
+        if (email) root.accountEmail = email
+    }
 
     width: parent.width
     implicitHeight: column.implicitHeight
+    height: implicitHeight
 
     property string serverUrl: ""
     property string accountEmail: ""
-    property string pluginVersion: "0.8.0"
+    property string pluginVersion: "0.9.0"
     property bool autoLogin: true
 
     Column {
         id: column
-        spacing: Style.space(20)
+        spacing: Style.space(10)
         width: Math.min(parent.width, Style.space(420))
         anchors.horizontalCenter: parent.horizontalCenter
 
@@ -30,7 +38,7 @@ Item {
             text: "Settings"
             color: root.bar.foreground
             font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.display
+            font.pixelSize: Style.font.heading
             font.bold: true
         }
 
@@ -43,7 +51,7 @@ Item {
 
         // Connection Section
         Column {
-            spacing: Style.space(12)
+            spacing: Style.space(6)
             width: parent.width
 
             Text {
@@ -74,12 +82,11 @@ Item {
 
             Row {
                 spacing: Style.space(8)
+                width: parent.width
                 Button {
                     id: testConnectionButton
                     width: parent.width / 2 - Style.space(4)
                     text: "Test Connection"
-                    font.family: root.bar.fontFamily
-                    font.pixelSize: Style.font.body
                     onClicked: {
                         if (root.onTestConnection) root.onTestConnection(serverUrlField.text)
                     }
@@ -88,8 +95,6 @@ Item {
                     id: applyServerButton
                     width: parent.width / 2 - Style.space(4)
                     text: "Apply Server"
-                    font.family: root.bar.fontFamily
-                    font.pixelSize: Style.font.body
                     onClicked: {
                         if (root.onChangeServer) root.onChangeServer(serverUrlField.text, true)
                     }
@@ -119,7 +124,7 @@ Item {
 
         // Account Section
         Column {
-            spacing: Style.space(12)
+            spacing: Style.space(6)
             width: parent.width
 
             Text {
@@ -132,10 +137,10 @@ Item {
 
             Item {
                 width: parent.width
-                height: Style.space(36)
+                height: Style.space(26)
                 Row {
                     anchors.fill: parent
-                    spacing: Style.space(12)
+                    spacing: Style.space(6)
                     Text {
                         text: "\uf007"
                         font.family: "Noto Sans"
@@ -145,7 +150,7 @@ Item {
                         width: Style.space(24)
                     }
                     Text {
-                        text: root.accountEmail || "Not signed in"
+                        text: root.accountEmail || Auth.cachedEmail || "Not signed in"
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.body
@@ -165,7 +170,7 @@ Item {
 
         // Preferences Section
         Column {
-            spacing: Style.space(12)
+            spacing: Style.space(6)
             width: parent.width
 
             Text {
@@ -184,15 +189,15 @@ Item {
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
+                    width: parent.width - autoLoginSwitch.width - Style.space(8)
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Switch {
                     id: autoLoginSwitch
                     checked: root.autoLogin
                     onToggled: {
-                        if (root.onAutoLoginChanged) root.onAutoLoginChanged(checked)
+                        if (root.onAutoLoginToggled) root.onAutoLoginToggled(checked)
                     }
-                    anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
@@ -207,7 +212,7 @@ Item {
 
         // Data Section
         Column {
-            spacing: Style.space(12)
+            spacing: Style.space(6)
             width: parent.width
 
             Text {
@@ -219,23 +224,20 @@ Item {
             }
 
             Row {
+                width: parent.width
                 spacing: Style.space(8)
                 Button {
                     id: clearCacheButton
-                    width: parent.width / 2 - Style.space(4)
+                    width: (parent.width - Style.space(8)) / 2
                     text: "Clear Cache"
-                    font.family: root.bar.fontFamily
-                    font.pixelSize: Style.font.body
                     onClicked: {
                         if (root.onClearCache) root.onClearCache()
                     }
                 }
                 Button {
                     id: logoutButton
-                    width: parent.width / 2 - Style.space(4)
+                    width: (parent.width - Style.space(8)) / 2
                     text: "Logout"
-                    font.family: root.bar.fontFamily
-                    font.pixelSize: Style.font.body
                     color: Color.urgent
                     onClicked: {
                         if (root.onLogout) root.onLogout()
@@ -275,11 +277,11 @@ Item {
         }
 
         // Close button
+        Item { width: 1; height: Style.space(4) }
+
         Button {
             width: parent.width
             text: "Close"
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.body
             onClicked: {
                 if (root.onClose) root.onClose()
             }
