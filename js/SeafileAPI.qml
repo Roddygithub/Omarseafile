@@ -232,6 +232,22 @@ QtObject {
         xhr.send(body)
     }
 
+    function parseError(xhr) {
+        if (!xhr) return "Unknown error"
+        try {
+            if (xhr.responseText) {
+                var response = JSON.parse(xhr.responseText)
+                if (response) {
+                    if (response.error_message) return response.error_message
+                    if (response.errorMsg) return response.errorMsg
+                    if (response.error) return response.error
+                    if (response.detail) return response.detail
+                }
+            }
+        } catch (e) {}
+        return "HTTP " + xhr.status + (xhr.statusText ? " " + xhr.statusText : "")
+    }
+
     function request(method, path, body, callback) {
         if (!token) {
             callback(false, null, "No authentication token")

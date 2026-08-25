@@ -42,6 +42,10 @@ Item {
     implicitHeight: column.implicitHeight
     height: implicitHeight
 
+    // True while a share-form field owns keyboard focus. The panel's key
+    // catcher reads this to stop interpreting typing as panel shortcuts.
+    readonly property bool editing: passwordField.activeFocus || expireDaysField.activeFocus
+
     Component.onCompleted: {
         loadExistingLinks()
     }
@@ -348,6 +352,12 @@ Item {
                 onTextChanged: root.passwordValue = text
                 visible: root.enablePassword
                 echoMode: TextInput.Password
+                // Escape closes this dialog only — never the whole panel.
+                Keys.onEscapePressed: function(event) {
+                    event.accepted = true
+                    if (root.onDone) root.onDone()
+                    else if (root.onCancel) root.onCancel()
+                }
             }
 
             // Expiration option
@@ -382,6 +392,12 @@ Item {
                     text: root.expireDays
                     onTextChanged: root.expireDays = text
                     validator: IntValidator { bottom: 1; top: 365 }
+                    // Escape closes this dialog only — never the whole panel.
+                    Keys.onEscapePressed: function(event) {
+                        event.accepted = true
+                        if (root.onDone) root.onDone()
+                        else if (root.onCancel) root.onCancel()
+                    }
                 }
 
                 Text {

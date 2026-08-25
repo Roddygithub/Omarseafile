@@ -23,6 +23,10 @@ Item {
     implicitHeight: column.implicitHeight
     height: implicitHeight
 
+    // True while the server-URL field owns keyboard focus. The panel's key
+    // catcher reads this to stop interpreting typing as panel shortcuts.
+    readonly property bool editing: serverUrlField.activeFocus
+
     property string serverUrl: ""
     property string accountEmail: ""
     property string pluginVersion: "0.9.0"
@@ -77,6 +81,11 @@ Item {
                 }
                 onTextChanged: {
                     if (root.onChangeServer) root.onChangeServer(text)
+                }
+                // Escape closes settings only — never the whole panel.
+                Keys.onEscapePressed: function(event) {
+                    event.accepted = true
+                    if (root.onClose) root.onClose()
                 }
             }
 

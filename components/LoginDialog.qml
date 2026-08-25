@@ -13,11 +13,17 @@ Item {
     property alias errorText: errorText
     property string depErrorMessage: ""
     property var onLogin: null
+    property var onDismiss: null
 
 Component.onCompleted: {
         var email = Auth.getEmail()
         if (email) emailField.text = email
     }
+
+    // True while any login field owns keyboard focus. The panel's key catcher
+    // reads this to stop interpreting typing (h/j/k/l/x, arrows, Enter,
+    // Space, Escape) as panel shortcuts.
+    readonly property bool editing: serverField.activeFocus || emailField.activeFocus || passwordField.activeFocus
 
     width: parent ? Math.max(parent.width, 300) : 380
     implicitHeight: column.implicitHeight
@@ -62,6 +68,13 @@ Component.onCompleted: {
             text: ""
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
+            // Escape from the login form closes the whole panel — no dialog
+            // sits above the form. Same pattern as the shell network panel's
+            // credential fields.
+            Keys.onEscapePressed: function(event) {
+                event.accepted = true
+                if (root.onDismiss) root.onDismiss()
+            }
         }
 
         TextField {
@@ -71,6 +84,10 @@ Component.onCompleted: {
             text: ""
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
+            Keys.onEscapePressed: function(event) {
+                event.accepted = true
+                if (root.onDismiss) root.onDismiss()
+            }
         }
 
         TextField {
@@ -80,6 +97,10 @@ Component.onCompleted: {
             echoMode: TextField.Password
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
+            Keys.onEscapePressed: function(event) {
+                event.accepted = true
+                if (root.onDismiss) root.onDismiss()
+            }
         }
 
         Text {

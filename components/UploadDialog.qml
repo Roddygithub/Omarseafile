@@ -16,6 +16,10 @@ Item {
     implicitHeight: column.implicitHeight
     height: implicitHeight
 
+    // True while the path field owns keyboard focus. The panel's key catcher
+    // reads this to stop interpreting typing as panel shortcuts.
+    readonly property bool editing: pathField.activeFocus
+
     Column {
         id: column
         anchors.horizontalCenter: parent.horizontalCenter
@@ -45,6 +49,11 @@ Item {
             placeholderText: "/home/user/file.txt"
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
+            // Escape closes this dialog only — never the whole panel.
+            Keys.onEscapePressed: function(event) {
+                event.accepted = true
+                if (root.onCancel) root.onCancel()
+            }
         }
 
         Text {

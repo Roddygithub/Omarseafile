@@ -16,6 +16,10 @@ Item {
     implicitHeight: column.implicitHeight
     height: implicitHeight
 
+    // True while the folder-name field owns keyboard focus. The panel's key
+    // catcher reads this to stop interpreting typing as panel shortcuts.
+    readonly property bool editing: nameField.activeFocus
+
     Column {
         id: column
         anchors.horizontalCenter: parent.horizontalCenter
@@ -45,6 +49,11 @@ Item {
             placeholderText: "Folder name"
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
+            // Escape closes this dialog only — never the whole panel.
+            Keys.onEscapePressed: function(event) {
+                event.accepted = true
+                if (root.onCancel) root.onCancel()
+            }
         }
 
         Text {

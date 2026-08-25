@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "./js"
@@ -144,6 +145,8 @@ Panel {
         if (moveLoader.item) { root.cancelMove(); return true }
         if (renameLoader.item) { root.cancelRename(); return true }
         if (createFolderLoader.item) { root.cancelCreateFolder(); return true }
+        if (historyLoader.item) { root.showHistory = false; historyLoader.sourceComponent = undefined; return true }
+        if (trashLoader.item) { root.showTrash = false; trashLoader.sourceComponent = undefined; return true }
         if (settingsLoader.item) { root.closeSettings(); return true }
         return false
     }
@@ -223,6 +226,18 @@ Panel {
 
     PanelController { id: panelController }
 
+    // Own the IPC target (manageIpc:false above) — same pattern as the
+    // shell's dropbox/network panels: base-Panel handlers plus extras.
+    IpcHandler {
+        target: root.ipcTarget
+        function open(): void { root.open() }
+        function close(): void { root.close() }
+        function show(): void { root.open() }
+        function hide(): void { root.close() }
+        function toggle(): void { root.toggle() }
+        function status(): string { return root.state }
+    }
+
     // Rename target: the single selected item, else the list's current item.
     function renameTarget() {
         if (!root.currentRepo) return null
@@ -269,20 +284,24 @@ Panel {
         PanelKeyCatcher {
             id: keyCatcher
             anchors.fill: parent
-            blocked: root.searchActive
+            blocked: root.textInputActive
             onCloseRequested: {
                 if (root.closeTopDialog()) return
                 root.close()
             }
+            // dialogOpen guard: while any modal/view is up (even ones without
+            // a text field, e.g. the delete confirmation), panel-level
+            // navigation and item actions must stay inert — only Escape
+            // (via closeTopDialog above) acts on them.
             onMoveRequested: function(dx, dy) {
-                if (root.state !== "browse" || root.searchActive) return
+                if (root.state !== "browse" || root.searchActive || root.dialogOpen) return
                 var list = root.fileListRef
                 if (!list) return
                 if (dy > 0) list.incrementCurrentIndex()
                 else if (dy < 0) list.decrementCurrentIndex()
             }
             onActivateRequested: {
-                if (root.state !== "browse" || root.searchActive) return
+                if (root.state !== "browse" || root.searchActive || root.dialogOpen) return
                 var list = root.fileListRef
                 if (!list || !list.currentItem) return
                 var item = list.currentItem.item
@@ -290,7 +309,7 @@ Panel {
                 else root.onDownloadClicked(item)
             }
             onDeleteRequested: {
-                if (root.state !== "browse" || root.searchActive) return
+                if (root.state !== "browse" || root.searchActive || root.dialogOpen) return
                 var list = root.fileListRef
                 if (!list || !list.currentItem) return
                 root.pickDelete(list.currentItem.item)
@@ -419,6 +438,7 @@ Panel {
                         serverField.text: root.serverUrl
                         depErrorMessage: root.depErrorMessage
                         onLogin: function(url, email, pass) { root.doLogin(url, email, pass) }
+                        onDismiss: function() { root.close() }
                     }
                 }
 
@@ -571,6 +591,30 @@ Panel {
     readonly property bool settingsOpen: settingsLoader.item !== null
     readonly property bool dialogOpen: settingsLoader.item !== null || createFolderLoader.item !== null || renameLoader.item !== null || moveLoader.item !== null || confirmLoader.item !== null || shareLoader.item !== null || uploadLoader.item !== null || historyLoader.item !== null || trashLoader.item !== null || copyLoader.item !== null
 
+    // True while keyboard input belongs to a text-editing surface: the search
+    // bar, the login form, settings, or the editable field of any open dialog.
+    // Drives PanelKeyCatcher.blocked so h/j/k/l/x, arrows, Enter, Space,
+    // Delete and Escape reach the focused control instead of being interpreted
+    // as panel-level navigation/actions while the user is typing. Each editor
+    // surface exposes its own declarative `editing` flag (any of its fields
+    // focused); this binding is the single central condition — the same
+    // mode-derived pattern the shell's network panel uses for its passphrase
+    // editor. Loaders recreate items on open, so `editing` resets per dialog.
+    function _loaderEditing(loader) {
+        return loader.item !== null && loader.item.editing === true
+    }
+
+    readonly property bool textInputActive:
+        root.searchActive
+        || (root.state === "login" && _loaderEditing(stateLoader))
+        || _loaderEditing(createFolderLoader)
+        || _loaderEditing(renameLoader)
+        || _loaderEditing(moveLoader)
+        || _loaderEditing(copyLoader)
+        || _loaderEditing(uploadLoader)
+        || _loaderEditing(shareLoader)
+        || _loaderEditing(settingsLoader)
+
     // ===== DIALOG LOADERS =====
 
     Component {
@@ -597,28 +641,30 @@ Panel {
         }
     }
 
+    // Destination folder picker (current library only) — replaces the plain
+    // path-entry dialogs. Manual path entry remains as the editable fallback
+    // field inside FolderPickerDialog; confirm hands the path to the existing
+    // confirmMove/confirmCopy execution paths.
     Component {
-        id: moveComponent
-        MoveDialog {
+        id: folderPickerForMove
+        FolderPickerDialog {
             bar: root.bar
-            title: {
-                var d = root.moveItemData
-                if (!d || !d.items || d.items.length === 0) return "Move"
-                return d.items[0].type === "dir" ? "Move Folder" : "Move File"
-            }
-            destField.text: root.currentPath
-            onMove: function() { root.confirmMove(destField.text) }
+            operation: "Move"
+            itemCount: root.moveItemData && root.moveItemData.items ? root.moveItemData.items.length : 1
+            initialDestination: root.currentPath
+            onConfirm: function(destPath) { root.confirmMove(destPath) }
             onCancel: function() { root.cancelMove() }
         }
     }
 
     Component {
-        id: copyComponent
-        CopyDialog {
+        id: folderPickerForCopy
+        FolderPickerDialog {
             bar: root.bar
-            title: "Copy To"
-            destField.text: root.currentPath
-            onCopy: function() { root.confirmCopy(destField.text) }
+            operation: "Copy"
+            itemCount: root.moveItemData && root.moveItemData.items ? root.moveItemData.items.length : 1
+            initialDestination: root.currentPath
+            onConfirm: function(destPath) { root.confirmCopy(destPath) }
             onCancel: function() { root.cancelCopy() }
         }
     }
@@ -1083,7 +1129,7 @@ Panel {
     function pickCopy() {
         if (!root.currentRepo) { root.errorMessage = "No library selected"; return }
         if (root.selectedItems.length === 0) { root.errorMessage = "No items selected"; return }
-        copyLoader.sourceComponent = copyComponent
+        copyLoader.sourceComponent = folderPickerForCopy
     }
 
     function cancelCopy() { copyLoader.sourceComponent = undefined }
@@ -1351,8 +1397,9 @@ Panel {
 
     function pickMove(item) {
         if (!item) return
+        copyLoader.sourceComponent = undefined
         root.moveItemData = { items: [item], isDir: item.type === "dir" }
-        moveLoader.sourceComponent = moveComponent
+        moveLoader.sourceComponent = folderPickerForMove
     }
 
     function cancelMove() { moveLoader.sourceComponent = undefined; root.moveItemData = null }
@@ -1502,14 +1549,16 @@ function confirmMove(destPath) {
 
     function moveItems() {
         if (!root.currentRepo || root.selectedItems.length === 0) return
+        copyLoader.sourceComponent = undefined
         root.moveItemData = { items: root.selectedItems.slice(), isDir: false }
-        moveLoader.sourceComponent = moveComponent
+        moveLoader.sourceComponent = folderPickerForMove
     }
 
     function copyItems() {
         if (!root.currentRepo || root.selectedItems.length === 0) return
+        moveLoader.sourceComponent = undefined
         root.moveItemData = { items: root.selectedItems.slice(), isDir: false }
-        copyLoader.sourceComponent = copyComponent
+        copyLoader.sourceComponent = folderPickerForCopy
     }
 
     function deleteItems() {
