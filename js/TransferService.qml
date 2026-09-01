@@ -41,6 +41,25 @@ QtObject {
         }
     }
 
+    property Component openDownloadProcessComponent: Component {
+        Process {
+            property var transferRef: null
+            stderr: StdioCollector {
+                onTextChanged: {
+                    if (transferRef && text) {
+                        root.parseProgress(text, transferRef)
+                        root.transferProgressChanged(transferRef)
+                    }
+                }
+            }
+            onExited: function(exitCode, exitStatus) {
+                if (transferRef) {
+                    root.handleOpenDownloadExited(exitCode, transferRef)
+                }
+            }
+        }
+    }
+
     property Component uploadProcessComponent: Component {
         Process {
             property var transferRef: null
@@ -947,7 +966,7 @@ QtObject {
                     return
                 }
                 download.curlConfigFile = curlConfigFile
-                var curlProc = downloadProcessComponent.createObject(root)
+                var curlProc = openDownloadProcessComponent.createObject(root)
                 if (!curlProc) {
                     download.state = "failed"
                     download.error = "Failed to create download process"

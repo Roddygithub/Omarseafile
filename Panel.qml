@@ -324,7 +324,7 @@ Panel {
                 if (!list || !list.currentItem) return
                 var item = list.currentItem.item
                 if (item && item.type === "dir") root.onItemClicked(item)
-                else if (item && !root.destinationMode) root.onDownloadClicked(item)
+                else if (item && !root.destinationMode) root.onOpenClicked(item)
             }
             onDeleteRequested: {
                 if (root.state !== "browse" || root.searchActive || root.dialogOpen || root.destinationMode || root.showTransfers) return

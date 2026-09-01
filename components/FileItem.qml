@@ -170,12 +170,8 @@ MouseArea {
                     // Plain click on a folder/library navigates into it.
                     if (root.onItemClicked) root.onItemClicked(root.item)
                 } else {
-                    // Plain click on a file positions the keyboard cursor on
-                    // it (like the arrow keys) and clears any batch selection
-                    // — no selection bar. The file becomes the Shift+click
-                    // range anchor. F2/Delete/Enter then act on it.
-                    if (root.ListView.view) root.ListView.view.currentIndex = root.itemIndex
-                    if (root.onPositionClicked) root.onPositionClicked(root.item)
+                    // Plain click on a file opens it with the default application.
+                    if (root.onOpenClicked) root.onOpenClicked(root.item)
                 }
             }
         }
