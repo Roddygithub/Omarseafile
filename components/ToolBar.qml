@@ -49,9 +49,9 @@ Item {
     Row {
         id: row
         anchors.fill: parent
-        anchors.leftMargin: Style.space(12)
-        anchors.rightMargin: Style.space(12)
-        spacing: Style.space(8)
+        anchors.leftMargin: Style.space(10)
+        anchors.rightMargin: Style.space(10)
+        spacing: Style.space(5)
 
         // AUDIT-FIX: reserve width for ALL action buttons so the title cannot push them off-card
         readonly property int _fixedButtons: (backButton.visible ? backButton.width : 0)

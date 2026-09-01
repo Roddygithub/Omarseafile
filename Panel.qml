@@ -290,7 +290,7 @@ Panel {
         bar: root.bar
         open: panelController.open
         focusTarget: keyCatcher
-        contentWidth: panel.fittedContentWidth(Style.space(400))
+        contentWidth: panel.fittedContentWidth(Style.space(480))
         contentHeight: panel.fittedContentHeight(content.implicitHeight)
 
         PanelKeyCatcher {
