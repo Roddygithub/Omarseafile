@@ -824,6 +824,247 @@ QtObject {
         root.transfersChanged()
     }
 
+    // ===== OPEN FILE (DOWNLOAD TO CACHE + XDG-OPEN) =====
+
+    function startOpen(fileItem, token, baseUrl, repoId, fullPath) {
+        var cacheDir = Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")
+        cacheDir = cacheDir + "/omarseafile"
+        // Unique cache filename per open to avoid collisions and ensure fresh content
+        var uniqueSuffix = Date.now() + "_" + Math.random().toString(36).substr(2, 9)
+        var cachePath = cacheDir + "/" + uniqueSuffix + "_" + fileItem.name
+        var tempPath = cachePath + ".part-" + Date.now()
+
+        var download = {
+            id: Date.now() + Math.random(),
+            type: "download",
+            state: "pending",
+            fileName: fileItem.name,
+            fullPath: fullPath,
+            cacheDir: cacheDir,
+            cachePath: cachePath,
+            tempPath: tempPath,
+            repoId: repoId,
+            repoName: "",
+            token: token,
+            baseUrl: baseUrl,
+            process: null,
+            downloadLink: null,
+            progress: 0,
+            speed: "",
+            error: "",
+            retryCount: 0,
+            startTime: Date.now(),
+            endTime: null,
+            authHeaderFile: null,
+            curlConfigFile: null
+        }
+
+        root.transfers.push(download)
+        root.transfersChanged()
+        root.getDownloadLinkAndOpen(download)
+
+        return download
+    }
+
+    function getDownloadLinkAndOpen(download) {
+        if (download.state === "cancelled") return
+        var xhr = new XMLHttpRequest()
+        var path = download.fullPath || "/" + download.fileName
+        var url = download.baseUrl.replace(/\/+$/, "") + "/api2/repos/" + download.repoId + "/file/?p=" + encodeURIComponent(path) + "&reuse=1"
+        xhr.open("GET", url, true)
+        xhr.setRequestHeader("Authorization", "Token " + download.token)
+        xhr.setRequestHeader("Accept", "application/json")
+        xhr.timeout = 10000
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (download.state === "cancelled") return
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    var link
+                    try { link = JSON.parse(xhr.responseText) } catch (e) { link = null }
+                    if (typeof link !== "string" || link === "") {
+                        download.state = "failed"
+                        download.error = "Invalid server response"
+                        root.sanitizeForHistory(download)
+                        root.transferStateChanged(download)
+                        root.transfersChanged()
+                        return
+                    }
+                    download.downloadLink = link
+                    download.state = "downloading"
+                    root.transferStateChanged(download)
+                    root.transfersChanged()
+                    root.executeCurlOpenDownload(download)
+                } else if (root.isAuthError(xhr.status)) {
+                    download.state = "auth_failed"
+                    download.error = "Authentication failed"
+                    root.sanitizeForHistory(download)
+                    root.transferStateChanged(download)
+                    root.transfersChanged()
+                } else if (root.isRetryableError(xhr.status, root.parseError(xhr)) && download.retryCount < root.maxRetries) {
+                    download.retryCount++
+                    var delay = Math.min(root.retryBaseDelay * Math.pow(2, download.retryCount - 1), root.maxRetryDelay)
+                    download.state = "pending"
+                    root.transferRetryStarted(download)
+                    root.transferStateChanged(download)
+                    root.transfersChanged()
+                    root.scheduleRetry(delay, function() { root.getDownloadLinkAndOpen(download) })
+                } else {
+                    download.state = "failed"
+                    download.error = root.parseError(xhr)
+                    root.sanitizeForHistory(download)
+                    root.transferStateChanged(download)
+                    root.transfersChanged()
+                }
+            }
+        }
+        xhr.send()
+    }
+
+    function executeCurlOpenDownload(download) {
+        if (download.state !== "pending" && download.state !== "downloading") return
+        root.createAuthHeaderFile(download.token, function(authHeaderFile) {
+            if (download.state !== "pending" && download.state !== "downloading") {
+                root.cleanupAuthHeaderFile(authHeaderFile)
+                return
+            }
+            if (!authHeaderFile) {
+                download.state = "failed"
+                download.error = "Failed to create auth header file"
+                root.sanitizeForHistory(download)
+                root.transferStateChanged(download)
+                root.transfersChanged()
+                return
+            }
+            download.authHeaderFile = authHeaderFile
+            root.createCurlConfigFile(download.downloadLink, function(curlConfigFile) {
+                if (download.state !== "pending" && download.state !== "downloading") { root.deleteFile(curlConfigFile); return }
+                if (!curlConfigFile) {
+                    download.state = "failed"
+                    download.error = "Failed to create curl configuration"
+                    root.sanitizeForHistory(download)
+                    root.transferStateChanged(download)
+                    root.transfersChanged()
+                    return
+                }
+                download.curlConfigFile = curlConfigFile
+                var curlProc = downloadProcessComponent.createObject(root)
+                if (!curlProc) {
+                    download.state = "failed"
+                    download.error = "Failed to create download process"
+                    root.sanitizeForHistory(download)
+                    root.transferStateChanged(download)
+                    root.transfersChanged()
+                    return
+                }
+                curlProc.transferRef = download
+                curlProc.command = [
+                    "curl",
+                    "-q",
+                    "-f",
+                    "-H", "@" + authHeaderFile,
+                    "-H", "Accept: */*",
+                    "--progress-bar",
+                    "--output", download.tempPath,
+                    "--config", curlConfigFile
+                ]
+                download.process = curlProc
+                curlProc.running = true
+            })
+        })
+    }
+
+    function handleOpenDownloadExited(exitCode, download) {
+        var process = download.process
+        download.process = null
+        if (process) process.destroy()
+        root.cleanupTransferAuthFile(download)
+        root.cleanupTransferConfigFile(download)
+
+        if (download.state === "cancelled") {
+            root.deleteFile(download.tempPath)
+        } else if (exitCode === 0) {
+            root.finalizeOpenDownload(download)
+            return
+        } else {
+            if (download.retryCount < root.maxRetries) {
+                download.retryCount++
+                var delay = Math.min(root.retryBaseDelay * Math.pow(2, download.retryCount - 1), root.maxRetryDelay)
+                download.state = "pending"
+                root.transferRetryStarted(download)
+                root.transferStateChanged(download)
+                root.transfersChanged()
+                root.scheduleRetry(delay, function() { root.executeCurlOpenDownload(download) })
+                return
+            }
+            download.state = "failed"
+            download.error = "Download failed (exit code: " + exitCode + ")"
+            root.sanitizeForHistory(download)
+        }
+        root.deleteFile(download.tempPath)
+        root.transferStateChanged(download)
+        root.transfersChanged()
+    }
+
+    function finalizeOpenDownload(download) {
+        var proc = _finalizeDownloadProcessFactory.createObject(root)
+        if (!proc) {
+            download.state = "failed"
+            download.error = "Failed to finalize download"
+            root.deleteFile(download.tempPath)
+            root.sanitizeForHistory(download)
+            root.transferStateChanged(download)
+            root.transfersChanged()
+            return
+        }
+        proc.transferRef = download
+        proc.command = ["sh", "-c", "mkdir -p -m 0700 -- \"$(dirname \"$1\")\" && mv -f -- \"$1\" \"$2\" && chmod 600 -- \"$2\"", "sh", download.tempPath, download.cachePath]
+        download.process = proc
+        proc.running = true
+    }
+
+    function handleOpenDownloadFinalized(exitCode, download) {
+        download.process = null
+        if (download.state === "cancelled") {
+            root.deleteFile(download.tempPath)
+        } else if (exitCode === 0) {
+            download.state = "completed"
+            download.progress = 1.0
+            download.speed = ""
+            download.destPath = download.cachePath
+            root.sanitizeForHistory(download)
+            root.pruneHistory()
+            root.openCachedFile(download)
+        } else {
+            download.state = "failed"
+            download.error = "Cache file already exists or could not be finalized"
+            root.deleteFile(download.tempPath)
+            root.sanitizeForHistory(download)
+        }
+        root.transferStateChanged(download)
+        root.transfersChanged()
+    }
+
+    property Component openCachedFileComponent: Component {
+        Process {
+            property var transferRef: null
+            onExited: function(exitCode) {
+                var t = transferRef
+                destroy()
+                if (exitCode !== 0 && t) {
+                    // Error surfaced by caller via transfer error state
+                }
+            }
+        }
+    }
+
+    function openCachedFile(transfer) {
+        var proc = openCachedFileComponent.createObject(root)
+        if (!proc) return
+        proc.command = ["xdg-open", transfer.cachePath]
+        proc.transferRef = transfer
+        proc.running = true
+    }
+
     // ===== LOGOUT CLEANUP =====
 
     function logoutCleanup() {

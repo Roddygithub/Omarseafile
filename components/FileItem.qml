@@ -9,6 +9,7 @@ Item {
     required property var item
     required property var onItemClicked
     required property var onDownloadClicked
+    required property var onOpenClicked
     required property var onRenameClicked
     required property var onMoveClicked
     required property var onDeleteClicked
@@ -183,7 +184,7 @@ MouseArea {
             if (root.isDir) {
                 if (root.onItemClicked) root.onItemClicked(root.item)
             } else {
-                if (root.onDownloadClicked) root.onDownloadClicked(root.item)
+                if (root.onOpenClicked) root.onOpenClicked(root.item)
             }
         }
     }

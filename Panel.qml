@@ -270,6 +270,7 @@ Panel {
         contextMenu.item = item
         contextMenu.isDir = item.type === "dir"
         contextMenu.selectionCount = root.selectedItems.length > 0 ? root.selectedItems.length : 1
+        contextMenu.onOpenClicked = item.type === "dir" ? root.onItemClicked : root.openFile
         // Parent to the keyboard-panel window's overlay: never clipped by the
         // file list, and rendered in the window that owns pointer/keyboard.
         contextMenu.parent = keyCatcher.Overlay.overlay
@@ -607,6 +608,7 @@ Panel {
                             transferRevision: root.transferRevision
                             onItemClicked: function(item) { root.onItemClicked(item) }
                             onDownloadClicked: function(item) { root.destinationMode ? null : root.onDownloadClicked(item) }
+                            onOpenClicked: function(item) { root.destinationMode ? null : root.openFile(item) }
                             onRenameClicked: function(item) { root.destinationMode ? null : root.pickRename(item) }
                             onMoveClicked: function(item) { root.destinationMode ? null : root.beginDestinationMode("move", [item]) }
                             onDeleteClicked: function(item) { root.destinationMode ? null : root.pickDelete(item) }
@@ -1251,6 +1253,20 @@ Panel {
     }
 
     function getDownloadsDir() { return Quickshell.env("HOME") + "/Downloads" }
+
+    function getCacheDir() {
+        var base = Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")
+        return base + "/omarseafile"
+    }
+
+    function openFile(item) {
+        if (!item || item.type !== "file") return
+        if (!root.currentRepo) { root.errorMessage = "No library selected"; return }
+        var token = Auth.getToken()
+        if (!token) { root.errorMessage = "Not authenticated"; return }
+        var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
+        TransferService.startOpen(item, token, root.serverUrl, root.currentRepo.id, fullPath)
+    }
 
     function handleTransferCompletion(transfer) {
         if (transfer.state === "completed") {

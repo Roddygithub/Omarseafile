@@ -42,6 +42,13 @@ Popup {
         Button {
             width: parent.width
             text: "Open"
+            visible: !root.batchMode && !root.isDir && root.onOpenClicked !== null
+            onClicked: root.run(root.onOpenClicked, root.item)
+        }
+
+        Button {
+            width: parent.width
+            text: "Open"
             visible: !root.batchMode && root.isDir && root.onOpenClicked !== null
             onClicked: root.run(root.onOpenClicked, root.item)
         }

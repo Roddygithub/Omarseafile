@@ -10,6 +10,7 @@ ListView {
     required property var items
     required property var onItemClicked
     required property var onDownloadClicked
+    required property var onOpenClicked
     required property var onRenameClicked
     required property var onMoveClicked
     required property var onDeleteClicked
@@ -80,6 +81,7 @@ delegate: FileItem {
                             bar: root.bar
                             onItemClicked: root.onItemClicked
                             onDownloadClicked: root.onDownloadClicked
+                            onOpenClicked: root.onOpenClicked
                             onRenameClicked: root.onRenameClicked
                             onMoveClicked: root.onMoveClicked
                             onDeleteClicked: root.onDeleteClicked
