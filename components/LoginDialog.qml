@@ -15,9 +15,10 @@ Item {
     property var onLogin: null
     property var onDismiss: null
 
-Component.onCompleted: {
+    Component.onCompleted: {
         var email = Auth.getEmail()
         if (email) emailField.text = email
+        serverField.forceActiveFocus()
     }
 
     // True while any login field owns keyboard focus. The panel's key catcher

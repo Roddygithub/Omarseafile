@@ -22,7 +22,7 @@ jobs:
       - name: Run validation script (CI-capable checks)
         run: ./scripts/validate.sh
 
-      - name: Validate manifest.json with omarchy schema (if available)
+      - name: Validate basic manifest fields
         run: |
           # Basic manifest structure validation
           jq -e '.schemaVersion == 1' manifest.json
@@ -53,24 +53,27 @@ jobs:
           test -f BarWidget.qml
           test -f Panel.qml
           test -f components/SettingsDialog.qml
-          test -f js/Auth.js
-          test -f js/SeafileAPI.js
-          test -f js/TransferService.js
+          test -f js/Auth.qml
+          test -f js/SeafileAPI.qml
+          test -f js/TransferService.qml
           echo "Required files present"
 
       - name: Check keybindings consistency
         run: |
           test -f docs/KEYBINDINGS.md
-          grep -q "Key_F2\|Qt.Key_F2" Panel.qml
-          grep -q "Key_Delete\|Qt.Key_Delete" Panel.qml
-          grep -q "Key_Escape\|Qt.Key_Escape" Panel.qml
+          grep -Eq 'sequence:[[:space:]]*"F2"' Panel.qml
+          grep -q "onDeleteRequested\|pickDelete" Panel.qml
+          grep -q "onCloseRequested\|close()" Panel.qml
           echo "Keybindings consistency passed"
 
       - name: Check shell syntax
         run: shellcheck deploy.sh
 
       - name: Deploy dry-run
-        run: ./deploy.sh --check
+        run: |
+          export OMARCHY_PLUGIN_DIR="$RUNNER_TEMP/roddy.seafile"
+          ./deploy.sh
+          ./deploy.sh --check
 
   # Note: Runtime validation (omarchy plugin validate, Quickshell load test,
   # real Seafile API tests) requires an Omarchy environment and runs locally.

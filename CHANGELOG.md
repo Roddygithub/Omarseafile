@@ -5,7 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.0] - 2026-09-01
+
+### Added
+- Omarchy bar-widget integration for authenticated Seafile library and folder browsing.
+- Repo-scoped search, manual-path uploads, protected downloads, transfer management, sharing, file history, and trash browsing.
+- Single and batch Delete, Move, and Copy with in-browser destination selection and same-library safety guards.
+
+### Changed
+- Prepared public documentation for the v1.0 audit.
+- Documented the current main-browser Copy/Move destination workflow.
+- Documented the manual-path upload workflow and current platform/server limitations.
+- Disabled unconfirmable trash restore instead of treating arbitrary HTTP 200 responses as success.
+- Use synchronous folder moves and a root-create/move workaround for nested folder creation on CE 12.0.x.
+
+### Fixed
+- Serialized keyring mutations and restored working login/logout credential handling.
+- Isolated destination mode from context actions, restored navigation state on cancel, and rejected exact self-targets.
+- Captured async operation context so stale callbacks cannot act on a different file, library, or session.
+- Disabled user curl configuration, escaped multipart paths, and hardened no-overwrite download finalization.
+- Corrected share-link revocation failure reporting.
+
+### Known Limitations
+- Upload uses a manually entered local path; a native graphical file picker is not part of v1.
+- Move and Copy are limited to the source library.
+- Trash restore is disabled because the tested Seafile CE 12.0.x API does not perform or confirm restoration.
+- Cleanup after abrupt process or host termination is not guaranteed.
+- Nested folder creation uses a temporary root folder; an intermediate server failure can leave that identifiable temporary folder in the library.
 
 ## [0.9.0] - 2026-08-23
 

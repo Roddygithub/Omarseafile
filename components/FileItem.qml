@@ -144,7 +144,7 @@ Item {
 
     readonly property int transferWidth: (root.isDownloading || root.isUploading) ? Style.space(130) : 0
 
-    MouseArea {
+MouseArea {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor

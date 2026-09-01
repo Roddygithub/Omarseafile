@@ -11,6 +11,7 @@ Column {
     required property string fileName
     required property var onDownloadRevision
     required property var onClose
+    property var onError: null
     property var historyData: []
 
     width: parent.width
@@ -21,7 +22,7 @@ Column {
             if (success) {
                 root.historyData = data
             } else {
-                root.showToast("Failed to load history: " + error, "error")
+                if (root.onError) root.onError("Failed to load history: " + error)
             }
         })
     }
@@ -100,10 +101,10 @@ Column {
                                 var date = new Date(revision.ctime * 1000)
                                 return date.toLocaleDateString() + " " + date.toLocaleTimeString()
                             }
-                            color: revision.isCurrent ? Color.accent : root.bar.foreground
+                            color: isCurrent ? Color.accent : root.bar.foreground
                             font.family: root.bar.fontFamily
                             font.pixelSize: Style.font.body
-                            font.bold: revision.isCurrent
+                            font.bold: isCurrent
                             elide: Text.ElideRight
                             width: parent.width
                         }
@@ -138,7 +139,7 @@ Column {
                         Button {
                             id: downloadBtn
                             text: "Download"
-                            visible: !revision.isCurrent
+                            visible: !isCurrent
                             onClicked: {
                                 if (root.onDownloadRevision) root.onDownloadRevision(revision)
                             }
@@ -152,7 +153,7 @@ Column {
                             font.pixelSize: Style.font.caption
                             font.bold: true
                             horizontalAlignment: Text.AlignHCenter
-                            visible: revision.isCurrent
+                            visible: isCurrent
                         }
                     }
                 }

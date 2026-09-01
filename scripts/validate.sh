@@ -54,13 +54,15 @@ check "README.md exists" test -f README.md
 check "README.md > 50 lines" test "$(wc -l < README.md)" -gt 50
 check "CHANGELOG.md exists" test -f CHANGELOG.md
 check "CHANGELOG.md has [0.8.0] entry" grep -q "\[0.8.0\]" CHANGELOG.md
+check "SECURITY.md exists" test -f SECURITY.md
+check "CONTRIBUTING.md exists" test -f CONTRIBUTING.md
 
 # --- CI_CAPABLE: Forbidden Known Personal Values ---
 echo ""
 echo "--- Forbidden Personal Values ---"
 check "No hardcoded private IP (192.168.x.x)" bash -c '! grep -rE "192\\.168\\.[0-9]+\\.[0-9]+" --include="*.qml" --include="*.js" . 2>/dev/null'
 check "No hardcoded localhost:port" bash -c '! grep -rE "localhost:[0-9]+" --include="*.qml" --include="*.js" . 2>/dev/null | grep -v "placeholderText"'
-check "No hardcoded personal email pattern" bash -c '! grep -rE "[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}" --include="*.qml" --include="*.js" . 2>/dev/null | grep -v "placeholderText\|encodeURIComponent\|@.*\\."'
+check "No hardcoded personal email pattern" bash -c '! grep -rEi "[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}" --include="*.qml" --include="*.js" --include="*.md" --exclude-dir=".git" . 2>/dev/null | grep -vE "user@example.com|@example.invalid"'
 
 # --- CI_CAPABLE: Keybindings Consistency ---
 echo ""
@@ -76,7 +78,7 @@ check "No Ctrl+T references (removed per policy)" bash -c '! grep -q "Key_T.*Con
 # --- CI_CAPABLE: Color Names ---
 echo ""
 echo "--- Omarchy Color Names ---"
-check "Only valid Color names used" bash -c '! grep -rE "Color\\.(urgent|accent|foreground|background)" --include="*.qml" . 2>/dev/null | grep -vE "Color\\.(urgent|accent|foreground|background)"'
+check "Only valid Color names used" bash -c '! grep -rE "Color\\.[A-Za-z_]+" --include="*.qml" . 2>/dev/null | grep -vE "Color\\.(urgent|accent|foreground|background)"'
 
 # --- CI_CAPABLE: Shell Syntax ---
 echo ""
@@ -86,7 +88,7 @@ if command -v shellcheck >/dev/null; then
 else
     echo "  deploy.sh shellcheck... SKIP (shellcheck not installed)"
 fi
-check "deploy.sh --check dry-run" ./deploy.sh --check >/dev/null 2>&1
+check "deploy.sh --check detects parity and drift" bash -c 'tmp=$(mktemp -d); trap '\''rm -rf "$tmp"'\'' EXIT; OMARCHY_PLUGIN_DIR="$tmp/plugin" ./deploy.sh >/dev/null; OMARCHY_PLUGIN_DIR="$tmp/plugin" ./deploy.sh --check >/dev/null; touch "$tmp/plugin/parity-drift"; ! OMARCHY_PLUGIN_DIR="$tmp/plugin" ./deploy.sh --check >/dev/null 2>&1'
 
 # --- CI_CAPABLE: Documentation Content ---
 echo ""
@@ -97,14 +99,28 @@ check "README has Keyboard Controls" grep -qi "keyboard" README.md
 check "README has Known Limitations" grep -qi "limitations\|limitation" README.md
 check "README has Security Model" grep -qi "security" README.md
 
-# --- CI_CAPABLE: Source Code Patterns ---
+# --- CI_CAPABLE: Source Invariants ---
 echo ""
-echo "--- Source Code Patterns ---"
+echo "--- Source Invariants ---"
 check "SettingsDialog imported in Panel.qml" grep -q 'import.*\(SettingsDialog\|"\./components"\)' Panel.qml
 check "Auth.checkDependencies exists" grep -q "checkDependencies" js/Auth.qml
 check "normalizeUrl function exists" grep -q "normalizeUrl" Panel.qml
 check "testConnection function exists" grep -q "testConnection" Panel.qml
 check "autoLogin setting used" grep -q 'setting("autoLogin"' Panel.qml
+check "FileList delegates forward through component root" bash -c '! grep -q "fileList\\.on" components/FileList.qml'
+check "Batch delete handler exists" grep -q "function deleteItems()" Panel.qml
+check "Obsolete FolderPickerDialog removed" test ! -e components/FolderPickerDialog.qml
+check "Destination rejects folder self and descendants" grep -q 'destPath === source.fullPath || destPath.indexOf(source.fullPath + "/")' Panel.qml
+check "Destination blocks context actions" grep -q 'if (!item || root.destinationMode) return' Panel.qml
+check "Auth mutations are serialized" grep -q 'function _queueSessionMutation' js/Auth.qml
+check "Both curl processes disable user config" bash -c 'test "$(grep -c '"'"'"-q"'"'"' js/TransferService.qml)" -eq 2'
+check "Transfers do not enable redirects" bash -c '! grep -Eq '"'"'"(-L|--location|--location-trusted)"'"'"' js/TransferService.qml'
+check "Transfers hide capability URLs in private config" grep -q "createCurlConfigFile" js/TransferService.qml
+check "Upload form literals are parser-safe" bash -c 'grep -q "curlFileForm" js/TransferService.qml && grep -q '"'"'"--form-string"'"'"' js/TransferService.qml'
+check "Download finalization treats destination as a file" grep -q 'mv -nT' js/TransferService.qml
+check "Text-entry dialogs autofocus fields" bash -c 'grep -q "nameField.forceActiveFocus" components/RenameDialog.qml && grep -q "nameField.forceActiveFocus" components/CreateFolderDialog.qml && grep -q "pathField.forceActiveFocus" components/UploadDialog.qml && grep -q "serverUrlField.forceActiveFocus" components/SettingsDialog.qml && grep -q "serverField.forceActiveFocus" components/LoginDialog.qml'
+check "Revision downloads accept capability URLs" grep -q 'typeof data !== "string"' js/SeafileAPI.qml
+check "Unsupported trash restore sends no mutation" bash -c '! grep -q "function restoreFolder" js/SeafileAPI.qml && grep -q "Restore unavailable" components/TrashPanel.qml'
 
 # --- LOCAL_RUNTIME: Requires Omarchy/Quickshell ---
 echo ""
@@ -116,7 +132,7 @@ else
 fi
 
 if [[ -d "$HOME/.config/omarchy/plugins/roddy.seafile" ]]; then
-    check "Repo == Runtime parity (deploy.sh --check)" bash -c './deploy.sh --check 2>&1 | grep -q "No files changed"'
+    check "Repo == Runtime parity (deploy.sh --check)" ./deploy.sh --check
 else
     echo "  Runtime parity... SKIP (plugin not deployed)"
 fi

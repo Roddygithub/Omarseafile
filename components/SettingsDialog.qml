@@ -17,6 +17,7 @@ Item {
     Component.onCompleted: {
         var email = Auth.getEmail()
         if (email) root.accountEmail = email
+        serverUrlField.forceActiveFocus()
     }
 
     width: parent.width
@@ -29,8 +30,11 @@ Item {
 
     property string serverUrl: ""
     property string accountEmail: ""
-    property string pluginVersion: "0.9.0"
+    property string pluginVersion: "1.0.0"
     property bool autoLogin: true
+    property bool connectionTestRunning: false
+    property bool connectionTestSuccess: false
+    property string connectionTestMessage: ""
 
     Column {
         id: column
@@ -113,6 +117,7 @@ Item {
             Text {
                 id: connectionTestResult
                 width: parent.width
+                text: root.connectionTestMessage
                 color: root.connectionTestSuccess ? Style.green : (root.connectionTestRunning ? Qt.darker(root.bar.foreground, 1.3) : Color.urgent)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
@@ -120,8 +125,6 @@ Item {
                 visible: text !== ""
             }
 
-            property bool connectionTestRunning: false
-            property bool connectionTestSuccess: false
         }
 
         Rectangle {
@@ -278,7 +281,7 @@ Item {
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: "Omarseafile v" + root.pluginVersion + "\nSeafile client for Omarchy\n\nReport issues: https://github.com/roddy/Omarseafile/issues"
+                text: "Omarseafile v" + root.pluginVersion + "\nSeafile client for Omarchy\n\nReport issues: https://github.com/Roddygithub/Omarseafile/issues"
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption

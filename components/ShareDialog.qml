@@ -95,7 +95,7 @@ Item {
                 root.showCreateForm = false
                 root.existingLinks.push(data)
                 root.existingLinks = root.existingLinks.slice()
-                if (root.onToast) root.onToast("Share link copied")
+                if (root.onToast) root.onToast("Share link created")
             } else {
                 root.errorMessage = error || "Failed to create share link"
             }
@@ -126,7 +126,9 @@ Item {
     }
 
     function copyToClipboard(text) {
-        clipboardProcess.command = ["wl-copy", text]
+        clipboardProcess.clipboardText = text
+        clipboardProcess.stdinEnabled = true
+        clipboardProcess.command = ["wl-copy"]
         clipboardProcess.running = true
     }
 
@@ -166,8 +168,16 @@ Item {
 
     Process {
         id: clipboardProcess
+        property string clipboardText: ""
+        stdinEnabled: true
+        onStarted: {
+            clipboardProcess.write(clipboardProcess.clipboardText)
+            clipboardProcess.stdinEnabled = false
+        }
         onExited: function(exitCode) {
-            // Clipboard copied
+            if (exitCode !== 0) {
+                root.errorMessage = "Clipboard unavailable. Install wl-clipboard to copy links."
+            }
         }
     }
 

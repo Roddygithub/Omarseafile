@@ -7,8 +7,8 @@ Column {
     id: root
     required property var bar
     required property var repoId
-    required property var onRestoreFolder
     required property var onClose
+    property var onError: null
 
     width: parent.width
     spacing: 0
@@ -18,7 +18,7 @@ Column {
             if (success) {
                 root.trashData = data
             } else {
-                root.showToast("Failed to load trash: " + error, "error")
+                if (root.onError) root.onError("Failed to load trash: " + error)
             }
         })
     }
@@ -79,7 +79,7 @@ Column {
 
                     Text {
                         id: icon
-                        text: root.isDir ? "\uf07b" : "\uf15b"
+                        text: isDir ? "\uf07b" : "\uf15b"
                         color: root.bar.foreground
                         font.family: "Noto Sans"
                         font.pixelSize: Style.font.title
@@ -111,10 +111,10 @@ Column {
                                     var date = new Date(trashItem.deletedTime * 1000)
                                     parts.push(date.toLocaleDateString() + " " + date.toLocaleTimeString())
                                 }
-                                if (!root.isDir && trashItem.size) {
+                                if (!isDir && trashItem.size) {
                                     parts.push(Models.formatSize(trashItem.size))
                                 }
-                                parts.push(root.isDir ? "Folder" : "File")
+                                parts.push(isDir ? "Folder" : "File")
                                 return parts.join(" \u2022 ")
                             }
                             color: Qt.darker(root.bar.foreground, 1.4)
@@ -132,23 +132,13 @@ Column {
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: Style.space(4)
 
-                        Button {
-                            id: restoreBtn
-                            text: "Restore"
-                            visible: modelData.isDir
-                            onClicked: {
-                                if (root.onRestoreFolder) root.onRestoreFolder(trashItem)
-                            }
-                        }
-
                         Text {
                             id: fileRestoreLabel
-                            text: "Restore not available"
+                            text: "Restore unavailable"
                             color: Qt.darker(root.bar.foreground, 1.4)
                             font.family: root.bar.fontFamily
                             font.pixelSize: Style.font.caption
                             horizontalAlignment: Text.AlignHCenter
-                            visible: !modelData.isDir
                         }
                     }
                 }

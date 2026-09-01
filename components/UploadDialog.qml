@@ -20,6 +20,8 @@ Item {
     // reads this to stop interpreting typing as panel shortcuts.
     readonly property bool editing: pathField.activeFocus
 
+    Component.onCompleted: pathField.forceActiveFocus()
+
     Column {
         id: column
         anchors.horizontalCenter: parent.horizontalCenter

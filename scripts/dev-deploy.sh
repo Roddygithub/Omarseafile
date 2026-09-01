@@ -17,17 +17,20 @@ REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 echo "==> Deploying canonical source"
 "$REPO_DIR/deploy.sh"
 
-OLD_PID="$(pgrep -f '^quickshell -n' | head -1 || true)"
+OLD_PIDS="$(pgrep -f '^quickshell -n' || true)"
 
 echo "==> Restarting Omarchy shell"
 omarchy-restart-shell
 
+NEW_PID=""
 for i in $(seq 1 20); do
   sleep 0.5
-  NEW_PID="$(pgrep -f '^quickshell -n' | head -1 || true)"
-  if [[ -n "$NEW_PID" && "$NEW_PID" != "$OLD_PID" ]]; then
-    break
-  fi
+  while read -r pid; do
+    if [[ -n "$pid" ]] && ! grep -qxF "$pid" <<< "$OLD_PIDS"; then
+      NEW_PID="$pid"
+      break 2
+    fi
+  done < <(pgrep -f '^quickshell -n' || true)
 done
 
 if [[ -z "${NEW_PID:-}" ]]; then
@@ -35,12 +38,17 @@ if [[ -z "${NEW_PID:-}" ]]; then
   exit 1
 fi
 
-echo "==> Fresh Quickshell PID: $NEW_PID (old: ${OLD_PID:-none})"
+echo "==> Fresh Quickshell PID: $NEW_PID (old: ${OLD_PIDS:-none})"
 sleep 3
 
 echo "==> First log lines from PID $NEW_PID (roddy.seafile / errors):"
-journalctl --user "_PID=$NEW_PID" --no-pager 2>/dev/null \
-  | grep -iE "seafile|TypeError|ReferenceError|SyntaxError|Cannot|Binding loop" \
-  | head -20 || true
+LOGS="$(journalctl --user "_PID=$NEW_PID" --no-pager 2>/dev/null || true)"
+grep -iE "roddy\.seafile|plugins/roddy\.seafile|Omarseafile" <<< "$LOGS" | head -20 || true
 
-echo "==> Done. Validate runtime behavior against PID $NEW_PID only."
+if grep -iE "roddy\.seafile|plugins/roddy\.seafile|Omarseafile" <<< "$LOGS" \
+  | grep -qiE "TypeError|ReferenceError|SyntaxError|Binding loop|Cannot"; then
+  echo "ERROR: fresh Quickshell logs contain Omarseafile runtime errors" >&2
+  exit 1
+fi
+
+echo "==> Fresh logs are clean. Perform the targeted runtime test against PID $NEW_PID."

@@ -20,6 +20,8 @@ Item {
     // catcher reads this to stop interpreting typing as panel shortcuts.
     readonly property bool editing: nameField.activeFocus
 
+    Component.onCompleted: nameField.forceActiveFocus()
+
     Column {
         id: column
         anchors.horizontalCenter: parent.horizontalCenter

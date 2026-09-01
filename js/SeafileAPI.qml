@@ -23,8 +23,13 @@ QtObject {
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status === 200) {
-                    var response = JSON.parse(xhr.responseText)
-                    callback(true, response.token, null)
+                    try {
+                        var response = JSON.parse(xhr.responseText)
+                        if (!response || typeof response.token !== "string" || response.token === "") throw new Error("missing token")
+                        callback(true, response.token, null)
+                    } catch (e) {
+                        callback(false, null, "Invalid server response")
+                    }
                 } else {
                     var error = parseError(xhr)
                     callback(false, null, error)
@@ -37,6 +42,7 @@ QtObject {
     function listLibraries(callback) {
         request("GET", "/api2/repos/", null, function(success, data, error) {
             if (success) {
+                if (!Array.isArray(data)) { callback(false, null, "Invalid server response"); return }
                 var libraries = data.map(function(repo) {
                     return {
                         id: repo.id,
@@ -63,6 +69,7 @@ QtObject {
         }
         request("GET", url, null, function(success, data, error) {
             if (success) {
+                if (!Array.isArray(data)) { callback(false, null, "Invalid server response"); return }
                 var items = data.map(function(item) {
                     return {
                         type: item.type,
@@ -98,8 +105,12 @@ QtObject {
     }
 
     function createFolder(repoId, parentPath, folderName, token, callback) {
-        var parent = parentPath === "/" ? "" : parentPath
-        var fullPath = parent + "/" + folderName
+        // CE 12 ignores nested mkdir paths, so create at root and synchronously
+        // move and rename a unique temporary folder for nested destinations.
+        // Using the requested name at root could relocate an existing folder
+        // when the server collision-renames the newly created one.
+        var createName = parentPath === "/" ? folderName : "Omarseafile temporary " + Date.now() + " " + Math.random().toString(36).substring(2, 8)
+        var fullPath = "/" + createName
         var url = "/api2/repos/" + repoId + "/dir/?p=" + encodeURIComponent(fullPath)
         var xhr = new XMLHttpRequest()
         xhr.open("POST", baseUrl + url, true)
@@ -108,7 +119,19 @@ QtObject {
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    callback(true, null)
+                    if (parentPath === "/") {
+                        callback(true, null)
+                    } else {
+                        moveFolder(repoId, createName, "/", repoId, parentPath, token, function(success, error) {
+                            if (!success) {
+                                callback(false, "Temporary folder " + createName + " was created at the library root but could not be moved: " + error)
+                                return
+                            }
+                            renameFolder(repoId, parentPath, createName, folderName, token, function(renameSuccess, renameError) {
+                                callback(renameSuccess, renameSuccess ? null : "Temporary folder " + createName + " was moved into place but could not be renamed: " + renameError)
+                            })
+                        })
+                    }
                 } else {
                     callback(false, parseError(xhr))
                 }
@@ -208,7 +231,7 @@ QtObject {
     }
 
     function moveFolder(repoId, folderName, srcParentPath, destRepoId, destParentPath, token, callback) {
-        var url = baseUrl + "/api/v2.1/repos/async-batch-move-item/"
+        var url = baseUrl + "/api/v2.1/repos/sync-batch-move-item/"
         var xhr = new XMLHttpRequest()
         xhr.open("POST", url, true)
         xhr.setRequestHeader("Authorization", "Token " + token)
@@ -216,7 +239,8 @@ QtObject {
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    callback(true, null)
+                    if (confirmedMutation(xhr)) callback(true, null)
+                    else callback(false, "Server did not confirm move")
                 } else {
                     callback(false, parseError(xhr))
                 }
@@ -248,6 +272,15 @@ QtObject {
         return "HTTP " + xhr.status + (xhr.statusText ? " " + xhr.statusText : "")
     }
 
+    function confirmedMutation(xhr) {
+        try {
+            var response = JSON.parse(xhr.responseText)
+            return response && response.success === true
+        } catch (e) {
+            return false
+        }
+    }
+
     function request(method, path, body, callback) {
         if (!token) {
             callback(false, null, "No authentication token")
@@ -266,7 +299,7 @@ QtObject {
                 if (xhr.status >= 200 && xhr.status < 300) {
                     var data = null
                     try {
-                        data = xhr.responseText ? JSON.parse(xhr.responseText) : null
+                        data = JSON.parse(xhr.responseText)
                     } catch (e) {
                         callback(false, null, "Invalid server response")
                         return
@@ -290,6 +323,7 @@ QtObject {
         }
         request("GET", url, null, function(success, data, error) {
             if (success) {
+                if (!Array.isArray(data)) { callback(false, null, "Invalid server response"); return }
                 var links = data.map(function(link) {
                     return {
                         token: link.token,
@@ -336,7 +370,9 @@ QtObject {
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    var response = JSON.parse(xhr.responseText)
+                    var response
+                    try { response = JSON.parse(xhr.responseText) } catch (e) { callback(false, null, "Invalid server response"); return }
+                    if (!response || typeof response.link !== "string" || typeof response.token !== "string") { callback(false, null, "Invalid server response"); return }
                     callback(true, {
                         token: response.token,
                         link: response.link,
@@ -368,7 +404,8 @@ QtObject {
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    callback(true, null)
+                    if (confirmedMutation(xhr)) callback(true, null)
+                    else callback(false, "Server did not confirm share-link revocation")
                 } else {
                     callback(false, parseError(xhr))
                 }
@@ -407,7 +444,8 @@ QtObject {
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    callback(true, null)
+                    if (confirmedMutation(xhr)) callback(true, null)
+                    else callback(false, "Server did not confirm copy")
                 } else {
                     callback(false, parseError(xhr))
                 }
@@ -425,7 +463,7 @@ QtObject {
 
     function copyItems(items, dstRepoId, dstParentDir, callback) {
         if (!items || items.length === 0) {
-            callback(false, null, "No items to copy")
+            callback(false, "No items to copy")
             return
         }
 
@@ -435,14 +473,14 @@ QtObject {
             var key = item.repoId + ":" + (item.srcParentDir || "/")
             if (!groups[key]) {
                 groups[key] = {
-                    srcRepoId: item.repoId,
-                    srcParentDir: item.srcParentDir || "/",
-                    srcDirents: [],
-                    dstRepoId: dstRepoId,
-                    dstParentDir: dstParentDir
+                    src_repo_id: item.repoId,
+                    src_parent_dir: item.srcParentDir || "/",
+                    src_dirents: [],
+                    dst_repo_id: dstRepoId,
+                    dst_parent_dir: dstParentDir
                 }
             }
-            groups[key].srcDirents.push(item.name)
+            groups[key].src_dirents.push(item.name)
         }
 
         var groupKeys = Object.keys(groups)
@@ -452,14 +490,11 @@ QtObject {
         function checkComplete() {
             completed++
             if (completed === groupKeys.length) {
-                if (!hasError) {
-                    callback(true, null)
-                }
+                callback(!hasError, hasError ? "Some items may have copied; one or more source folders failed" : null)
             }
         }
 
-        for (var key in groups) {
-            var group = groups[key]
+        function sendGroup(group) {
             var xhr = new XMLHttpRequest()
             var url = baseUrl + "/api/v2.1/repos/sync-batch-copy-item/"
             xhr.open("POST", url, true)
@@ -468,7 +503,7 @@ QtObject {
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === XMLHttpRequest.DONE) {
                     if (xhr.status >= 200 && xhr.status < 300) {
-                        // success
+                        if (!confirmedMutation(xhr)) hasError = true
                     } else {
                         hasError = true
                     }
@@ -477,11 +512,12 @@ QtObject {
             }
             xhr.send(JSON.stringify(group))
         }
+        for (var key in groups) sendGroup(groups[key])
     }
 
     function moveItems(items, dstRepoId, dstParentDir, callback) {
         if (!items || items.length === 0) {
-            callback(false, null, "No items to move")
+            callback(false, "No items to move")
             return
         }
 
@@ -491,14 +527,14 @@ QtObject {
             var key = item.repoId + ":" + (item.srcParentDir || "/")
             if (!groups[key]) {
                 groups[key] = {
-                    srcRepoId: item.repoId,
-                    srcParentDir: item.srcParentDir || "/",
-                    srcDirents: [],
-                    dstRepoId: dstRepoId,
-                    dstParentDir: dstParentDir
+                    src_repo_id: item.repoId,
+                    src_parent_dir: item.srcParentDir || "/",
+                    src_dirents: [],
+                    dst_repo_id: dstRepoId,
+                    dst_parent_dir: dstParentDir
                 }
             }
-            groups[key].srcDirents.push(item.name)
+            groups[key].src_dirents.push(item.name)
         }
 
         var groupKeys = Object.keys(groups)
@@ -508,14 +544,11 @@ QtObject {
         function checkComplete() {
             completed++
             if (completed === groupKeys.length) {
-                if (!hasError) {
-                    callback(true, null)
-                }
+                callback(!hasError, hasError ? "Some items may have moved; one or more source folders failed" : null)
             }
         }
 
-        for (var key in groups) {
-            var group = groups[key]
+        function sendGroup(group) {
             var xhr = new XMLHttpRequest()
             var url = baseUrl + "/api/v2.1/repos/sync-batch-move-item/"
             xhr.open("POST", url, true)
@@ -524,7 +557,7 @@ QtObject {
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === XMLHttpRequest.DONE) {
                     if (xhr.status >= 200 && xhr.status < 300) {
-                        // success
+                        if (!confirmedMutation(xhr)) hasError = true
                     } else {
                         hasError = true
                     }
@@ -533,6 +566,7 @@ QtObject {
             }
             xhr.send(JSON.stringify(group))
         }
+        for (var key in groups) sendGroup(groups[key])
     }
 
     function deleteItemsSequentially(items, callback) {
@@ -588,7 +622,9 @@ QtObject {
                 if (xhr.status >= 200 && xhr.status < 300) {
                     try {
                         var response = JSON.parse(xhr.responseText)
+                        if (!response || !Array.isArray(response.data)) throw new Error("missing data")
                         var results = (response.data || []).map(function(item) {
+                            if (!item || typeof item.path !== "string") throw new Error("invalid result")
                             var pathParts = item.path.split("/")
                             var name = pathParts.pop()
                             var parentPath = pathParts.join("/") || "/"
@@ -621,6 +657,7 @@ QtObject {
         var url = "/api2/repos/" + repoId + "/file/history/?p=" + encodeURIComponent(path)
         request("GET", url, null, function(success, data, error) {
             if (success) {
+                if (!data || !Array.isArray(data.commits)) { callback(false, null, "Invalid server response"); return }
                 var history = (data.commits || []).map(function(commit) {
                     return {
                         commitId: commit.id,
@@ -647,9 +684,10 @@ QtObject {
     }
 
     function downloadRevision(repoId, path, commitId, callback) {
-        var url = "/api2/repos/" + repoId + "/file/revision/?p=" + encodeURIComponent(path) + "&commit_id=" + commitId
+        var url = "/api2/repos/" + repoId + "/file/revision/?p=" + encodeURIComponent(path) + "&commit_id=" + encodeURIComponent(commitId)
         request("GET", url, null, function(success, data, error) {
             if (success) {
+                if (typeof data !== "string" || data === "") { callback(false, null, "Invalid server response"); return }
                 callback(true, data, null)
             } else {
                 callback(false, null, error)
@@ -663,6 +701,7 @@ QtObject {
         var url = "/api/v2.1/repos/" + repoId + "/trash/"
         request("GET", url, null, function(success, data, error) {
             if (success) {
+                if (!data || !Array.isArray(data.data)) { callback(false, null, "Invalid server response"); return }
                 var trash = (data.data || []).map(function(item) {
                     return {
                         parentDir: item.parent_dir,
@@ -681,28 +720,4 @@ QtObject {
         })
     }
 
-    function restoreFolder(repoId, parentDir, objName, callback) {
-        var url = "/api/v2.1/repos/" + repoId + "/trash/"
-        var xhr = new XMLHttpRequest()
-        xhr.open("POST", baseUrl + url, true)
-        xhr.setRequestHeader("Authorization", "Token " + token)
-        xhr.setRequestHeader("Content-Type", "application/json")
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    callback(true, null)
-                } else {
-                    callback(false, parseError(xhr))
-                }
-            }
-        }
-        var body = JSON.stringify({
-            op: "restore",
-            dirents: [{
-                parent_dir: parentDir,
-                obj_name: objName
-            }]
-        })
-        xhr.send(body)
-    }
 }

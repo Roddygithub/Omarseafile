@@ -72,26 +72,26 @@ ListView {
     model: root.sortedItems
 
 
-    delegate: FileItem {
-        required property var modelData
-        required property int index
-        item: modelData
-        itemIndex: index
-        bar: root.bar
-        onItemClicked: root.onItemClicked
-        onDownloadClicked: root.onDownloadClicked
-        onRenameClicked: root.onRenameClicked
-        onMoveClicked: root.onMoveClicked
-        onDeleteClicked: root.onDeleteClicked
-        onShareClicked: root.onShareClicked
-        onHistoryClicked: root.onHistoryClicked
-        findTransfer: root.findTransfer
-        transferRevision: root.transferRevision
-        onSelectionToggle: root.onSelectionToggle
-        onSelectionRange: root.onSelectionRange
-        onSelectOnly: root.onSelectOnly
-        onPositionClicked: root.onPositionClicked
-        onContextMenuRequested: root.onContextMenuRequested
+delegate: FileItem {
+                            required property var modelData
+                            required property int index
+                            item: modelData
+                            itemIndex: index
+                            bar: root.bar
+                            onItemClicked: root.onItemClicked
+                            onDownloadClicked: root.onDownloadClicked
+                            onRenameClicked: root.onRenameClicked
+                            onMoveClicked: root.onMoveClicked
+                            onDeleteClicked: root.onDeleteClicked
+                            onShareClicked: root.onShareClicked
+                            onHistoryClicked: root.onHistoryClicked
+                            findTransfer: root.findTransfer
+                            transferRevision: root.transferRevision
+                            onSelectionToggle: root.onSelectionToggle
+                            onSelectionRange: root.onSelectionRange
+                            onSelectOnly: root.onSelectOnly
+                            onPositionClicked: root.onPositionClicked
+                            onContextMenuRequested: root.onContextMenuRequested
         selected: {
             for (var i = 0; i < root.selectedItems.length; i++) {
                 if (SelectionHelper.makeKey(root.selectedItems[i]) === SelectionHelper.makeKey(modelData)) {

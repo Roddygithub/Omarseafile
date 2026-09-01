@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "roddy.seafile",
   "name": "Seafile",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "author": "Roddy",
   "description": "Seafile cloud file client for Omarchy",
   "kinds": [

@@ -9,6 +9,7 @@ Item {
     property bool showBack: false
     property bool showRefresh: false
     property bool showUpload: false
+    property bool showCreateFolder: false
     property bool showOffline: false
     property bool showSearch: false
     property bool showLogout: false
@@ -30,10 +31,17 @@ Item {
     property var onBackClicked: null
     property var onRefreshClicked: null
     property var onUploadClicked: null
+    property var onCreateFolderClicked: null
     property var onSearchChanged: null
     property var onSearchActiveToggled: null
     property var onLogoutClicked: null
     property var onSettingsClicked: null
+    property string destinationMode: ""
+    property int destinationCount: 0
+    property string destinationOperation: ""
+    property string destinationPath: ""
+    property var onDestinationCancel: null
+    property var onDestinationConfirm: null
 
     implicitHeight: row.implicitHeight
     width: parent.width
@@ -49,6 +57,7 @@ Item {
         readonly property int _fixedButtons: (backButton.visible ? backButton.width : 0)
             + (searchButton.visible ? searchButton.width : 0)
             + (uploadButton.visible ? uploadButton.width : 0)
+            + (createFolderButton.visible ? createFolderButton.width : 0)
             + (refreshButton.visible ? refreshButton.width : 0)
             + (settingsButton.visible ? settingsButton.width : 0)
             + (logoutButton.visible ? logoutButton.width : 0)
@@ -57,7 +66,7 @@ Item {
             + (offlineIndicator.visible ? offlineIndicator.width : 0)
             + (batchActionBar.visible ? batchActionBar.width : 0)
         readonly property int _visibleCount: (backButton.visible ? 1 : 0) + (searchButton.visible ? 1 : 0)
-            + (uploadButton.visible ? 1 : 0) + (refreshButton.visible ? 1 : 0) + (settingsButton.visible ? 1 : 0)
+            + (uploadButton.visible ? 1 : 0) + (createFolderButton.visible ? 1 : 0) + (refreshButton.visible ? 1 : 0) + (settingsButton.visible ? 1 : 0)
             + (logoutButton.visible ? 1 : 0) + (transfersButton.visible ? 1 : 0) + (trashButton.visible ? 1 : 0)
             + (offlineIndicator.visible ? 1 : 0) + (batchActionBar.visible ? 1 : 0) + (searchField.visible ? 1 : 0)
 
@@ -87,7 +96,7 @@ Item {
             id: batchActionBar
             bar: root.bar
             count: root.selectionCount
-            visible: root.selectionCount > 0
+            visible: root.selectionCount > 0 && root.destinationMode === ""
             // property var targets: assign callable function EXPRESSIONS.
             // A bare block `{ ... }` would be evaluated as a binding body at
             // creation (ghost calls) and leave the property undefined (dead buttons).
@@ -148,6 +157,16 @@ Item {
             tooltipText: "Upload file"
             onClicked: {
                 if (root.onUploadClicked) root.onUploadClicked()
+            }
+        }
+
+        Button {
+            id: createFolderButton
+            text: "+"
+            visible: root.showCreateFolder && !root.searchActive && !batchActionBar.visible
+            tooltipText: "New folder"
+            onClicked: {
+                if (root.onCreateFolderClicked) root.onCreateFolderClicked()
             }
         }
 
@@ -287,5 +306,6 @@ Item {
                 anchors.centerIn: parent
             }
         }
+
     }
 }

@@ -56,7 +56,7 @@ Popup {
         Button {
             width: parent.width
             text: "Share"
-            visible: !root.batchMode && !root.isDir && root.onShareClicked !== null
+            visible: !root.batchMode && root.onShareClicked !== null
             onClicked: root.run(root.onShareClicked, root.item)
         }
 

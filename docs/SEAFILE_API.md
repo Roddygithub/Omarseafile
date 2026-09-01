@@ -1,7 +1,7 @@
 # Omarseafile — Seafile API Audit & Reference
 
 > **Source of Truth Hierarchy**
-> 1. **Server Reality** (our server at `http://192.168.1.108:8000`) — ultimate authority
+> 1. **Server Reality** (the private validation server used by development) — ultimate authority
 > 2. **Current Official Docs** — [seafile-api.readme.io](https://seafile-api.readme.io/) + [manual.seafile.com](https://manual.seafile.com/)
 > 3. **Model Knowledge** — never authoritative, only for gaps
 
@@ -13,7 +13,7 @@
 
 | Family | Version | Base Path | Auth | Primary Use |
 |--------|---------|-----------|------|-------------|
-| **Account Token** | v2 | `/api2/auth-token/` | Basic (user/pass) | Get account token |
+| **Account Token** | v2 | `/api2/auth-token/` | Form-encoded user/password | Get account token |
 | **Account API** | v2 | `/api2/` | Account-Token | User, libraries, repos |
 | **Repo Token API** | v2.1 | `/api/v2.1/` | Repo-Token | Scoped repo operations |
 | **Seafhttp** | v2 | `/seafhttp/` | Token in header/query | File upload/download |
@@ -115,7 +115,7 @@
 | Revert Dir | PUT | `/api2/repos/{repo_id}/dir/revert/` | v2 | DOCUMENTED_UNVERIFIED | — | `commit_id` |
 | Get Library Trash | GET | `/api/v2.1/repos/{repo_id}/trash/` | v2.1 | **VERIFIED** | v0.7.0 | |
 | Clean Library Trash | DELETE | `/api/v2.1/repos/{repo_id}/trash/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
-| Restore from Trash | POST | `/api/v2.1/repos/{repo_id}/trash/` | v2.1 | **PARTIALLY_VERIFIED** | v0.7.0 | `op=restore`, folder only |
+| Restore from Trash | POST | `/api/v2.1/repos/{repo_id}/trash/` | v2.1 | **NOT_SUPPORTED** | v1 audit | Current CE 12.0.x server returns a trash list and does not restore |
 | Clean Library Trash | DELETE | `/api/v2.1/repos/{repo_id}/trash/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
 
 ### SHARE LINKS
@@ -163,7 +163,7 @@
 | Revert Dir | PUT | `/api2/repos/{repo_id}/dir/revert/` | v2 | DOCUMENTED_UNVERIFIED | — | `commit_id` |
 | Get Library Trash | GET | `/api/v2.1/repos/{repo_id}/trash/` | v2.1 | **VERIFIED** | v0.7.0 | |
 | Clean Library Trash | DELETE | `/api/v2.1/repos/{repo_id}/trash/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
-| Restore from Trash | POST | `/api/v2.1/repos/{repo_id}/trash/` | v2.1 | **PARTIALLY_VERIFIED** | v0.7.0 | Folder only, `op=restore` |
+| Restore from Trash | POST | `/api/v2.1/repos/{repo_id}/trash/` | v2.1 | **NOT_SUPPORTED** | v1 audit | Current CE 12.0.x server does not confirm restoration |
 | Clean Library Trash | DELETE | `/api/v2.1/repos/{repo_id}/trash/` | v2.1 | DOCUMENTED_UNVERIFIED | — | |
 
 ### BATCH OPERATIONS
@@ -219,26 +219,15 @@
 
 ---
 
-## Summary Statistics
+## Status Accounting
 
-| Status | Count |
-|--------|-------|
-| **VERIFIED** | 33 |
-| **PARTIALLY_VERIFIED** | 5 |
-| **DOCUMENTED_UNVERIFIED** | 81 |
-| **NOT_ACCESSIBLE** | 1 |
-| **NOT_SUPPORTED_BY_SERVER** | 2 |
-| **NOT_WORKING** | 2 |
-| **DEPRECATED** | 0 |
-| **NOT_RELEVANT** | 0 |
-
-**Total Endpoints Catalogued**: 123
+Counts are intentionally omitted: the catalog contains duplicate historical entries, so status labels on individual rows are authoritative rather than an aggregate total.
 
 ---
 
 ## Verified Server Behaviors
 
-> All behaviors tested against our real server at `http://192.168.1.108:8000` (Seafile CE 12.0.14).
+> Behaviors marked verified were tested against a private Seafile CE 12.0.14 validation server. Its address is intentionally omitted from public documentation.
 
 | Behavior | Verified | Details |
 |----------|----------|---------|
@@ -288,15 +277,15 @@
 | **Search (Empty query)** | ✅ | `GET /api/v2.1/search-file/?q=&repo_id={id}` → `{"error_msg":"q invalid."}` |
 | **Search (Invalid token)** | ✅ | `GET /api/v2.1/search-file/?q=test&repo_id={id}` with bad token → `{"detail":"Invalid token"}` |
 | **Search (Invalid repo)** | ⚠️ | `GET /api/v2.1/search-file/?q=test&repo_id=invalid` → HTML error page (500) |
-| **Search (Case-insensitive)** | ✅ | "Github" finds "github-recovery-codes.txt" |
-| **Search (Recursive)** | ✅ | Finds files in subdirectories (e.g., `/Non triées/P1050683.JPG`) |
+| **Search (Case-insensitive)** | ✅ | A mixed-case query finds a lower-case fixture name |
+| **Search (Recursive)** | ✅ | Finds disposable fixture files in subdirectories |
 | **Search (Folders)** | ✅ | Returns folders with type="folder", size=0 |
 | **Search (No pagination)** | ✅ | `page`/`per_page` params are ignored |
 | **File History** | ✅ | `GET /api2/repos/{id}/file/history/?p=/path` (URL-encoded path) |
 | **Revision Download** | ✅ | `GET /api2/repos/{id}/file/revision/?p=/path&commit_id=xxx` |
 | **Revision Restore** | ❌ | NOT_SUPPORTED on CE 12.0.14 (405) |
 | **Trash List** | ✅ | `GET /api/v2.1/repos/{id}/trash/` |
-| **Trash Restore (Folder)** | ✅ | `POST /api/v2.1/repos/{id}/trash/` with `op=restore` |
+| **Trash Restore (Folder)** | ❌ | Current CE 12.0.x server does not confirm restoration |
 | **Trash Restore (File)** | ❌ | NOT_SUPPORTED on CE 12.0.14 |
 
 ---
@@ -305,20 +294,20 @@
 
 | Quirk | Impact | Workaround |
 |-------|--------|------------|
-| **Create Folder ignores `p=`** | Cannot create folder in subdirectory via API; always creates at repo root | Use workaround: create at root, then move (async move folder works) |
+| **Create Folder ignores `p=`** | Direct nested creation lands at repo root | Create a unique temporary root folder, synchronously move it, then rename it at the destination |
 | **Download link requires Auth header** | Seafhttp download returns 403 "Access token not found" without `Authorization: Token` | Always pass `Authorization: Token <token>` header on seafhttp downloads |
 | **0-byte files** | Download link returns "Access token not found" for 0-byte files without auth; works with auth header | Use auth header |
-| **Create Folder `p=` ignored** | API creates folder at repo root regardless of `p=/parent` parameter | Create at root, then async move to desired location |
-| **Async Move Folder** | Works but returns empty `task_id`; completes quickly on small dirs | Just refresh after short delay |
+| **Create Folder `p=` ignored** | API creates folder at repo root regardless of `p=/parent` parameter | Use a unique temporary root name, synchronously move, then rename at the destination |
+| **Async Move Folder** | Historical fixtures returned inconsistent task metadata | Do not use for production completion; use synchronous batch move |
 | **Rename File Path Format** | `p=` must be **full file path** including filename, not parent dir | Use `p=/full/path/to/file.txt` not `p=/parent/dir` |
 | **Rename Folder Path Format** | `p=` must be **parent directory path**, not folder path | Use `p=/parent` not `p=/parent/folder` |
-| **Move Folder Async** | Returns empty `task_id` (`""`); completes synchronously on small dirs | Just refresh after short delay |
+| **Move Folder Async** | Completion cannot be inferred from request acceptance | Use synchronous batch move in production |
 | **Upload Collision** | `replace=0` → server renames to `(1)`, `(2)` etc. automatically | Use `replace=0` for safe behavior |
 | **Download 0-byte files** | Returns 403 "Access token not found" without auth header; works with auth | Always include auth header |
 | **Upload Link Reuse** | `reuse=1` makes link reusable; without it link is single-use | Use `reuse=1` for multiple uploads |
 | **Delete Root Protection** | Must prevent deleting `/` path manually | Check `path === "/"` before delete |
 | **Folder Rename Path** | `p=` must be **parent directory**, not folder path | Use `p=/parent` not `p=/parent/folder` |
-| **Move Folder Async** | Returns empty `task_id` (`""`); completes synchronously on small dirs | Just refresh after short delay |
+| **Move Folder Async** | Completion cannot be inferred from request acceptance | Use synchronous batch move in production |
 | **Upload Collision** | `replace=0` → server renames to `(1)`, `(2)` etc. automatically | Use `replace=0` for safe behavior |
 | **Download 0-byte files** | Returns 403 "Access token not found" without auth header; works with auth | Always include auth header |
 | **Upload Link Reuse** | `reuse=1` makes link reusable; without it link is single-use | Use `reuse=1` for multiple uploads |
@@ -361,7 +350,8 @@ Based on API documentation review, these features are available for future Omars
 | Batch Copy | **Available** | `/api/v2.1/repos/sync-batch-copy-item/` |
 | File Search | **Available** | `/api2/search/` + `/api/v2.1/search-file/` — **Recommended: `/api/v2.1/search-file/` for v0.7.0** |
 | File Locking | **Available** | `/api/v2.1/via-repo-token/file/` (lock/unlock) |
-| Trash/Restore | **Available** | `/api/v2.1/repos/{id}/trash/` |
+| Trash browsing | **Available** | `/api/v2.1/repos/{id}/trash/` |
+| Trash restore | **Not supported by tested CE server** | No production mutation is sent |
 | File History/Versions | **Available** | `/api/v2.1/repos/{id}/file/history/` |
 
 ---
@@ -381,10 +371,10 @@ Based on API documentation review, these features are available for future Omars
 
 ## Maintenance
 
-- **Last Audit**: 2026-08-22
-- **Server Tested**: `http://192.168.1.108:8000` (Seafile CE 12.0.14)
+- **Last Audit**: 2026-09-01
+- **Server Tested**: Private Seafile CE 12.0.14 validation server
 - **Auditor**: Omarseafile bootstrap process
-- **Next Review**: Before v0.8.0 implementation
+- **Next Review**: Before enabling any currently unsupported endpoint
 - **Search API Audit**: 2026-08-22 — SPIKEs completed; `/api2/search/` NOT_ACCESSIBLE, `/api/v2.1/search-file/` VERIFIED
 - **History/Revision/Trash Audit**: 2026-08-22 — SPIKEs completed
 
