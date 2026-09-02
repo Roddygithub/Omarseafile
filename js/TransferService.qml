@@ -216,6 +216,17 @@ QtObject {
         }
     }
 
+    property Component _finalizeOpenDownloadProcessFactory: Component {
+        Process {
+            property var transferRef: null
+            onExited: function(exitCode, exitStatus) {
+                var transfer = transferRef
+                destroy()
+                if (transfer) root.handleOpenDownloadFinalized(exitCode, transfer)
+            }
+        }
+    }
+
     property Component _retryTimerFactory: Component {
         Timer {
             property var callback: null
@@ -1025,7 +1036,7 @@ QtObject {
     }
 
     function finalizeOpenDownload(download) {
-        var proc = _finalizeDownloadProcessFactory.createObject(root)
+        var proc = _finalizeOpenDownloadProcessFactory.createObject(root)
         if (!proc) {
             download.state = "failed"
             download.error = "Failed to finalize download"

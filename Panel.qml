@@ -270,7 +270,31 @@ Panel {
         contextMenu.item = item
         contextMenu.isDir = item.type === "dir"
         contextMenu.selectionCount = root.selectedItems.length > 0 ? root.selectedItems.length : 1
-        contextMenu.onOpenClicked = item.type === "dir" ? root.onItemClicked : root.openFile
+        // Disconnect previous connections to avoid duplicates
+        try { contextMenu.openClicked.disconnect(root.openFile) } catch (e) {}
+        try { contextMenu.openClicked.disconnect(root.onItemClicked) } catch (e) {}
+        try { contextMenu.downloadClicked.disconnect(root.onDownloadClicked) } catch (e) {}
+        try { contextMenu.shareClicked.disconnect(root.pickShare) } catch (e) {}
+        try { contextMenu.renameClicked.disconnect(root.pickRename) } catch (e) {}
+        try { contextMenu.moveClicked.disconnect(root.moveItems) } catch (e) {}
+        try { contextMenu.copyClicked.disconnect(root.copyItems) } catch (e) {}
+        try { contextMenu.deleteClicked.disconnect(root.deleteItems) } catch (e) {}
+        try { contextMenu.historyClicked.disconnect(root.openHistory) } catch (e) {}
+        try { contextMenu.deleteClicked.disconnect(root.deleteItems) } catch (e) {}
+
+        // Connect signals
+        if (item.type === "dir") {
+            contextMenu.openClicked.connect(root.onItemClicked)
+        } else {
+            contextMenu.openClicked.connect(root.openFile)
+        }
+        contextMenu.downloadClicked.connect(root.onDownloadClicked)
+        contextMenu.shareClicked.connect(root.pickShare)
+        contextMenu.renameClicked.connect(root.pickRename)
+        contextMenu.moveClicked.connect(root.moveItems)
+        contextMenu.copyClicked.connect(root.copyItems)
+        contextMenu.deleteClicked.connect(root.deleteItems)
+        contextMenu.historyClicked.connect(root.openHistory)
         // Parent to the keyboard-panel window's overlay: never clipped by the
         // file list, and rendered in the window that owns pointer/keyboard.
         contextMenu.parent = keyCatcher.Overlay.overlay
@@ -324,7 +348,7 @@ Panel {
                 if (!list || !list.currentItem) return
                 var item = list.currentItem.item
                 if (item && item.type === "dir") root.onItemClicked(item)
-                else if (item && !root.destinationMode) root.onOpenClicked(item)
+                else if (item && !root.destinationMode) root.openFile(item)
             }
             onDeleteRequested: {
                 if (root.state !== "browse" || root.searchActive || root.dialogOpen || root.destinationMode || root.showTransfers) return
@@ -365,8 +389,8 @@ Panel {
             ContextMenu {
                 id: contextMenu
                 bar: root.bar
-                onOpenClicked: root.onItemClicked
-                onDownloadClicked: root.onDownloadClicked
+                onOpenClicked: function(item) { item.type === "dir" ? root.onItemClicked(item) : root.openFile(item) }
+                onDownloadClicked: root.downloadFile
                 onRenameClicked: root.pickRename
                 onMoveClicked: root.moveItems
                 onCopyClicked: root.copyItems
@@ -607,7 +631,7 @@ Panel {
                             findTransfer: TransferService.findTransfer
                             transferRevision: root.transferRevision
                             onItemClicked: function(item) { root.onItemClicked(item) }
-                            onDownloadClicked: function(item) { root.destinationMode ? null : root.onDownloadClicked(item) }
+                            onDownloadClicked: function(item) { root.destinationMode ? null : root.downloadFile(item) }
                             onOpenClicked: function(item) { root.destinationMode ? null : root.openFile(item) }
                             onRenameClicked: function(item) { root.destinationMode ? null : root.pickRename(item) }
                             onMoveClicked: function(item) { root.destinationMode ? null : root.beginDestinationMode("move", [item]) }
@@ -1266,6 +1290,15 @@ Panel {
         if (!token) { root.errorMessage = "Not authenticated"; return }
         var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
         TransferService.startOpen(item, token, root.serverUrl, root.currentRepo.id, fullPath)
+    }
+
+    function downloadFile(item) {
+        if (!item || item.type !== "file") return
+        if (!root.currentRepo) { root.errorMessage = "No library selected"; return }
+        var token = Auth.getToken()
+        if (!token) { root.errorMessage = "Not authenticated"; return }
+        var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
+        TransferService.startDownload(item, token, root.serverUrl, root.currentRepo.id, getDownloadsDir(), fullPath)
     }
 
     function handleTransferCompletion(transfer) {
