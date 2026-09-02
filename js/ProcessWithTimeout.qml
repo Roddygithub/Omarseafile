@@ -48,7 +48,7 @@ QtObject {
     }
 
     function run(cmd, input, timeoutMs, maxOutputBytes, callback) {
-        var proc = processFactory.createObject(root, {
+        var proc = _processFactory.createObject(root, {
             onDone: function(exitCode, out, err) {
                 if (timer) timer.stop()
                 if (!timer) return
@@ -62,7 +62,7 @@ QtObject {
         }
         var timeout = timeoutMs || root.defaultTimeoutMs
         var maxOut = maxOutputBytes || root.defaultMaxOutputBytes
-        var timer = timeoutTimerFactory.createObject(root, { interval: timeout, targetProcess: proc })
+        var timer = _timeoutTimerFactory.createObject(root, { interval: timeout, targetProcess: proc })
         if (input !== undefined && input !== null) {
             proc.stdinEnabled = true
         }

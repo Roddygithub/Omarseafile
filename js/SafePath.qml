@@ -106,7 +106,7 @@ QtObject {
             var home = Qt.Quickshell.env("HOME")
             if (home) expanded = home + dir.substring(1)
         }
-        var proc = realpathFactory.createObject(root, {
+        var proc = _realpathFactory.createObject(root, {
             onDone: function(path) {
                 if (!path) { callback({ valid: false, error: "Cannot resolve directory" }); return }
                 callback({ valid: true, resolved: path })
@@ -122,7 +122,7 @@ QtObject {
             callback({ valid: false, error: "XDG_RUNTIME_DIR not set" })
             return
         }
-        var proc = statFactory.createObject(root, {
+        var proc = _statFactory.createObject(root, {
             onDone: function(out) {
                 if (!out) { callback({ valid: false, error: "Cannot stat XDG_RUNTIME_DIR" }); return }
                 var parts = out.split(" ")
@@ -132,11 +132,33 @@ QtObject {
                     callback({ valid: false, error: "XDG_RUNTIME_DIR not owned by current user" })
                     return
                 }
+                // Check mode - should not be world/group writable
+                var perm = parseInt(mode.slice(-3), 8)
+                if (perm & 0o022) {
+                    callback({ valid: false, error: "XDG_RUNTIME_DIR has unsafe permissions" })
+                    return
+                }
                 var dir = Qt.Quickshell.env("XDG_RUNTIME_DIR") + "/omarseafile"
-                var mk = mkdirFactory.createObject(root, {
+                var mk = _mkdirFactory.createObject(root, {
                     onDone: function(ok) {
                         if (!ok) { callback({ valid: false, error: "Cannot create runtime subdir" }); return }
-                        callback({ valid: true, path: Qt.Quickshell.env("XDG_RUNTIME_DIR") + "/omarseafile" })
+                        // Verify subdir mode and ownership after creation
+                        var verify = _statFactory.createObject(root, {
+                            onDone: function(out2) {
+                                if (!out2) { callback({ valid: false, error: "Cannot verify runtime subdir" }); return }
+                                var parts2 = out2.split(" ")
+                                var uid2 = parseInt(parts2[0], 10)
+                                var mode2 = parts2[1]
+                                var perm2 = parseInt(mode2.slice(-3), 8)
+                                if (uid2 !== Qt.Quickshell.env("UID") || perm2 !== 0o700) {
+                                    callback({ valid: false, error: "Runtime subdir has incorrect ownership or permissions" })
+                                    return
+                                }
+                                callback({ valid: true, path: Qt.Quickshell.env("XDG_RUNTIME_DIR") + "/omarseafile" })
+                            }
+                        })
+                        verify.command = ["stat", "-c", "%u %A", Qt.Quickshell.env("XDG_RUNTIME_DIR") + "/omarseafile"]
+                        verify.running = true
                     }
                 })
                 mk.command = ["mkdir", "-p", "-m", "0700", "--", Qt.Quickshell.env("XDG_RUNTIME_DIR") + "/omarseafile"]
@@ -149,8 +171,7 @@ QtObject {
 
     function createSecureTempFile(dir, prefix, callback) {
         var prefixSafe = prefix.replace(/[^a-zA-Z0-9_-]/g, "_")
-        var template = dir + "/" + prefix + "_XXXXXX"
-        var proc = mktempFactory.createObject(root, {
+        var proc = _mktempFactory.createObject(root, {
             onDone: function(path) {
                 if (!path) {
                     callback({ valid: false, error: "Failed to create secure temp file" })

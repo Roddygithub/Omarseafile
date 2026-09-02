@@ -35,6 +35,7 @@ QtObject {
     property Component downloadProcessComponent: Component {
         Process {
             property var transferRef: null
+            property var pgid: 0
             stderr: StdioCollector {
                 onTextChanged: {
                     if (transferRef && text) {
@@ -42,6 +43,9 @@ QtObject {
                         root.transferProgressChanged(transferRef)
                     }
                 }
+            }
+            onStarted: {
+                pgid = processId
             }
             onExited: function(exitCode, exitStatus) {
                 if (transferRef) {
@@ -54,6 +58,7 @@ QtObject {
     property Component openDownloadProcessComponent: Component {
         Process {
             property var transferRef: null
+            property var pgid: 0
             stderr: StdioCollector {
                 onTextChanged: {
                     if (transferRef && text) {
@@ -61,6 +66,9 @@ QtObject {
                         root.transferProgressChanged(transferRef)
                     }
                 }
+            }
+            onStarted: {
+                pgid = processId
             }
             onExited: function(exitCode, exitStatus) {
                 if (transferRef) {
@@ -73,7 +81,8 @@ QtObject {
     property Component uploadProcessComponent: Component {
         Process {
             property var transferRef: null
-            stdout: StdioCollector {}
+            property var pgid: 0
+            stdout: StdioCollector { maxBytes: 1024 * 1024 }
             stderr: StdioCollector {
                 onTextChanged: {
                     if (transferRef && text) {
@@ -81,6 +90,9 @@ QtObject {
                         root.transferProgressChanged(transferRef)
                     }
                 }
+            }
+            onStarted: {
+                pgid = processId
             }
             onExited: function(exitCode, exitStatus) {
                 if (transferRef) {
@@ -153,16 +165,16 @@ QtObject {
 
     // ===== COMMON =====
 
-    function parseError(xhr) {
-        try {
-            var response = JSON.parse(xhr.responseText)
+    function parseError(response) {
+        if (!response) return "Unknown error"
+        if (typeof response === "string") return response
+        if (typeof response === "object") {
             if (response.non_field_errors) return response.non_field_errors.join(", ")
             if (response.detail) return response.detail
             if (response.error_msg) return response.error_msg
-            return "Error " + xhr.status
-        } catch (e) {
-            return "Error " + xhr.status + ": " + xhr.responseText
+            if (response.error) return response.error
         }
+        return "Unknown error"
     }
 
     function isRetryableError(status, errorMsg) {
@@ -179,88 +191,57 @@ QtObject {
         return status === 401 || status === 403
     }
 
-    function resolveDestPath(dir, fileName) {
-        return dir + "/" + fileName
-    }
-
     function curlFileForm(path) {
         return "file=@\"" + path.replace(/\\/g, "\\\\").replace(/\"/g, "\\\"") + "\""
     }
 
-    // ===== AUTH HEADER FILE MANAGEMENT =====
+    // ===== SECURE FILE CREATION (ATOMIC, NO TOCTOU) =====
 
-    property Component _authHeaderProcessFactory: Component {
-        Process {
-            id: proc
-            property var onDone: null
-            property string inputPayload: ""
-            stdinEnabled: true
-
-            onStarted: {
-                proc.write(inputPayload)
-                proc.stdinEnabled = false
+    function createSecureFile(dir, prefix, content, callback) {
+        SafePath.getRuntimeSubdir("transfers", function(runtimeResult) {
+            if (!runtimeResult.valid) { callback({ valid: false, error: runtimeResult.error }); return }
+            var proc = Qt.createComponent("dummy").createObject({
+                command: ["mktemp", "--", runtimeResult.path + "/" + prefix.replace(/[^a-zA-Z0-9_-]/g, "_") + "_XXXXXX"],
+                running: true
+            })
+            proc.onExited = function(exitCode, path) {
+                if (exitCode !== 0 || !path || !path.trim()) {
+                    callback({ valid: false, error: "Failed to create secure temp file" })
+                    return
+                }
+                var filePath = path.trim()
+                var writeProc = Qt.createComponent("dummy").createObject({
+                    command: ["sh", "-c", "cat > \"$1\"", "sh", filePath],
+                    running: true
+                })
+                writeProc.onStarted = function() {
+                    writeProc.write(content)
+                    writeProc.stdinEnabled = false
+                }
+                writeProc.onExited = function(exitCode) {
+                    if (exitCode === 0) {
+                        callback({ valid: true, path: filePath })
+                    } else {
+                        Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", filePath], running: true })
+                        callback({ valid: false, error: "Failed to write content" })
+                    }
+                }
+                writeProc.running = true
             }
-            onExited: function(exitCode, exitStatus) {
-                var cb = proc.onDone
-                proc.destroy()
-                if (cb) cb(exitCode)
-            }
-        }
-    }
-
-    property Component _deleteProcessFactory: Component {
-        Process {
-            id: proc
-            onExited: proc.destroy()
-        }
-    }
-
-    property Component _finalizeDownloadProcessFactory: Component {
-        Process {
-            property var transferRef: null
-            onExited: function(exitCode, exitStatus) {
-                var transfer = transferRef
-                destroy()
-                if (transfer) root.handleDownloadFinalized(exitCode, transfer)
-            }
-        }
-    }
-
-    property Component _finalizeOpenDownloadProcessFactory: Component {
-        Process {
-            property var transferRef: null
-            onExited: function(exitCode, exitStatus) {
-                var transfer = transferRef
-                destroy()
-                if (transfer) root.handleOpenDownloadFinalized(exitCode, transfer)
-            }
-        }
-    }
-
-    property Component _retryTimerFactory: Component {
-        Timer {
-            property var callback: null
-            repeat: false
-            onTriggered: {
-                var cb = callback
-                destroy()
-                if (cb) cb()
-            }
-        }
+        })
     }
 
     function deleteFile(filePath) {
         if (!filePath) return
-        var proc = _deleteProcessFactory.createObject(root)
-        if (!proc) return
-        proc.command = ["rm", "-f", "--", filePath]
-        proc.running = true
+        Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", filePath], running: true })
     }
 
     function scheduleRetry(delay, callback) {
-        var timer = _retryTimerFactory.createObject(root, { interval: delay, callback: callback })
+        var timer = Qt.createComponent("dummy").createObject({ interval: delay, repeat: false, onTriggered: { callback(); destroy() } })
         if (timer) timer.start()
     }
+
+    // ===== SECURE HEADER/CONFIG FILE CREATION =====
 
     function createAuthHeaderFile(token, callback) {
         SafePath.getRuntimeSubdir("secrets", function(runtimeResult) {
@@ -268,19 +249,15 @@ QtObject {
             SafePath.createSecureTempFile(runtimeResult.path, "seafile_auth", function(fileResult) {
                 if (!fileResult.valid) { callback(null); return }
                 var tempFile = fileResult.path
-                var proc = _authHeaderProcessFactory.createObject(root, {
-                    inputPayload: "Authorization: Token " + token,
-                    onDone: function(exitCode) {
-                        if (exitCode === 0) {
-                            callback(tempFile)
-                        } else {
-                            deleteFile(tempFile)
-                            callback(null)
-                        }
-                    }
+                var proc = Qt.createComponent("dummy").createObject({
+                    command: ["sh", "-c", "printf '%s\\n' \"$1\" > \"$2\"", "sh", "Authorization: Token " + token, tempFile],
+                    running: true
                 })
                 if (!proc) { callback(null); return }
-                proc.command = ["sh", "-c", "cat > \"$1\"", "sh", tempFile]
+                proc.onExited = function(exitCode) {
+                    if (exitCode === 0) callback(tempFile)
+                    else { Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", tempFile], running: true }); callback(null) }
+                }
                 proc.running = true
             })
         })
@@ -292,34 +269,34 @@ QtObject {
             SafePath.createSecureTempFile(runtimeResult.path, "seafile_curl", function(fileResult) {
                 if (!fileResult.valid) { callback(null); return }
                 var tempFile = fileResult.path
-                var proc = _authHeaderProcessFactory.createObject(root, {
-                    inputPayload: "url = " + JSON.stringify(url),
-                    onDone: function(exitCode) {
-                        if (exitCode === 0) callback(tempFile)
-                        else { deleteFile(tempFile); callback(null) }
-                    }
+                var proc = Qt.createComponent("dummy").createObject({
+                    command: ["sh", "-c", "printf '%s\\n' \"$1\" > \"$2\"", "sh", "url = " + JSON.stringify(url), tempFile],
+                    running: true
                 })
                 if (!proc) { callback(null); return }
-                proc.command = ["sh", "-c", "cat > \"$1\"", "sh", tempFile]
+                proc.onExited = function(exitCode) {
+                    if (exitCode === 0) callback(tempFile)
+                    else { Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", tempFile], running: true }); callback(null) }
+                }
                 proc.running = true
             })
         })
     }
 
     function cleanupAuthHeaderFile(filePath) {
-        deleteFile(filePath)
+        Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", filePath], running: true })
     }
 
     function cleanupTransferAuthFile(transfer) {
         if (transfer.authHeaderFile) {
-            cleanupAuthHeaderFile(transfer.authHeaderFile)
+            Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", transfer.authHeaderFile], running: true })
             transfer.authHeaderFile = undefined
         }
     }
 
     function cleanupTransferConfigFile(transfer) {
         if (transfer.curlConfigFile) {
-            deleteFile(transfer.curlConfigFile)
+            Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", transfer.curlConfigFile], running: true })
             transfer.curlConfigFile = undefined
         }
     }
@@ -345,10 +322,13 @@ QtObject {
         transfer.downloadLink = undefined
         transfer.uploadLink = undefined
         if (transfer.authHeaderFile) {
-            cleanupAuthHeaderFile(transfer.authHeaderFile)
+            Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", transfer.authHeaderFile], running: true })
         }
         transfer.authHeaderFile = undefined
-        cleanupTransferConfigFile(transfer)
+        if (transfer.curlConfigFile) {
+            Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", transfer.curlConfigFile], running: true })
+        }
+        transfer.curlConfigFile = undefined
         transfer.endTime = Date.now()
         return transfer
     }
@@ -370,66 +350,73 @@ QtObject {
         }
     }
 
+    // ===== SAFE PATH RESOLUTION =====
+
+    function resolveDestPath(dir, fileName, callback) {
+        SafePath.secureJoin(dir, fileName, callback)
+    }
+
     // ===== DOWNLOAD =====
 
     function startDownload(fileItem, token, baseUrl, repoId, destDir, fullPath, downloadLink) {
-        var download = {
-            id: Date.now() + Math.random(),
-            type: "download",
-            state: "pending",
-            fileName: fileItem.name,
-            fullPath: fullPath,
-            destDir: destDir,
-            destPath: "",
-            tempPath: "",
-            repoId: repoId,
-            repoName: "",
-            token: token,
-            baseUrl: baseUrl,
-            process: null,
-            downloadLink: null,
-            progress: 0,
-            speed: "",
-            error: "",
-            retryCount: 0,
-            startTime: Date.now(),
-            endTime: null,
-            authHeaderFile: null,
-            curlConfigFile: null
-        }
+        SafePath.secureJoin(destDir, fileItem.name, function(destResult) {
+            if (!destResult.valid) {
+                var errTransfer = { error: destResult.error, state: "failed" }
+                root.showToast("Invalid destination: " + destResult.error, "error")
+                return
+            }
 
-        root.transfers.push(download)
-        root.transfersChanged()
-        if (typeof downloadLink === "string" && downloadLink !== "") {
-            download.downloadLink = downloadLink
-            download.destPath = root.resolveDestPath(download.destDir, download.fileName)
-            download.tempPath = download.destPath + ".part-" + download.id
-            download.state = "downloading"
-            root.transferStateChanged(download)
+            var download = {
+                id: Date.now() + Math.random(),
+                type: "download",
+                state: "pending",
+                fileName: fileItem.name,
+                fullPath: fullPath,
+                destDir: destDir,
+                destPath: destResult.path,
+                tempPath: "",
+                repoId: repoId,
+                repoName: "",
+                token: token,
+                baseUrl: baseUrl,
+                process: null,
+                downloadLink: null,
+                progress: 0,
+                speed: "",
+                error: "",
+                retryCount: 0,
+                startTime: Date.now(),
+                endTime: null,
+                authHeaderFile: null,
+                curlConfigFile: null
+            }
+
+            root.transfers.push(download)
             root.transfersChanged()
-            root.executeCurlDownload(download)
-        } else {
-            root.getDownloadLinkAndExecute(download)
-        }
-        return download
+
+            if (typeof downloadLink === "string" && downloadLink !== "") {
+                download.downloadLink = downloadLink
+                download.tempPath = download.destPath + ".part-" + download.id
+                download.state = "downloading"
+                root.transferStateChanged(download)
+                root.transfersChanged()
+                root.executeCurlDownload(download)
+            } else {
+                root.getDownloadLinkAndExecute(download)
+            }
+            return download
+        })
     }
 
     function getDownloadLinkAndExecute(download) {
         if (download.state === "cancelled") return
-        var xhr = new XMLHttpRequest()
         var path = download.fullPath || "/" + download.fileName
         var url = download.baseUrl.replace(/\/+$/, "") + "/api2/repos/" + download.repoId + "/file/?p=" + encodeURIComponent(path) + "&reuse=1"
-        xhr.open("GET", url, true)
-        xhr.setRequestHeader("Authorization", "Token " + download.token)
-        xhr.setRequestHeader("Accept", "application/json")
-        xhr.timeout = 10000
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
+        HttpTransport.get(url, { "Authorization": "Token " + download.token, "Accept": "application/json" },
+            function(success, data, error) {
                 if (download.state === "cancelled") return
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    var link
-                    try { link = JSON.parse(xhr.responseText) } catch (e) { link = null }
-                    if (typeof link !== "string" || link === "") {
+                if (success) {
+                    if (typeof data !== "string" || data === "") {
                         download.state = "failed"
                         download.error = "Invalid server response"
                         root.sanitizeForHistory(download)
@@ -437,20 +424,19 @@ QtObject {
                         root.transfersChanged()
                         return
                     }
-                    download.downloadLink = link
-                    download.destPath = root.resolveDestPath(download.destDir, download.fileName)
+                    download.downloadLink = data
                     download.tempPath = download.destPath + ".part-" + download.id
                     download.state = "downloading"
                     root.transferStateChanged(download)
                     root.transfersChanged()
                     root.executeCurlDownload(download)
-                } else if (root.isAuthError(xhr.status)) {
+                } else if (root.isAuthError(error)) {
                     download.state = "auth_failed"
                     download.error = "Authentication failed"
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
-                } else if (root.isRetryableError(xhr.status, root.parseError(xhr)) && download.retryCount < root.maxRetries) {
+                } else if (root.isRetryableError(0, error) && download.retryCount < root.maxRetries) {
                     download.retryCount++
                     var delay = Math.min(root.retryBaseDelay * Math.pow(2, download.retryCount - 1), root.maxRetryDelay)
                     download.state = "pending"
@@ -460,14 +446,13 @@ QtObject {
                     scheduleRetry(delay, function() { root.getDownloadLinkAndExecute(download) })
                 } else {
                     download.state = "failed"
-                    download.error = root.parseError(xhr)
+                    download.error = error || "Download link request failed"
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
                 }
             }
-        }
-        xhr.send()
+        )
     }
 
     function executeCurlDownload(download) {
@@ -601,50 +586,51 @@ QtObject {
     // ===== UPLOAD =====
 
     function startUpload(localFilePath, token, baseUrl, repoId, destPath, fileName) {
-        var upload = {
-            id: Date.now() + Math.random(),
-            type: "upload",
-            state: "pending",
-            srcPath: localFilePath,
-            destUploadPath: destPath,
-            fileName: fileName,
-            repoId: repoId,
-            repoName: "",
-            token: token,
-            baseUrl: baseUrl,
-            process: null,
-            uploadLink: null,
-            progress: 0,
-            speed: "",
-            error: "",
-            retryCount: 0,
-            startTime: Date.now(),
-            endTime: null,
-            authHeaderFile: null,
-            curlConfigFile: null
-        }
+        SafePath.sanitizeBasename(fileName, function(nameResult) {
+            if (!nameResult.valid) {
+                var errTransfer = { error: nameResult.error, state: "failed" }
+                root.showToast("Invalid filename: " + nameResult.error, "error")
+                return
+            }
 
-        root.transfers.push(upload)
-        root.transfersChanged()
-        root.getUploadLinkAndExecute(upload)
-        return upload
+            var upload = {
+                id: Date.now() + Math.random(),
+                type: "upload",
+                state: "pending",
+                srcPath: localFilePath,
+                destUploadPath: destPath,
+                fileName: nameResult.sanitized,
+                repoId: repoId,
+                repoName: "",
+                token: token,
+                baseUrl: baseUrl,
+                process: null,
+                uploadLink: null,
+                progress: 0,
+                speed: "",
+                error: "",
+                retryCount: 0,
+                startTime: Date.now(),
+                endTime: null,
+                authHeaderFile: null,
+                curlConfigFile: null
+            }
+
+            root.transfers.push(upload)
+            root.transfersChanged()
+            root.getUploadLinkAndExecute(upload)
+            return upload
+        })
     }
 
     function getUploadLinkAndExecute(upload) {
         if (upload.state === "cancelled") return
-        var xhr = new XMLHttpRequest()
         var url = upload.baseUrl.replace(/\/+$/, "") + "/api2/repos/" + upload.repoId + "/upload-link/?p=" + encodeURIComponent(upload.destUploadPath)
-        xhr.open("GET", url, true)
-        xhr.setRequestHeader("Authorization", "Token " + upload.token)
-        xhr.setRequestHeader("Accept", "application/json")
-        xhr.timeout = 10000
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
+        HttpTransport.get(url, { "Authorization": "Token " + upload.token, "Accept": "application/json" },
+            function(success, data, error) {
                 if (upload.state === "cancelled") return
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    var link
-                    try { link = JSON.parse(xhr.responseText) } catch (e) { link = null }
-                    if (typeof link !== "string" || link === "") {
+                if (success) {
+                    if (typeof data !== "string" || data === "") {
                         upload.state = "failed"
                         upload.error = "Invalid server response"
                         root.sanitizeForHistory(upload)
@@ -652,18 +638,18 @@ QtObject {
                         root.transfersChanged()
                         return
                     }
-                    upload.uploadLink = link
+                    upload.uploadLink = data
                     upload.state = "uploading"
                     root.transferStateChanged(upload)
                     root.transfersChanged()
                     root.executeCurlUpload(upload)
-                } else if (root.isAuthError(xhr.status)) {
+                } else if (root.isAuthError(error)) {
                     upload.state = "auth_failed"
                     upload.error = "Authentication failed"
                     root.sanitizeForHistory(upload)
                     root.transferStateChanged(upload)
                     root.transfersChanged()
-                } else if (root.isRetryableError(xhr.status, root.parseError(xhr)) && upload.retryCount < root.maxRetries) {
+                } else if (root.isRetryableError(0, error) && upload.retryCount < root.maxRetries) {
                     upload.retryCount++
                     var delay = Math.min(root.retryBaseDelay * Math.pow(2, upload.retryCount - 1), root.maxRetryDelay)
                     upload.state = "pending"
@@ -673,14 +659,13 @@ QtObject {
                     scheduleRetry(delay, function() { root.getUploadLinkAndExecute(upload) })
                 } else {
                     upload.state = "failed"
-                    upload.error = root.parseError(xhr)
+                    upload.error = error || "Upload link request failed"
                     root.sanitizeForHistory(upload)
                     root.transferStateChanged(upload)
                     root.transfersChanged()
                 }
             }
-        }
-        xhr.send()
+        )
     }
 
     function executeCurlUpload(upload) {
@@ -699,7 +684,8 @@ QtObject {
                 return
             }
             upload.authHeaderFile = authHeaderFile
-            createCurlConfigFile(upload.uploadLink + (upload.uploadLink.indexOf("?") === -1 ? "?" : "&") + "ret-json=1", function(curlConfigFile) {
+            var uploadUrl = upload.uploadLink + (upload.uploadLink.indexOf("?") === -1 ? "?" : "&") + "ret-json=1"
+            createCurlConfigFile(uploadUrl, function(curlConfigFile) {
                 if (upload.state !== "pending" && upload.state !== "uploading") { deleteFile(curlConfigFile); return }
                 if (!curlConfigFile) {
                     upload.state = "failed"
@@ -780,7 +766,7 @@ QtObject {
         root.transfersChanged()
     }
 
-    // ===== CANCEL =====
+    // ===== CANCEL (with process group kill) =====
 
     function cancelTransfer(transferId) {
         for (var i = 0; i < root.transfers.length; i++) {
@@ -789,8 +775,8 @@ QtObject {
                 t.state = "cancelled"
                 if (t.process) {
                     try {
-                        var pgid = t.process.processId
-                        if (pgid) {
+                        var pgid = t.process.pgid
+                        if (pgid > 0) {
                             var killProc = Qt.createComponent("dummy").createObject({ command: ["kill", "-TERM", "-" + pgid], running: true })
                         } else {
                             t.process.kill()
@@ -894,61 +880,63 @@ QtObject {
     // ===== OPEN FILE (DOWNLOAD TO CACHE + XDG-OPEN) =====
 
     function startOpen(fileItem, token, baseUrl, repoId, fullPath) {
-        var cacheDir = Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")
-        cacheDir = cacheDir + "/omarseafile"
-        // Unique cache filename per open to avoid collisions and ensure fresh content
-        var uniqueSuffix = Date.now() + "_" + Math.random().toString(36).substr(2, 9)
-        var cachePath = cacheDir + "/" + uniqueSuffix + "_" + fileItem.name
-        var tempPath = cachePath + ".part-" + Date.now()
+        SafePath.getRuntimeSubdir("cache", function(cacheResult) {
+            if (!cacheResult.valid) {
+                root.showToast("Cache directory unavailable: " + cacheResult.error, "error")
+                return
+            }
+            SafePath.secureJoin(cacheResult.path, fileItem.name, function(nameResult) {
+                if (!nameResult.valid) {
+                    root.showToast("Invalid filename: " + nameResult.error, "error")
+                    return
+                }
+                var uniqueSuffix = Date.now() + "_" + Math.random().toString(36).substr(2, 9)
+                var cachePath = cacheResult.path + "/" + uniqueSuffix + "_" + nameResult.sanitized
+                var tempPath = cachePath + ".part-" + Date.now()
 
-        var download = {
-            id: Date.now() + Math.random(),
-            type: "download",
-            state: "pending",
-            fileName: fileItem.name,
-            fullPath: fullPath,
-            cacheDir: cacheDir,
-            cachePath: cachePath,
-            tempPath: tempPath,
-            repoId: repoId,
-            repoName: "",
-            token: token,
-            baseUrl: baseUrl,
-            process: null,
-            downloadLink: null,
-            progress: 0,
-            speed: "",
-            error: "",
-            retryCount: 0,
-            startTime: Date.now(),
-            endTime: null,
-            authHeaderFile: null,
-            curlConfigFile: null
-        }
+                var download = {
+                    id: Date.now() + Math.random(),
+                    type: "download",
+                    state: "pending",
+                    fileName: fileItem.name,
+                    fullPath: fullPath,
+                    cacheDir: cacheResult.path,
+                    cachePath: cachePath,
+                    tempPath: tempPath,
+                    repoId: repoId,
+                    repoName: "",
+                    token: token,
+                    baseUrl: baseUrl,
+                    process: null,
+                    downloadLink: null,
+                    progress: 0,
+                    speed: "",
+                    error: "",
+                    retryCount: 0,
+                    startTime: Date.now(),
+                    endTime: null,
+                    authHeaderFile: null,
+                    curlConfigFile: null
+                }
 
-        root.transfers.push(download)
-        root.transfersChanged()
-        root.getDownloadLinkAndOpen(download)
+                root.transfers.push(download)
+                root.transfersChanged()
+                root.getDownloadLinkAndOpen(download)
 
-        return download
+                return download
+            })
+        })
     }
 
     function getDownloadLinkAndOpen(download) {
         if (download.state === "cancelled") return
-        var xhr = new XMLHttpRequest()
         var path = download.fullPath || "/" + download.fileName
         var url = download.baseUrl.replace(/\/+$/, "") + "/api2/repos/" + download.repoId + "/file/?p=" + encodeURIComponent(path) + "&reuse=1"
-        xhr.open("GET", url, true)
-        xhr.setRequestHeader("Authorization", "Token " + download.token)
-        xhr.setRequestHeader("Accept", "application/json")
-        xhr.timeout = 10000
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
+        HttpTransport.get(url, { "Authorization": "Token " + download.token, "Accept": "application/json" },
+            function(success, data, error) {
                 if (download.state === "cancelled") return
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    var link
-                    try { link = JSON.parse(xhr.responseText) } catch (e) { link = null }
-                    if (typeof link !== "string" || link === "") {
+                if (success) {
+                    if (typeof data !== "string" || data === "") {
                         download.state = "failed"
                         download.error = "Invalid server response"
                         root.sanitizeForHistory(download)
@@ -956,42 +944,41 @@ QtObject {
                         root.transfersChanged()
                         return
                     }
-                    download.downloadLink = link
+                    download.downloadLink = data
                     download.state = "downloading"
                     root.transferStateChanged(download)
                     root.transfersChanged()
                     root.executeCurlOpenDownload(download)
-                } else if (root.isAuthError(xhr.status)) {
+                } else if (root.isAuthError(error)) {
                     download.state = "auth_failed"
                     download.error = "Authentication failed"
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
-                } else if (root.isRetryableError(xhr.status, root.parseError(xhr)) && download.retryCount < root.maxRetries) {
+                } else if (root.isRetryableError(0, error) && download.retryCount < root.maxRetries) {
                     download.retryCount++
                     var delay = Math.min(root.retryBaseDelay * Math.pow(2, download.retryCount - 1), root.maxRetryDelay)
                     download.state = "pending"
                     root.transferRetryStarted(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
-                    root.scheduleRetry(delay, function() { root.getDownloadLinkAndOpen(download) })
+                    scheduleRetry(delay, function() { root.getDownloadLinkAndOpen(download) })
                 } else {
                     download.state = "failed"
-                    download.error = root.parseError(xhr)
+                    download.error = error || "Download link request failed"
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
                 }
             }
-        }
-        xhr.send()
+        )
     }
 
     function executeCurlOpenDownload(download) {
         if (download.state !== "pending" && download.state !== "downloading") return
-        root.createAuthHeaderFile(download.token, function(authHeaderFile) {
+        createAuthHeaderFile(download.token, function(authHeaderFile) {
             if (download.state !== "pending" && download.state !== "downloading") {
-                root.cleanupAuthHeaderFile(authHeaderFile)
+                cleanupAuthHeaderFile(authHeaderFile)
                 return
             }
             if (!authHeaderFile) {
@@ -1003,8 +990,8 @@ QtObject {
                 return
             }
             download.authHeaderFile = authHeaderFile
-            root.createCurlConfigFile(download.downloadLink, function(curlConfigFile) {
-                if (download.state !== "pending" && download.state !== "downloading") { root.deleteFile(curlConfigFile); return }
+            createCurlConfigFile(download.downloadLink, function(curlConfigFile) {
+                if (download.state !== "pending" && download.state !== "downloading") { deleteFile(curlConfigFile); return }
                 if (!curlConfigFile) {
                     download.state = "failed"
                     download.error = "Failed to create curl configuration"
@@ -1041,118 +1028,3 @@ QtObject {
                     "--no-location"
                 ]
                 download.process = curlProc
-                curlProc.running = true
-            })
-        })
-    }
-
-    function handleOpenDownloadExited(exitCode, download) {
-        var process = download.process
-        download.process = null
-        if (process) process.destroy()
-        root.cleanupTransferAuthFile(download)
-        root.cleanupTransferConfigFile(download)
-
-        if (download.state === "cancelled") {
-            root.deleteFile(download.tempPath)
-        } else if (exitCode === 0) {
-            root.finalizeOpenDownload(download)
-            return
-        } else {
-            if (download.retryCount < root.maxRetries) {
-                download.retryCount++
-                var delay = Math.min(root.retryBaseDelay * Math.pow(2, download.retryCount - 1), root.maxRetryDelay)
-                download.state = "pending"
-                root.transferRetryStarted(download)
-                root.transferStateChanged(download)
-                root.transfersChanged()
-                root.scheduleRetry(delay, function() { root.executeCurlOpenDownload(download) })
-                return
-            }
-            download.state = "failed"
-            download.error = "Download failed (exit code: " + exitCode + ")"
-            root.sanitizeForHistory(download)
-        }
-        root.deleteFile(download.tempPath)
-        root.transferStateChanged(download)
-        root.transfersChanged()
-    }
-
-    function finalizeOpenDownload(download) {
-        var proc = _finalizeOpenDownloadProcessFactory.createObject(root)
-        if (!proc) {
-            download.state = "failed"
-            download.error = "Failed to finalize download"
-            root.deleteFile(download.tempPath)
-            root.sanitizeForHistory(download)
-            root.transferStateChanged(download)
-            root.transfersChanged()
-            return
-        }
-        proc.transferRef = download
-        proc.command = ["sh", "-c", "mkdir -p -m 0700 -- \"$(dirname \"$1\")\" && mv -f -- \"$1\" \"$2\" && chmod 600 -- \"$2\"", "sh", download.tempPath, download.cachePath]
-        download.process = proc
-        proc.running = true
-    }
-
-    function handleOpenDownloadFinalized(exitCode, download) {
-        download.process = null
-        if (download.state === "cancelled") {
-            root.deleteFile(download.tempPath)
-        } else if (exitCode === 0) {
-            download.state = "completed"
-            download.progress = 1.0
-            download.speed = ""
-            download.destPath = download.cachePath
-            root.sanitizeForHistory(download)
-            root.pruneHistory()
-            root.openCachedFile(download)
-        } else {
-            download.state = "failed"
-            download.error = "Cache file already exists or could not be finalized"
-            root.deleteFile(download.tempPath)
-            root.sanitizeForHistory(download)
-        }
-        root.transferStateChanged(download)
-        root.transfersChanged()
-    }
-
-    property Component openCachedFileComponent: Component {
-        Process {
-            property var transferRef: null
-            onExited: function(exitCode) {
-                var t = transferRef
-                destroy()
-                if (exitCode !== 0 && t) {
-                    // Error surfaced by caller via transfer error state
-                }
-            }
-        }
-    }
-
-    function openCachedFile(transfer) {
-        var proc = openCachedFileComponent.createObject(root)
-        if (!proc) return
-        proc.command = ["xdg-open", transfer.cachePath]
-        proc.transferRef = transfer
-        proc.running = true
-    }
-
-    // ===== LOGOUT CLEANUP =====
-
-    function logoutCleanup() {
-        for (var i = 0; i < root.transfers.length; i++) {
-            var t = root.transfers[i]
-            t.state = "cancelled"
-            if (t.process) {
-                t.process.kill()
-                t.process.destroy()
-                t.process = null
-            }
-            if (t.type === "download" && t.tempPath) deleteFile(t.tempPath)
-            root.sanitizeForHistory(t)
-        }
-        root.transfers = []
-        root.transfersChanged()
-    }
-}
