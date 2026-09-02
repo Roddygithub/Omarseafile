@@ -6,8 +6,6 @@ import qs.Commons
 import qs.Ui
 import "./js"
 import "./components"
-import "./js/UrlPolicy.qml"
-import "./js/SafePath.qml"
 
 Panel {
     id: root

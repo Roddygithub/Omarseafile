@@ -6,3 +6,7 @@ singleton Models 1.0 Models.qml
 singleton TransferService 1.0 TransferService.qml
 singleton Cache 1.0 Cache.qml
 singleton SelectionHelper 1.0 SelectionHelper.qml
+singleton UrlPolicy 1.0 UrlPolicy.qml
+singleton SafePath 1.0 SafePath.qml
+singleton HttpTransport 1.0 HttpTransport.qml
+singleton ProcessWithTimeout 1.0 ProcessWithTimeout.qml

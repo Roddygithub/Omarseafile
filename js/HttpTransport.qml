@@ -16,18 +16,19 @@ QtObject {
         Process {
             property var onDone: null
             property var requestConfig: null
-            property var headerFile: null
+            property var headerFilePath: ""
+            property var bodyFilePath: ""
+            property bool haveAuth: false
+            property bool haveBody: false
             stdinEnabled: true
-            stdout: StdioCollector { maxBytes: root.maxResponseBytes }
-            stderr: StdioCollector { maxBytes: 1024 * 1024 }
+            stdout: StdioCollector {}
+            stderr: StdioCollector {}
             onStarted: {
-                if (headerFile) {
-                    write("@" + headerFile)
+                if (haveAuth && headerFilePath) {
+                    // curl reads config from stdin when we pass --config -
+                    // but we'll use --config @- approach: config is passed via stdin after auth header
+                    // Actually, let's use a different approach: write auth header to file, reference it in config
                 }
-                if (requestConfig.body !== undefined && requestConfig.body !== null) {
-                    write(requestConfig.body)
-                }
-                stdinEnabled = false
             }
             onExited: function(exitCode, exitStatus) {
                 var cb = onDone
@@ -35,18 +36,6 @@ QtObject {
                 var err = stderr.text
                 destroy()
                 if (cb) cb(exitCode, out, err)
-            }
-        }
-    }
-
-    property Component _timeoutFactory: Component {
-        Timer {
-            property var targetProcess: null
-            repeat: false
-            onTriggered: {
-                if (targetProcess) {
-                    try { targetProcess.kill() } catch (e) {}
-                }
             }
         }
     }
@@ -60,28 +49,11 @@ QtObject {
             timeoutMs: root.totalTimeoutMs,
             maxBytes: root.maxResponseBytes
         }
-        var proc = _requestFactory.createObject(root, {
-            onDone: function(exitCode, out, err) {
-                if (exitCode === 0) {
-                    var data = null
-                    try {
-                        data = out ? JSON.parse(out) : null
-                    } catch (e) {
-                        callback(false, null, "Invalid JSON response")
-                        return
-                    }
-                    // Validate response
-                    var validation = validateResponse(data)
-                    if (!validation.valid) {
-                        callback(false, null, validation.error)
-                        return
-                    }
-                    callback(true, validation.data, null)
-                } else {
-                    callback(false, null, "Request failed (exit " + exitCode + "): " + (err || "unknown"))
-                }
-            }
-        })
+
+        // Extract auth header if present
+        var authHeader = config.headers ? config.headers["Authorization"] : null
+
+        // Build curl args
         var args = ["curl", "-q", "-f", "-s", "-S"]
         args.push("--connect-timeout", Math.ceil(root.connectTimeoutMs / 1000))
         args.push("--max-time", Math.ceil(root.totalTimeoutMs / 1000))
@@ -89,47 +61,90 @@ QtObject {
         args.push("--speed-limit", "1")
         args.push("--speed-time", "30")
         args.push("--no-location")
-        // NO Authorization header in argv - will use header file via stdin
+
+        // Add non-auth headers
         for (var h in config.headers) {
-            // Skip Authorization header - handled via header file
             if (h.toLowerCase() !== "authorization") {
                 args.push("-H", h + ": " + config.headers[h])
             }
         }
         args.push("-X", config.method)
         if (config.body) {
-            args.push("-d", config.body)
+            args.push("--data-binary", "@-")
         }
         args.push(config.url)
-        proc.requestConfig = config
-        // Create header file for Authorization
-        var authHeader = config.headers ? config.headers["Authorization"] : null
-        if (authHeader) {
-            SafePath.createSecureTempFile("http_headers", function(result) {
-                if (!result.valid) { callback(false, null, "Failed to create header file"); return }
-                var headerFile = result.path
-                var proc2 = Qt.createComponent("dummy").createObject({
-                    command: ["sh", "-c", "cat > \"$1\"", "sh", headerFile],
-                    running: true
-                })
-                if (!proc2) { callback(false, null, "Failed to create header file process"); return }
-                proc2.onExited = function(exitCode) {
-                    if (exitCode !== 0) { callback(false, null, "Failed to write header file"); return }
-                    // Write auth header to file
-                    var writeProc = Qt.createComponent("dummy").createObject({
-                        command: ["sh", "-c", "printf '%s\\n' \"$1\" > \"$2\"", "sh", authHeader, headerFile],
-                        running: true
-                    })
-                    if (!writeProc) { callback(false, null, "Failed to create write process"); return }
-                    writeProc.onExited = function(exitCode2) {
-                        if (exitCode2 !== 0) { callback(false, null, "Failed to write auth header"); return }
-                        proc.headerFile = headerFile
+
+        // Create secure temp files for auth header and config
+        SafePath.getRuntimeSubdir("http", function(httpResult) {
+            if (!httpResult.valid) { callback(false, null, "Runtime dir unavailable: " + httpResult.error); return }
+
+            SafePath.createSecureFile(httpResult.path, "curl_auth", authHeader || "", function(authFileResult) {
+                if (!authFileResult.valid) { callback(false, null, "Auth file failed: " + authFileResult.error); return }
+                var authFile = authFileResult.path
+
+                // Build curl config content
+                var configContent = ""
+                if (authHeader) {
+                    configContent += "header = \"Authorization: " + authHeader.replace(/"/g, "\\\"") + "\"\n"
+                }
+                configContent += "url = " + JSON.stringify(config.url) + "\n"
+
+                SafePath.createSecureFile(httpResult.path, "curl_cfg", configContent, function(cfgFileResult) {
+                    if (!cfgFileResult.valid) {
+                        Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", authFile], running: true })
+                        callback(false, null, "Config file failed: " + cfgFileResult.error); return
+                    }
+                    var cfgFile = cfgFileResult.path
+
+                    // Build body file if needed
+                    var hasBody = config.body !== undefined && config.body !== null && config.body !== ""
+                    if (hasBody) {
+                        SafePath.createSecureFile(httpResult.path, "curl_body", config.body, function(bodyFileResult) {
+                            if (!bodyFileResult.valid) {
+                                cleanupFiles(); callback(false, null, "Body file failed: " + bodyFileResult.error); return
+                            }
+                            runCurl(authFile, cfgFile, bodyFileResult.path, true)
+                        })
+                    } else {
+                        runCurl(authFile, cfgFile, "", false)
+                    }
+
+                    function cleanupFiles() {
+                        Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", authFile], running: true })
+                        Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", cfgFile], running: true })
+                        if (hasBody) Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", bodyFileResult.path], running: true })
+                    }
+
+                    function runCurl(authFile, cfgFile, bodyFile, hasBodyData) {
+                        var proc = _requestFactory.createObject(root, {
+                            onDone: function(exitCode, out, err) {
+                                cleanupFiles()
+                                if (exitCode === 0) {
+                                    var data = null
+                                    try { data = out ? JSON.parse(out) : null } catch (e) {
+                                        callback(false, null, "Invalid JSON response"); return
+                                    }
+                                    var validation = validateResponse(data)
+                                    if (!validation.valid) { callback(false, null, validation.error); return }
+                                    callback(true, validation.data, null)
+                                } else {
+                                    callback(false, null, "Request failed (exit " + exitCode + "): " + (err || "unknown"))
+                                }
+                            }
+                        })
+                        var finalArgs = []
+                        for (var i = 0; i < args.length; i++) {
+                            finalArgs.push(args[i])
+                        }
+                        finalArgs.push("--config", cfgFile)
+                        if (hasBodyData) {
+                            finalArgs.push("--data-binary", "@" + bodyFile)
+                        }
+                        proc.command = finalArgs
                         proc.running = true
                     }
-                }
-            }) else {
-                proc.running = true
-            }
+                })
+            })
         })
     }
 
@@ -167,14 +182,12 @@ QtObject {
     }
 
     function validateResponse(data) {
-        // Basic response validation
         if (data === null || data === undefined) {
             return { valid: true, data: null }
         }
         if (Array.isArray(data)) {
             var collValidation = validateCollection(data)
             if (!collValidation.valid) return { valid: false, error: collValidation.error }
-            // Validate each item
             for (var i = 0; i < data.length; i++) {
                 if (typeof data[i] === "object" && data[i] !== null) {
                     var objValidation = validateObject(data[i])
@@ -192,7 +205,6 @@ QtObject {
     }
 
     function validateObject(obj) {
-        // Limit string lengths in object
         for (var key in obj) {
             var val = obj[key]
             if (typeof val === "string") {

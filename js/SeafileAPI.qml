@@ -1,7 +1,5 @@
 pragma Singleton
 import QtQuick
-import "./HttpTransport.qml"
-import "./SafePath.qml"
 
 QtObject {
     id: root

@@ -14,8 +14,9 @@ QtObject {
             property var onDone: null
             property int timeoutMs: 30000
             property int maxOutputBytes: 1024 * 1024
-            stdout: StdioCollector { maxBytes: 1024 * 1024 }
-            stderr: StdioCollector { maxBytes: 1024 * 1024 }
+            property bool setsidUsed: false
+            stdout: StdioCollector {}
+            stderr: StdioCollector {}
             onExited: function(exitCode, exitStatus) {
                 var cb = onDone
                 var out = stdout.text
@@ -29,6 +30,7 @@ QtObject {
     property Component _timeoutTimerFactory: Component {
         Timer {
             property var targetProcess: null
+            property int timeoutMs: 30000
             repeat: false
             onTriggered: {
                 if (targetProcess) {
@@ -62,10 +64,10 @@ QtObject {
         }
         var timeout = timeoutMs || root.defaultTimeoutMs
         var maxOut = maxOutputBytes || root.defaultMaxOutputBytes
-        var timer = _timeoutTimerFactory.createObject(root, { interval: timeout, targetProcess: proc })
-        if (input !== undefined && input !== null) {
-            proc.stdinEnabled = true
-        }
+        // Use setsid to create a new process group
+        proc.command = ["setsid"] + cmd
         proc.running = true
+        var timer = _timeoutTimerFactory.createObject(root, { interval: timeout, targetProcess: proc })
+        timer.start()
     }
 }
