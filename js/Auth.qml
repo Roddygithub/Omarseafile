@@ -2,7 +2,6 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "./ProcessWithTimeout.qml"
 
 QtObject {
     id: root
@@ -29,8 +28,8 @@ QtObject {
             property var onDone: null
             property string inputPayload: ""
             stdinEnabled: true
-            stdout: StdioCollector { maxBytes: 1024 * 1024 }
-            stderr: StdioCollector { maxBytes: 1024 * 1024 }
+            stdout: StdioCollector {}
+            stderr: StdioCollector {}
 
             onStarted: {
                 if (inputPayload !== "") {
@@ -64,7 +63,9 @@ QtObject {
             })
             proc.command = cmd
             proc.running = true
-            var timer = Qt.createComponent("dummy").createObject({ interval: 30000, targetProcess: proc, repeat: false, onTriggered: { if (targetProcess) targetProcess.kill() } })
+            var timer = Qt.createQmlObject('import QtQuick; Timer { interval: 30000; repeat: false; onTriggered: { if (targetProcess) targetProcess.kill() } }', root)
+            timer.targetProcess = proc
+            timer.start()
         })
     }
 

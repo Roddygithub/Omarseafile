@@ -132,7 +132,6 @@ QtObject {
                     callback({ valid: false, error: "XDG_RUNTIME_DIR not owned by current user" })
                     return
                 }
-                // Check mode - should not be world/group writable
                 var perm = parseInt(mode.slice(-3), 8)
                 if (perm & 0o022) {
                     callback({ valid: false, error: "XDG_RUNTIME_DIR has unsafe permissions" })
@@ -142,7 +141,6 @@ QtObject {
                 var mk = _mkdirFactory.createObject(root, {
                     onDone: function(ok) {
                         if (!ok) { callback({ valid: false, error: "Cannot create runtime subdir" }); return }
-                        // Verify subdir mode and ownership after creation
                         var verify = _statFactory.createObject(root, {
                             onDone: function(out2) {
                                 if (!out2) { callback({ valid: false, error: "Cannot verify runtime subdir" }); return }
@@ -169,18 +167,44 @@ QtObject {
         proc.running = true
     }
 
-    function createSecureTempFile(dir, prefix, callback) {
-        var prefixSafe = prefix.replace(/[^a-zA-Z0-9_-]/g, "_")
-        var proc = _mktempFactory.createObject(root, {
-            onDone: function(path) {
-                if (!path) {
+    // Creates a secure temp file with atomic write via stdin (no TOCTOU)
+    // dir: subdirectory under omarseafile/ (e.g., "secrets", "transfers", "cache", "http")
+    // prefix: filename prefix
+    // content: file content to write atomically via stdin
+    // callback(result): { valid: true, path } or { valid: false, error }
+    function createSecureFile(dir, prefix, content, callback) {
+        getRuntimeSubdir(dir, function(runtimeResult) {
+            if (!runtimeResult.valid) { callback({ valid: false, error: runtimeResult.error }); return }
+            // mktemp creates file atomically with O_CREAT|O_EXCL|O_NOFOLLOW
+            var proc = Qt.createComponent("dummy").createObject({
+                command: ["mktemp", "--", runtimeResult.path + "/" + prefix.replace(/[^a-zA-Z0-9_-]/g, "_") + "_XXXXXX"],
+                running: true
+            })
+            proc.onExited = function(exitCode, path) {
+                if (exitCode !== 0 || !path || !path.trim()) {
                     callback({ valid: false, error: "Failed to create secure temp file" })
-                } else {
-                    callback({ valid: true, path: path })
+                    return
                 }
+                var filePath = path.trim()
+                // Write content atomically via stdin (no shell redirection, no TOCTOU)
+                var writeProc = Qt.createComponent("dummy").createObject({
+                    command: ["sh", "-c", "cat > \"$1\"", "sh", filePath],
+                    running: true
+                })
+                writeProc.onStarted = function() {
+                    writeProc.write(content)
+                    writeProc.stdinEnabled = false
+                }
+                writeProc.onExited = function(exitCode) {
+                    if (exitCode === 0) {
+                        callback({ valid: true, path: filePath })
+                    } else {
+                        Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", filePath], running: true })
+                        callback({ valid: false, error: "Failed to write content" })
+                    }
+                }
+                writeProc.running = true
             }
         })
-        proc.command = ["mktemp", "--", dir + "/" + prefix.replace(/[^a-zA-Z0-9_-]/g, "_") + "_XXXXXX"]
-        proc.running = true
     }
 }

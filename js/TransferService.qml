@@ -2,9 +2,6 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "./SafePath.qml"
-import "./HttpTransport.qml"
-import "./ProcessWithTimeout.qml"
 
 QtObject {
     id: root
@@ -82,7 +79,7 @@ QtObject {
         Process {
             property var transferRef: null
             property var pgid: 0
-            stdout: StdioCollector { maxBytes: 1024 * 1024 }
+            stdout: StdioCollector {}
             stderr: StdioCollector {
                 onTextChanged: {
                     if (transferRef && text) {
@@ -231,13 +228,25 @@ QtObject {
         })
     }
 
+    property Component _retryTimerFactory: Component {
+        Timer {
+            property var callback: null
+            repeat: false
+            onTriggered: {
+                var cb = callback
+                destroy()
+                if (cb) cb()
+            }
+        }
+    }
+
     function deleteFile(filePath) {
         if (!filePath) return
         Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", filePath], running: true })
     }
 
     function scheduleRetry(delay, callback) {
-        var timer = Qt.createComponent("dummy").createObject({ interval: delay, repeat: false, onTriggered: { callback(); destroy() } })
+        var timer = _retryTimerFactory.createObject(root, { interval: delay, callback: callback })
         if (timer) timer.start()
     }
 
@@ -246,40 +255,14 @@ QtObject {
     function createAuthHeaderFile(token, callback) {
         SafePath.getRuntimeSubdir("secrets", function(runtimeResult) {
             if (!runtimeResult.valid) { callback(null); return }
-            SafePath.createSecureTempFile(runtimeResult.path, "seafile_auth", function(fileResult) {
-                if (!fileResult.valid) { callback(null); return }
-                var tempFile = fileResult.path
-                var proc = Qt.createComponent("dummy").createObject({
-                    command: ["sh", "-c", "printf '%s\\n' \"$1\" > \"$2\"", "sh", "Authorization: Token " + token, tempFile],
-                    running: true
-                })
-                if (!proc) { callback(null); return }
-                proc.onExited = function(exitCode) {
-                    if (exitCode === 0) callback(tempFile)
-                    else { Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", tempFile], running: true }); callback(null) }
-                }
-                proc.running = true
-            })
+            SafePath.createSecureFile(runtimeResult.path, "seafile_auth", "Authorization: Token " + token, callback)
         })
     }
 
     function createCurlConfigFile(url, callback) {
         SafePath.getRuntimeSubdir("secrets", function(runtimeResult) {
             if (!runtimeResult.valid) { callback(null); return }
-            SafePath.createSecureTempFile(runtimeResult.path, "seafile_curl", function(fileResult) {
-                if (!fileResult.valid) { callback(null); return }
-                var tempFile = fileResult.path
-                var proc = Qt.createComponent("dummy").createObject({
-                    command: ["sh", "-c", "printf '%s\\n' \"$1\" > \"$2\"", "sh", "url = " + JSON.stringify(url), tempFile],
-                    running: true
-                })
-                if (!proc) { callback(null); return }
-                proc.onExited = function(exitCode) {
-                    if (exitCode === 0) callback(tempFile)
-                    else { Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", tempFile], running: true }); callback(null) }
-                }
-                proc.running = true
-            })
+            SafePath.createSecureFile(runtimeResult.path, "seafile_curl", "url = " + JSON.stringify(url), callback)
         })
     }
 
@@ -1028,3 +1011,118 @@ QtObject {
                     "--no-location"
                 ]
                 download.process = curlProc
+                curlProc.running = true
+            })
+        })
+    }
+
+    function handleOpenDownloadExited(exitCode, download) {
+        var process = download.process
+        download.process = null
+        if (process) process.destroy()
+        root.cleanupTransferAuthFile(download)
+        root.cleanupTransferConfigFile(download)
+
+        if (download.state === "cancelled") {
+            root.deleteFile(download.tempPath)
+        } else if (exitCode === 0) {
+            root.finalizeOpenDownload(download)
+            return
+        } else {
+            if (download.retryCount < root.maxRetries) {
+                download.retryCount++
+                var delay = Math.min(root.retryBaseDelay * Math.pow(2, download.retryCount - 1), root.maxRetryDelay)
+                download.state = "pending"
+                root.transferRetryStarted(download)
+                root.transferStateChanged(download)
+                root.transfersChanged()
+                root.scheduleRetry(delay, function() { root.executeCurlOpenDownload(download) })
+                return
+            }
+            download.state = "failed"
+            download.error = "Download failed (exit code: " + exitCode + ")"
+            root.sanitizeForHistory(download)
+        }
+        root.deleteFile(download.tempPath)
+        root.transferStateChanged(download)
+        root.transfersChanged()
+    }
+
+    function finalizeOpenDownload(download) {
+        var proc = _finalizeOpenDownloadProcessFactory.createObject(root)
+        if (!proc) {
+            download.state = "failed"
+            download.error = "Failed to finalize download"
+            root.deleteFile(download.tempPath)
+            root.sanitizeForHistory(download)
+            root.transferStateChanged(download)
+            root.transfersChanged()
+            return
+        }
+        proc.transferRef = download
+        proc.command = ["sh", "-c", "mkdir -p -m 0700 -- \"$(dirname \"$1\")\" && mv -f -- \"$1\" \"$2\" && chmod 600 -- \"$2\"", "sh", download.tempPath, download.cachePath]
+        download.process = proc
+        proc.running = true
+    }
+
+    function handleOpenDownloadFinalized(exitCode, download) {
+        download.process = null
+        if (download.state === "cancelled") {
+            root.deleteFile(download.tempPath)
+        } else if (exitCode === 0) {
+            download.state = "completed"
+            download.progress = 1.0
+            download.speed = ""
+            download.destPath = download.cachePath
+            root.sanitizeForHistory(download)
+            root.pruneHistory()
+            root.openCachedFile(download)
+        } else {
+            download.state = "failed"
+            download.error = "Cache file already exists or could not be finalized"
+            root.deleteFile(download.tempPath)
+            root.sanitizeForHistory(download)
+        }
+        root.transferStateChanged(download)
+        root.transfersChanged()
+    }
+
+    property Component openCachedFileComponent: Component {
+        Process {
+            property var transferRef: null
+            onExited: function(exitCode) {
+                var t = transferRef
+                destroy()
+                if (exitCode !== 0 && t) {
+                    // Error surfaced by caller via transfer error state
+                }
+            }
+        }
+    }
+
+    function openCachedFile(transfer) {
+        var proc = openCachedFileComponent.createObject(root)
+        if (!proc) return
+        proc.command = ["xdg-open", transfer.cachePath]
+        proc.transferRef = transfer
+        proc.running = true
+    }
+
+    // ===== LOGOUT CLEANUP =====
+
+    function logoutCleanup() {
+        for (var i = 0; i < root.transfers.length; i++) {
+            var t = root.transfers[i]
+            t.state = "cancelled"
+            if (t.process) {
+                t.process.kill()
+                t.process.destroy()
+                t.process = null
+            }
+            if (t.type === "download" && t.tempPath) deleteFile(t.tempPath)
+            root.sanitizeForHistory(t)
+        }
+        root.transfers = []
+        root.transfersChanged()
+    }
+}
