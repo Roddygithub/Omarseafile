@@ -2,6 +2,9 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "./SafePath.qml"
+import "./HttpTransport.qml"
+import "./ProcessWithTimeout.qml"
 
 QtObject {
     id: root
@@ -13,6 +16,13 @@ QtObject {
     property int retryBaseDelay: 2000
     property int maxRetryDelay: 30000
     property int maxHistory: 50
+
+    // ===== TRANSFER LIMITS =====
+    property int maxTransferBytes: 1024 * 1024 * 1024
+    property int connectTimeoutMs: 10000
+    property int totalTimeoutMs: 30 * 60 * 1000
+    property int stallSpeedBytes: 1
+    property int stallTimeMs: 30000
 
     // ===== SIGNALS =====
 
@@ -253,41 +263,47 @@ QtObject {
     }
 
     function createAuthHeaderFile(token, callback) {
-        var runtimeDir = Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"
-        var tempFile = runtimeDir + "/seafile_auth_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9) + ".txt"
-        var proc = _authHeaderProcessFactory.createObject(root, {
-            inputPayload: "Authorization: Token " + token,
-            onDone: function(exitCode) {
-                if (exitCode === 0) {
-                    callback(tempFile)
-                } else {
-                    deleteFile(tempFile)
-                    callback(null)
-                }
-            }
+        SafePath.getRuntimeSubdir("secrets", function(runtimeResult) {
+            if (!runtimeResult.valid) { callback(null); return }
+            SafePath.createSecureTempFile(runtimeResult.path, "seafile_auth", function(fileResult) {
+                if (!fileResult.valid) { callback(null); return }
+                var tempFile = fileResult.path
+                var proc = _authHeaderProcessFactory.createObject(root, {
+                    inputPayload: "Authorization: Token " + token,
+                    onDone: function(exitCode) {
+                        if (exitCode === 0) {
+                            callback(tempFile)
+                        } else {
+                            deleteFile(tempFile)
+                            callback(null)
+                        }
+                    }
+                })
+                if (!proc) { callback(null); return }
+                proc.command = ["sh", "-c", "cat > \"$1\"", "sh", tempFile]
+                proc.running = true
+            })
         })
-        if (!proc) {
-            callback(null)
-            return
-        }
-        // Create the file under a restrictive umask before any token is written.
-        proc.command = ["sh", "-c", "umask 077; cat > \"$1\"", "sh", tempFile]
-        proc.running = true
     }
 
     function createCurlConfigFile(url, callback) {
-        var runtimeDir = Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"
-        var tempFile = runtimeDir + "/seafile_curl_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9) + ".conf"
-        var proc = _authHeaderProcessFactory.createObject(root, {
-            inputPayload: "url = " + JSON.stringify(url),
-            onDone: function(exitCode) {
-                if (exitCode === 0) callback(tempFile)
-                else { deleteFile(tempFile); callback(null) }
-            }
+        SafePath.getRuntimeSubdir("secrets", function(runtimeResult) {
+            if (!runtimeResult.valid) { callback(null); return }
+            SafePath.createSecureTempFile(runtimeResult.path, "seafile_curl", function(fileResult) {
+                if (!fileResult.valid) { callback(null); return }
+                var tempFile = fileResult.path
+                var proc = _authHeaderProcessFactory.createObject(root, {
+                    inputPayload: "url = " + JSON.stringify(url),
+                    onDone: function(exitCode) {
+                        if (exitCode === 0) callback(tempFile)
+                        else { deleteFile(tempFile); callback(null) }
+                    }
+                })
+                if (!proc) { callback(null); return }
+                proc.command = ["sh", "-c", "cat > \"$1\"", "sh", tempFile]
+                proc.running = true
+            })
         })
-        if (!proc) { callback(null); return }
-        proc.command = ["sh", "-c", "umask 077; cat > \"$1\"", "sh", tempFile]
-        proc.running = true
     }
 
     function cleanupAuthHeaderFile(filePath) {
@@ -499,7 +515,13 @@ QtObject {
                     "-H", "Accept: */*",
                     "--progress-bar",
                     "--output", download.tempPath,
-                    "--config", curlConfigFile
+                    "--config", curlConfigFile,
+                    "--max-filesize", root.maxTransferBytes,
+                    "--connect-timeout", Math.ceil(root.connectTimeoutMs / 1000),
+                    "--max-time", Math.ceil(root.totalTimeoutMs / 1000),
+                    "--speed-limit", root.stallSpeedBytes,
+                    "--speed-time", Math.ceil(root.stallTimeMs / 1000),
+                    "--no-location"
                 ]
                 download.process = curlProc
                 curlProc.running = true
@@ -708,7 +730,13 @@ QtObject {
                     "--form", root.curlFileForm(upload.srcPath),
                     "--form-string", "parent_dir=" + upload.destUploadPath,
                     "--form-string", "replace=0",
-                    "--config", curlConfigFile
+                    "--config", curlConfigFile,
+                    "--max-filesize", root.maxTransferBytes,
+                    "--connect-timeout", Math.ceil(root.connectTimeoutMs / 1000),
+                    "--max-time", Math.ceil(root.totalTimeoutMs / 1000),
+                    "--speed-limit", root.stallSpeedBytes,
+                    "--speed-time", Math.ceil(root.stallTimeMs / 1000),
+                    "--no-location"
                 ]
                 upload.process = curlProc
                 curlProc.running = true
@@ -760,7 +788,16 @@ QtObject {
             if (t.id === transferId) {
                 t.state = "cancelled"
                 if (t.process) {
-                    t.process.kill()
+                    try {
+                        var pgid = t.process.processId
+                        if (pgid) {
+                            var killProc = Qt.createComponent("dummy").createObject({ command: ["kill", "-TERM", "-" + pgid], running: true })
+                        } else {
+                            t.process.kill()
+                        }
+                    } catch (e) {
+                        try { t.process.kill() } catch (e) {}
+                    }
                     t.process.destroy()
                     t.process = null
                 }
@@ -995,7 +1032,13 @@ QtObject {
                     "-H", "Accept: */*",
                     "--progress-bar",
                     "--output", download.tempPath,
-                    "--config", curlConfigFile
+                    "--config", curlConfigFile,
+                    "--max-filesize", root.maxTransferBytes,
+                    "--connect-timeout", Math.ceil(root.connectTimeoutMs / 1000),
+                    "--max-time", Math.ceil(root.totalTimeoutMs / 1000),
+                    "--speed-limit", root.stallSpeedBytes,
+                    "--speed-time", Math.ceil(root.stallTimeMs / 1000),
+                    "--no-location"
                 ]
                 download.process = curlProc
                 curlProc.running = true

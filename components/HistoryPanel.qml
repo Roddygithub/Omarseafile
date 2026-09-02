@@ -51,6 +51,7 @@ Column {
                 anchors.verticalCenter: parent.verticalCenter
                 elide: Text.ElideRight
                 width: parent.width - Style.space(24)
+                textFormat: Text.PlainText
             }
         }
 
@@ -118,6 +119,7 @@ Column {
                             elide: Text.ElideRight
                             width: parent.width
                             visible: revision.desc && revision.desc !== ""
+                            textFormat: Text.PlainText
                         }
 
                         Text {
@@ -127,6 +129,7 @@ Column {
                             font.family: root.bar.fontFamily
                             font.pixelSize: Style.font.caption
                             visible: revision.revFileSize
+                            textFormat: Text.PlainText
                         }
                     }
 

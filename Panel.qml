@@ -6,6 +6,8 @@ import qs.Commons
 import qs.Ui
 import "./js"
 import "./components"
+import "./js/UrlPolicy.qml"
+import "./js/SafePath.qml"
 
 Panel {
     id: root
@@ -863,8 +865,14 @@ Panel {
             root.errorMessage = "Invalid URL format. Use https://domain.com or http://ip:port"
             return
         }
-        if (normalized.startsWith("http://")) {
-            root.showToast("Warning: Using HTTP — credentials sent in cleartext", "error")
+        var policy = UrlPolicy.validateForAuth(normalized)
+        if (!policy.valid) {
+            root.loading = false
+            root.errorMessage = policy.error
+            return
+        }
+        if (policy.warning) {
+            root.showToast(policy.warning, "warning")
         }
         root.loading = true
         root.errorMessage = ""
@@ -1004,7 +1012,13 @@ Panel {
             var token = Auth.getToken()
             if (!token) { root.errorMessage = "Not authenticated"; return }
             var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
-            TransferService.startDownload(item, token, root.serverUrl, root.currentRepo.id, getDownloadsDir(), fullPath)
+            SafePath.secureJoin(getDownloadsDir(), item.name, function(result) {
+                if (!result.valid) {
+                    root.showToast("Invalid filename: " + result.error, "error")
+                    return
+                }
+                TransferService.startDownload(item, token, root.serverUrl, root.currentRepo.id, getDownloadsDir(), fullPath)
+            })
         }
     }
 

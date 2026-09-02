@@ -30,6 +30,7 @@ Item {
             wrapMode: Text.WordWrap
             width: Math.min(parent.width, Style.space(340))
             horizontalAlignment: Text.AlignHCenter
+            textFormat: Text.PlainText
         }
 
         Button {

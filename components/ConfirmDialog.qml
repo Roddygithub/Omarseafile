@@ -34,6 +34,7 @@ Item {
             font.pixelSize: Style.font.body
             wrapMode: Text.WordWrap
             width: parent.width
+            textFormat: Text.PlainText
         }
 
         Row {
