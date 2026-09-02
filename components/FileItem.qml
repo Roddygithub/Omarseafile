@@ -84,6 +84,7 @@ Item {
             elide: Text.ElideRight
             width: parent ? parent.width - icon.width - sizeLabel.width - (dateLabel.visible ? dateLabel.width : 0) - transferWidth - Style.space(36) : 0
             anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
         }
 
         Item {
@@ -113,6 +114,7 @@ Item {
                     font.family: root.bar ? root.bar.fontFamily : Style.font.family
                     font.pixelSize: Style.font.caption
                     anchors.verticalCenter: parent.verticalCenter
+                    textFormat: Text.PlainText
                 }
             }
         }
@@ -127,6 +129,7 @@ Item {
             horizontalAlignment: Text.AlignRight
             anchors.verticalCenter: parent.verticalCenter
             visible: !root.isDownloading && !root.isUploading
+            textFormat: Text.PlainText
         }
 
         Text {
@@ -140,6 +143,7 @@ Item {
             elide: Text.ElideRight
             anchors.verticalCenter: parent.verticalCenter
             visible: !root.isDownloading && !root.isUploading
+            textFormat: Text.PlainText
         }
     }
 

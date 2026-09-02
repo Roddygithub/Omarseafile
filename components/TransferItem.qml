@@ -55,6 +55,7 @@ Item {
                 font.pixelSize: Style.font.body
                 elide: Text.ElideRight
                 width: parent.width
+                textFormat: Text.PlainText
             }
 
             Text {
@@ -78,6 +79,7 @@ Item {
                 elide: Text.ElideRight
                 width: parent.width
                 visible: text !== ""
+                textFormat: Text.PlainText
             }
         }
 

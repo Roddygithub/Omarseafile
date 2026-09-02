@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "./ProcessWithTimeout.qml"
 
 QtObject {
     id: root
@@ -21,15 +22,15 @@ QtObject {
         return result
     }
 
-    // Factory: one short-lived Process per secret-tool invocation.
+    // Factory: one short-lived Process per secret-tool invocation with timeout.
     property Component procFactory: Component {
         Process {
             id: proc
             property var onDone: null
             property string inputPayload: ""
             stdinEnabled: true
-            stdout: StdioCollector {}
-            stderr: StdioCollector {}
+            stdout: StdioCollector { maxBytes: 1024 * 1024 }
+            stderr: StdioCollector { maxBytes: 1024 * 1024 }
 
             onStarted: {
                 if (inputPayload !== "") {
@@ -55,6 +56,7 @@ QtObject {
             var proc = root.procFactory.createObject(root, {
                 inputPayload: (input !== undefined && input !== null) ? input : "",
                 onDone: function(exitCode, text) {
+                    if (timer) timer.stop()
                     if (exitCode === 0) { resolve(text); return }
                     if (lookupIsSoft && exitCode === 1) { resolve(""); return }
                     reject(new Error(cmd.join(" ") + " failed (exit " + exitCode + ")"))
@@ -62,6 +64,7 @@ QtObject {
             })
             proc.command = cmd
             proc.running = true
+            var timer = Qt.createComponent("dummy").createObject({ interval: 30000, targetProcess: proc, repeat: false, onTriggered: { if (targetProcess) targetProcess.kill() } })
         })
     }
 

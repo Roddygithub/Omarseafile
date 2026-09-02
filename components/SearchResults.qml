@@ -58,6 +58,7 @@ ListView {
                     font.pixelSize: Style.font.body
                     elide: Text.ElideRight
                     width: parent.width
+                    textFormat: Text.PlainText
                 }
 
                 Text {
@@ -69,6 +70,7 @@ ListView {
                     elide: Text.ElideRight
                     width: parent.width
                     visible: text !== " \u2022 "
+                    textFormat: Text.PlainText
                 }
             }
 

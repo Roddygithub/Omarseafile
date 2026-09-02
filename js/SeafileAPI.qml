@@ -1,5 +1,7 @@
 pragma Singleton
 import QtQuick
+import "./HttpTransport.qml"
+import "./SafePath.qml"
 
 QtObject {
     id: root
@@ -16,27 +18,21 @@ QtObject {
     }
 
     function auth(username, password, callback) {
-        var xhr = new XMLHttpRequest()
         var url = baseUrl + "/api2/auth-token/"
-        xhr.open("POST", url, true)
-        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    try {
-                        var response = JSON.parse(xhr.responseText)
-                        if (!response || typeof response.token !== "string" || response.token === "") throw new Error("missing token")
-                        callback(true, response.token, null)
-                    } catch (e) {
+        HttpTransport.post(url, { "Content-Type": "application/x-www-form-urlencoded" },
+            "username=" + encodeURIComponent(username) + "&password=" + encodeURIComponent(password),
+            function(success, data, error) {
+                if (success) {
+                    if (!data || typeof data.token !== "string" || data.token === "") {
                         callback(false, null, "Invalid server response")
+                        return
                     }
+                    callback(true, data.token, null)
                 } else {
-                    var error = parseError(xhr)
-                    callback(false, null, error)
+                    callback(false, null, error || "Authentication failed")
                 }
             }
-        }
-        xhr.send("username=" + encodeURIComponent(username) + "&password=" + encodeURIComponent(password))
+        )
     }
 
     function listLibraries(callback) {
@@ -105,20 +101,13 @@ QtObject {
     }
 
     function createFolder(repoId, parentPath, folderName, token, callback) {
-        // CE 12 ignores nested mkdir paths, so create at root and synchronously
-        // move and rename a unique temporary folder for nested destinations.
-        // Using the requested name at root could relocate an existing folder
-        // when the server collision-renames the newly created one.
         var createName = parentPath === "/" ? folderName : "Omarseafile temporary " + Date.now() + " " + Math.random().toString(36).substring(2, 8)
         var fullPath = "/" + createName
         var url = "/api2/repos/" + repoId + "/dir/?p=" + encodeURIComponent(fullPath)
-        var xhr = new XMLHttpRequest()
-        xhr.open("POST", baseUrl + url, true)
-        xhr.setRequestHeader("Authorization", "Token " + token)
-        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status >= 200 && xhr.status < 300) {
+        HttpTransport.post(baseUrl + url, { "Authorization": "Token " + token, "Content-Type": "application/x-www-form-urlencoded" },
+            "operation=mkdir",
+            function(success, data, error) {
+                if (success) {
                     if (parentPath === "/") {
                         callback(true, null)
                     } else {
@@ -133,119 +122,65 @@ QtObject {
                         })
                     }
                 } else {
-                    callback(false, parseError(xhr))
+                    callback(false, error || "Create folder failed")
                 }
             }
-        }
-        xhr.send("operation=mkdir")
+        )
     }
 
     function renameFile(repoId, filePath, newName, token, callback) {
         var url = baseUrl + "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
-        var xhr = new XMLHttpRequest()
-        xhr.open("POST", url, true)
-        xhr.setRequestHeader("Authorization", "Token " + token)
-        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    callback(true, null)
-                } else {
-                    callback(false, parseError(xhr))
-                }
+        HttpTransport.post(url, { "Authorization": "Token " + token, "Content-Type": "application/x-www-form-urlencoded" },
+            "operation=rename&oldname=" + encodeURIComponent(filePath) + "&newname=" + encodeURIComponent(newName),
+            function(success, data, error) {
+                if (success) callback(true, null)
+                else callback(false, error || "Rename failed")
             }
-        }
-        xhr.send("operation=rename&oldname=" + encodeURIComponent(filePath) + "&newname=" + encodeURIComponent(newName))
+        )
     }
 
     function renameFolder(repoId, parentPath, oldName, newName, token, callback) {
         var parent = parentPath === "/" ? "" : parentPath
         var fullPath = parent + "/" + oldName
         var url = baseUrl + "/api2/repos/" + repoId + "/dir/?p=" + encodeURIComponent(fullPath)
-        var xhr = new XMLHttpRequest()
-        xhr.open("POST", url, true)
-        xhr.setRequestHeader("Authorization", "Token " + token)
-        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    callback(true, null)
-                } else {
-                    callback(false, parseError(xhr))
-                }
+        HttpTransport.post(url, { "Authorization": "Token " + token, "Content-Type": "application/x-www-form-urlencoded" },
+            "operation=rename&newname=" + encodeURIComponent(newName),
+            function(success, data, error) {
+                if (success) callback(true, null)
+                else callback(false, error || "Rename failed")
             }
-        }
-        xhr.send("operation=rename&newname=" + encodeURIComponent(newName))
+        )
     }
 
     function moveFile(repoId, filePath, destPath, token, callback) {
         var url = baseUrl + "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
-        var xhr = new XMLHttpRequest()
-        xhr.open("POST", url, true)
-        xhr.setRequestHeader("Authorization", "Token " + token)
-        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    callback(true, null)
-                } else {
-                    callback(false, parseError(xhr))
-                }
+        HttpTransport.post(url, { "Authorization": "Token " + token, "Content-Type": "application/x-www-form-urlencoded" },
+            "operation=move&dst_repo=" + encodeURIComponent(repoId) + "&dst_dir=" + encodeURIComponent(destPath),
+            function(success, data, error) {
+                if (success) callback(true, null)
+                else callback(false, error || "Move failed")
             }
-        }
-        xhr.send("operation=move&dst_repo=" + encodeURIComponent(repoId) + "&dst_dir=" + encodeURIComponent(destPath))
+        )
     }
 
     function deleteFile(repoId, filePath, token, callback) {
         var url = baseUrl + "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
-        var xhr = new XMLHttpRequest()
-        xhr.open("DELETE", url, true)
-        xhr.setRequestHeader("Authorization", "Token " + token)
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    callback(true, null)
-                } else {
-                    callback(false, parseError(xhr))
-                }
-            }
-        }
-        xhr.send()
+        HttpTransport.del(url, { "Authorization": "Token " + token }, function(success, data, error) {
+            if (success) callback(true, null)
+            else callback(false, error || "Delete failed")
+        })
     }
 
     function deleteFolder(repoId, folderPath, token, callback) {
         var url = baseUrl + "/api2/repos/" + repoId + "/dir/?p=" + encodeURIComponent(folderPath)
-        var xhr = new XMLHttpRequest()
-        xhr.open("DELETE", url, true)
-        xhr.setRequestHeader("Authorization", "Token " + token)
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    callback(true, null)
-                } else {
-                    callback(false, parseError(xhr))
-                }
-            }
-        }
-        xhr.send()
+        HttpTransport.del(url, { "Authorization": "Token " + token }, function(success, data, error) {
+            if (success) callback(true, null)
+            else callback(false, error || "Delete failed")
+        })
     }
 
     function moveFolder(repoId, folderName, srcParentPath, destRepoId, destParentPath, token, callback) {
         var url = baseUrl + "/api/v2.1/repos/sync-batch-move-item/"
-        var xhr = new XMLHttpRequest()
-        xhr.open("POST", url, true)
-        xhr.setRequestHeader("Authorization", "Token " + token)
-        xhr.setRequestHeader("Content-Type", "application/json")
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    if (confirmedMutation(xhr)) callback(true, null)
-                    else callback(false, "Server did not confirm move")
-                } else {
-                    callback(false, parseError(xhr))
-                }
-            }
-        }
         var body = JSON.stringify({
             src_repo_id: repoId,
             src_parent_dir: srcParentPath,
@@ -253,29 +188,28 @@ QtObject {
             dst_repo_id: destRepoId,
             dst_parent_dir: destParentPath
         })
-        xhr.send(body)
-    }
-
-    function parseError(xhr) {
-        if (!xhr) return "Unknown error"
-        try {
-            if (xhr.responseText) {
-                var response = JSON.parse(xhr.responseText)
-                if (response) {
-                    if (response.error_message) return response.error_message
-                    if (response.errorMsg) return response.errorMsg
-                    if (response.error) return response.error
-                    if (response.detail) return response.detail
+        HttpTransport.post(url, { "Authorization": "Token " + token, "Content-Type": "application/json" }, body,
+            function(success, data, error) {
+                if (success) {
+                    if (confirmedMutation({ responseText: JSON.stringify(data) })) callback(true, null)
+                    else callback(false, "Server did not confirm move")
+                } else {
+                    callback(false, error || "Move failed")
                 }
             }
-        } catch (e) {}
-        return "HTTP " + xhr.status + (xhr.statusText ? " " + xhr.statusText : "")
+        )
     }
 
-    function confirmedMutation(xhr) {
+    function parseError(error) {
+        if (!error) return "Unknown error"
+        if (typeof error === "string") return error
+        return "Unknown error"
+    }
+
+    function confirmedMutation(response) {
         try {
-            var response = JSON.parse(xhr.responseText)
-            return response && response.success === true
+            var data = typeof response === "string" ? JSON.parse(response) : response
+            return data && data.success === true
         } catch (e) {
             return false
         }
@@ -286,32 +220,14 @@ QtObject {
             callback(false, null, "No authentication token")
             return
         }
-        var xhr = new XMLHttpRequest()
-        var url = baseUrl + path
-        xhr.open(method, url, true)
-        xhr.setRequestHeader("Authorization", "Token " + token)
-        xhr.setRequestHeader("Accept", "application/json")
+        var headers = {
+            "Authorization": "Token " + token,
+            "Accept": "application/json"
+        }
         if (body && method !== "GET") {
-            xhr.setRequestHeader("Content-Type", "application/json")
+            headers["Content-Type"] = "application/json"
         }
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    var data = null
-                    try {
-                        data = JSON.parse(xhr.responseText)
-                    } catch (e) {
-                        callback(false, null, "Invalid server response")
-                        return
-                    }
-                    callback(true, data, null)
-                } else {
-                    var error = parseError(xhr)
-                    callback(false, null, error)
-                }
-            }
-        }
-        xhr.send(body ? JSON.stringify(body) : null)
+        HttpTransport.request(method, baseUrl + path, headers, body ? JSON.stringify(body) : null, callback)
     }
 
     // ===== SHARE LINKS =====
@@ -363,94 +279,67 @@ QtObject {
         if (options.permissions) {
             body.permissions = options.permissions
         }
-        var xhr = new XMLHttpRequest()
-        xhr.open("POST", baseUrl + "/api/v2.1/share-links/", true)
-        xhr.setRequestHeader("Authorization", "Token " + token)
-        xhr.setRequestHeader("Content-Type", "application/json")
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    var response
-                    try { response = JSON.parse(xhr.responseText) } catch (e) { callback(false, null, "Invalid server response"); return }
-                    if (!response || typeof response.link !== "string" || typeof response.token !== "string") { callback(false, null, "Invalid server response"); return }
+        HttpTransport.post(baseUrl + "/api/v2.1/share-links/",
+            { "Authorization": "Token " + token, "Content-Type": "application/json" },
+            JSON.stringify(body),
+            function(success, data, error) {
+                if (success) {
+                    if (!data || typeof data.link !== "string" || typeof data.token !== "string") {
+                        callback(false, null, "Invalid server response")
+                        return
+                    }
                     callback(true, {
-                        token: response.token,
-                        link: response.link,
-                        repo_id: response.repo_id,
-                        repo_name: response.repo_name,
-                        path: response.path,
-                        obj_name: response.obj_name,
-                        is_dir: response.is_dir,
-                        view_cnt: response.view_cnt,
-                        ctime: response.ctime,
-                        expire_date: response.expire_date,
-                        is_expired: response.is_expired,
-                        permissions: response.permissions || {},
-                        password: response.password || "",
-                        can_edit: response.can_edit
+                        token: data.token,
+                        link: data.link,
+                        repo_id: data.repo_id,
+                        repo_name: data.repo_name,
+                        path: data.path,
+                        obj_name: data.obj_name,
+                        is_dir: data.is_dir,
+                        view_cnt: data.view_cnt,
+                        ctime: data.ctime,
+                        expire_date: data.expire_date,
+                        is_expired: data.is_expired,
+                        permissions: data.permissions || {},
+                        password: data.password || "",
+                        can_edit: data.can_edit
                     }, null)
                 } else {
-                    callback(false, null, parseError(xhr))
+                    callback(false, null, error || "Create share link failed")
                 }
             }
-        }
-        xhr.send(JSON.stringify(body))
+        )
     }
 
     function deleteShareLink(shareToken, callback) {
-        var xhr = new XMLHttpRequest()
-        xhr.open("DELETE", baseUrl + "/api/v2.1/share-links/" + encodeURIComponent(shareToken) + "/", true)
-        xhr.setRequestHeader("Authorization", "Token " + token)
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    if (confirmedMutation(xhr)) callback(true, null)
+        HttpTransport.del(baseUrl + "/api/v2.1/share-links/" + encodeURIComponent(shareToken) + "/",
+            { "Authorization": "Token " + token },
+            function(success, data, error) {
+                if (success) {
+                    if (confirmedMutation(data)) callback(true, null)
                     else callback(false, "Server did not confirm share-link revocation")
                 } else {
-                    callback(false, parseError(xhr))
+                    callback(false, error || "Delete share link failed")
                 }
             }
-        }
-        xhr.send()
+        )
     }
 
     // ===== COPY =====
 
     function copyFile(repoId, filePath, dstRepoId, dstDir, newName, token, callback) {
-        var url = "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
-        var xhr = new XMLHttpRequest()
-        xhr.open("POST", baseUrl + url, true)
-        xhr.setRequestHeader("Authorization", "Token " + token)
-        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    callback(true, null)
-                } else {
-                    callback(false, parseError(xhr))
-                }
+        var url = baseUrl + "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
+        HttpTransport.post(url, { "Authorization": "Token " + token, "Content-Type": "application/x-www-form-urlencoded" },
+            "operation=copy&dst_repo=" + encodeURIComponent(dstRepoId) + "&dst_dir=" + encodeURIComponent(dstDir) + "&newname=" + encodeURIComponent(newName),
+            function(success, data, error) {
+                if (success) callback(true, null)
+                else callback(false, error || "Copy failed")
             }
-        }
-        var body = "operation=copy&dst_repo=" + encodeURIComponent(dstRepoId) + "&dst_dir=" + encodeURIComponent(dstDir) + "&newname=" + encodeURIComponent(newName)
-        xhr.send(body)
+        )
     }
 
     function copyFolder(repoId, folderName, srcParentDir, dstRepoId, dstParentDir, token, callback) {
         var url = baseUrl + "/api/v2.1/repos/sync-batch-copy-item/"
-        var xhr = new XMLHttpRequest()
-        xhr.open("POST", url, true)
-        xhr.setRequestHeader("Authorization", "Token " + token)
-        xhr.setRequestHeader("Content-Type", "application/json")
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    if (confirmedMutation(xhr)) callback(true, null)
-                    else callback(false, "Server did not confirm copy")
-                } else {
-                    callback(false, parseError(xhr))
-                }
-            }
-        }
         var body = JSON.stringify({
             src_repo_id: repoId,
             src_parent_dir: srcParentDir,
@@ -458,7 +347,16 @@ QtObject {
             dst_repo_id: dstRepoId,
             dst_parent_dir: dstParentDir
         })
-        xhr.send(body)
+        HttpTransport.post(url, { "Authorization": "Token " + token, "Content-Type": "application/json" }, body,
+            function(success, data, error) {
+                if (success) {
+                    if (confirmedMutation(data)) callback(true, null)
+                    else callback(false, "Server did not confirm copy")
+                } else {
+                    callback(false, error || "Copy failed")
+                }
+            }
+        )
     }
 
     function copyItems(items, dstRepoId, dstParentDir, callback) {
@@ -495,22 +393,18 @@ QtObject {
         }
 
         function sendGroup(group) {
-            var xhr = new XMLHttpRequest()
-            var url = baseUrl + "/api/v2.1/repos/sync-batch-copy-item/"
-            xhr.open("POST", url, true)
-            xhr.setRequestHeader("Authorization", "Token " + token)
-            xhr.setRequestHeader("Content-Type", "application/json")
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === XMLHttpRequest.DONE) {
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        if (!confirmedMutation(xhr)) hasError = true
+            HttpTransport.post(baseUrl + "/api/v2.1/repos/sync-batch-copy-item/",
+                { "Authorization": "Token " + token, "Content-Type": "application/json" },
+                JSON.stringify(group),
+                function(success, data, error) {
+                    if (success) {
+                        if (!confirmedMutation(data)) hasError = true
                     } else {
                         hasError = true
                     }
                     checkComplete()
                 }
-            }
-            xhr.send(JSON.stringify(group))
+            )
         }
         for (var key in groups) sendGroup(groups[key])
     }
@@ -549,22 +443,18 @@ QtObject {
         }
 
         function sendGroup(group) {
-            var xhr = new XMLHttpRequest()
-            var url = baseUrl + "/api/v2.1/repos/sync-batch-move-item/"
-            xhr.open("POST", url, true)
-            xhr.setRequestHeader("Authorization", "Token " + token)
-            xhr.setRequestHeader("Content-Type", "application/json")
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === XMLHttpRequest.DONE) {
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        if (!confirmedMutation(xhr)) hasError = true
+            HttpTransport.post(baseUrl + "/api/v2.1/repos/sync-batch-move-item/",
+                { "Authorization": "Token " + token, "Content-Type": "application/json" },
+                JSON.stringify(group),
+                function(success, data, error) {
+                    if (success) {
+                        if (!confirmedMutation(data)) hasError = true
                     } else {
                         hasError = true
                     }
                     checkComplete()
                 }
-            }
-            xhr.send(JSON.stringify(group))
+            )
         }
         for (var key in groups) sendGroup(groups[key])
     }
@@ -613,17 +503,12 @@ QtObject {
 
     function search(query, repoId, callback) {
         var url = "/api/v2.1/search-file/?q=" + encodeURIComponent(query) + "&repo_id=" + encodeURIComponent(repoId)
-        var xhr = new XMLHttpRequest()
-        xhr.open("GET", baseUrl + url, true)
-        xhr.setRequestHeader("Authorization", "Token " + token)
-        xhr.setRequestHeader("Accept", "application/json")
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status >= 200 && xhr.status < 300) {
+        HttpTransport.get(baseUrl + url, { "Authorization": "Token " + token, "Accept": "application/json" },
+            function(success, data, error) {
+                if (success) {
                     try {
-                        var response = JSON.parse(xhr.responseText)
-                        if (!response || !Array.isArray(response.data)) throw new Error("missing data")
-                        var results = (response.data || []).map(function(item) {
+                        if (!data || !Array.isArray(data.data)) throw new Error("missing data")
+                        var results = (data.data || []).map(function(item) {
                             if (!item || typeof item.path !== "string") throw new Error("invalid result")
                             var pathParts = item.path.split("/")
                             var name = pathParts.pop()
@@ -643,12 +528,10 @@ QtObject {
                         callback(false, null, "Failed to parse search response")
                     }
                 } else {
-                    var error = parseError(xhr)
-                    callback(false, null, error)
+                    callback(false, null, error || "Search failed")
                 }
             }
-        }
-        xhr.send()
+        )
     }
 
     // ===== FILE HISTORY =====

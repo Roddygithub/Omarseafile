@@ -49,6 +49,7 @@ Item {
             anchors.centerIn: parent
             wrapMode: Text.WordWrap
             width: parent.width - Style.space(24)
+            textFormat: Text.PlainText
         }
     }
 
