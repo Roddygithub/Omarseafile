@@ -146,6 +146,16 @@ def main():
 
     except Exception as e:
         sys.stderr.write(f"child execution failed: {e}\n")
+        if _child_pid[0] is not None:
+            try:
+                os.kill(_child_pid[0], signal.SIGTERM)
+            except OSError:
+                pass
+            try:
+                os.waitpid(_child_pid[0], 0)
+            except OSError:
+                pass
+            _child_pid[0] = None
         rc = 1
     finally:
         try:
@@ -169,7 +179,7 @@ def main():
 
     # Success: print ONLY the basename (validated, no path components)
     if _validate_basename(basename):
-        sys.stdout.write(basename + "\n")
+        sys.stdout.write(basename)
         sys.stdout.flush()
         os.close(dir_fd)
         return 0
@@ -181,3 +191,6 @@ def main():
             pass
         os.close(dir_fd)
         return 1
+
+if __name__ == "__main__":
+    sys.exit(main() or 0)
