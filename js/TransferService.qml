@@ -16,6 +16,7 @@ QtObject {
 
     // ===== TRANSFER LIMITS =====
     property int maxTransferBytes: 1024 * 1024 * 1024
+    property int maxUploadResponseBytes: 64 * 1024
     property int connectTimeoutMs: 10000
     property int totalTimeoutMs: 30 * 60 * 1000
     property int stallSpeedBytes: 1
@@ -33,6 +34,7 @@ QtObject {
         Process {
             property var transferRef: null
             property var pgid: 0
+            stdout: StdioCollector {}
             stderr: StdioCollector {
                 onTextChanged: {
                     if (transferRef && text) {
@@ -42,6 +44,8 @@ QtObject {
                 }
             }
             onStarted: {
+                // Command is launched via setsid, so processId is a dedicated
+                // session/group leader and is a valid PGID for group kill.
                 pgid = processId
             }
             onExited: function(exitCode, exitStatus) {
@@ -56,6 +60,7 @@ QtObject {
         Process {
             property var transferRef: null
             property var pgid: 0
+            stdout: StdioCollector {}
             stderr: StdioCollector {
                 onTextChanged: {
                     if (transferRef && text) {
@@ -65,6 +70,8 @@ QtObject {
                 }
             }
             onStarted: {
+                // Command is launched via setsid, so processId is a dedicated
+                // session/group leader and is a valid PGID for group kill.
                 pgid = processId
             }
             onExited: function(exitCode, exitStatus) {
@@ -79,6 +86,8 @@ QtObject {
         Process {
             property var transferRef: null
             property var pgid: 0
+            // Response is producer-side bounded by curl --max-filesize
+            // (maxUploadResponseBytes) before it reaches this collector.
             stdout: StdioCollector {}
             stderr: StdioCollector {
                 onTextChanged: {
@@ -89,6 +98,8 @@ QtObject {
                 }
             }
             onStarted: {
+                // Command is launched via setsid, so processId is a dedicated
+                // session/group leader and is a valid PGID for group kill.
                 pgid = processId
             }
             onExited: function(exitCode, exitStatus) {
@@ -192,41 +203,33 @@ QtObject {
         return "file=@\"" + path.replace(/\\/g, "\\\\").replace(/\"/g, "\\\"") + "\""
     }
 
-    // ===== SECURE FILE CREATION (ATOMIC, NO TOCTOU) =====
-
-    function createSecureFile(dir, prefix, content, callback) {
-        SafePath.getRuntimeSubdir("transfers", function(runtimeResult) {
-            if (!runtimeResult.valid) { callback({ valid: false, error: runtimeResult.error }); return }
-            var proc = Qt.createComponent("dummy").createObject({
-                command: ["mktemp", "--", runtimeResult.path + "/" + prefix.replace(/[^a-zA-Z0-9_-]/g, "_") + "_XXXXXX"],
-                running: true
-            })
-            proc.onExited = function(exitCode, path) {
-                if (exitCode !== 0 || !path || !path.trim()) {
-                    callback({ valid: false, error: "Failed to create secure temp file" })
-                    return
-                }
-                var filePath = path.trim()
-                var writeProc = Qt.createComponent("dummy").createObject({
-                    command: ["sh", "-c", "cat > \"$1\"", "sh", filePath],
-                    running: true
-                })
-                writeProc.onStarted = function() {
-                    writeProc.write(content)
-                    writeProc.stdinEnabled = false
-                }
-                writeProc.onExited = function(exitCode) {
-                    if (exitCode === 0) {
-                        callback({ valid: true, path: filePath })
-                    } else {
-                        Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", filePath], running: true })
-                        callback({ valid: false, error: "Failed to write content" })
-                    }
-                }
-                writeProc.running = true
+// Validates secure_output.py helper stdout: single basename line matching exactly [A-Za-z0-9_-]+
+    // plus: max 128 chars, expected prefix, no multiline, no whitespace, no path separators, no "." or ".."
+    function validateHelperOutput(outText, expectedPrefix) {
+        if (!outText) return { valid: false, error: "Empty helper output" }
+        var trimmed = outText.trim()
+        if (trimmed !== outText) return { valid: false, error: "Helper output has leading/trailing whitespace" }
+        if (trimmed.indexOf("\n") !== -1 || trimmed.indexOf("\r") !== -1) return { valid: false, error: "Helper output contains multiple lines" }
+        if (trimmed.length > 128) return { valid: false, error: "Helper output exceeds maximum length" }
+        if (trimmed === "" || trimmed === "." || trimmed === "..") return { valid: false, error: "Invalid basename" }
+        if (trimmed.indexOf("/") !== -1 || trimmed.indexOf("\\") !== -1) return { valid: false, error: "Path separators not allowed in basename" }
+        for (var i = 0; i < trimmed.length; i++) {
+            var code = trimmed.charCodeAt(i)
+            // Only allow A-Z (0x41-0x5A), a-z (0x61-0x7A), 0-9 (0x30-0x39), _ (0x5F), - (0x2D)
+            if (!((code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A) || (code >= 0x30 && code <= 0x39) || code === 0x5F || code === 0x2D)) {
+                return { valid: false, error: "Invalid character in basename" }
             }
-        })
+        }
+        if (expectedPrefix && !trimmed.startsWith(expectedPrefix + "_")) {
+            return { valid: false, error: "Basename does not match expected prefix" }
+        }
+        return { valid: true, basename: trimmed }
     }
+
+    // Secret/config temp files are created exclusively through the hardened
+    // SafePath.createSecureFile + scripts/atomic_write.py path (see
+    // createAuthHeaderFile / createCurlConfigFile below). No mktemp/sh-cat
+    // pathname writers remain here.
 
     property Component _retryTimerFactory: Component {
         Timer {
@@ -236,6 +239,28 @@ QtObject {
                 var cb = callback
                 destroy()
                 if (cb) cb()
+            }
+        }
+    }
+
+    property Component _finalizeDownloadProcessFactory: Component {
+        Process {
+            property var transferRef: null
+            onExited: function(exitCode) {
+                var t = transferRef
+                destroy()
+                if (t) root.handleDownloadFinalized(exitCode, t)
+            }
+        }
+    }
+
+    property Component _finalizeOpenDownloadProcessFactory: Component {
+        Process {
+            property var transferRef: null
+            onExited: function(exitCode) {
+                var t = transferRef
+                destroy()
+                if (t) root.handleOpenDownloadFinalized(exitCode, t)
             }
         }
     }
@@ -379,7 +404,6 @@ QtObject {
 
             if (typeof downloadLink === "string" && downloadLink !== "") {
                 download.downloadLink = downloadLink
-                download.tempPath = download.destPath + ".part-" + download.id
                 download.state = "downloading"
                 root.transferStateChanged(download)
                 root.transfersChanged()
@@ -408,7 +432,6 @@ QtObject {
                         return
                     }
                     download.downloadLink = data
-                    download.tempPath = download.destPath + ".part-" + download.id
                     download.state = "downloading"
                     root.transferStateChanged(download)
                     root.transfersChanged()
@@ -475,14 +498,18 @@ QtObject {
                     return
                 }
                 curlProc.transferRef = download
+                var scriptsBase = Qt.resolvedUrl("../scripts")
+                var outputHelper = scriptsBase + "/secure_output.py"
                 curlProc.command = [
+                    "setsid", "python3",
+                    outputHelper.replace(/^file:\/\//, ""),
+                    download.destDir, "dl", "--",
                     "curl",
                     "-q",
                     "-f",
                     "-H", "@" + authHeaderFile,
                     "-H", "Accept: */*",
                     "--progress-bar",
-                    "--output", download.tempPath,
                     "--config", curlConfigFile,
                     "--max-filesize", root.maxTransferBytes,
                     "--connect-timeout", Math.ceil(root.connectTimeoutMs / 1000),
@@ -500,6 +527,7 @@ QtObject {
     function handleDownloadExited(exitCode, download) {
         var process = download.process
         download.process = null
+        var outText = process ? process.stdout.text : ""
         if (process) process.destroy()
         cleanupTransferAuthFile(download)
         cleanupTransferConfigFile(download)
@@ -507,8 +535,17 @@ QtObject {
         if (download.state === "cancelled") {
             deleteFile(download.tempPath)
         } else if (exitCode === 0) {
-            root.finalizeDownload(download)
-            return
+            var validation = root.validateHelperOutput(outText, "dl")
+            if (!validation.valid) {
+                download.state = "failed"
+                download.error = "Invalid helper output: " + validation.error
+                root.sanitizeForHistory(download)
+            } else {
+                var tempPath = download.destDir + "/" + validation.basename
+                download.tempPath = tempPath
+                root.finalizeDownload(download)
+                return
+            }
         } else {
             if (download.retryCount < root.maxRetries) {
                 download.retryCount++
@@ -569,41 +606,40 @@ QtObject {
     // ===== UPLOAD =====
 
     function startUpload(localFilePath, token, baseUrl, repoId, destPath, fileName) {
-        SafePath.sanitizeBasename(fileName, function(nameResult) {
-            if (!nameResult.valid) {
-                var errTransfer = { error: nameResult.error, state: "failed" }
-                root.showToast("Invalid filename: " + nameResult.error, "error")
-                return
-            }
+        var nameResult = SafePath.sanitizeBasename(fileName)
+        if (!nameResult.valid) {
+            var errTransfer = { error: nameResult.error, state: "failed" }
+            root.showToast("Invalid filename: " + nameResult.error, "error")
+            return
+        }
 
-            var upload = {
-                id: Date.now() + Math.random(),
-                type: "upload",
-                state: "pending",
-                srcPath: localFilePath,
-                destUploadPath: destPath,
-                fileName: nameResult.sanitized,
-                repoId: repoId,
-                repoName: "",
-                token: token,
-                baseUrl: baseUrl,
-                process: null,
-                uploadLink: null,
-                progress: 0,
-                speed: "",
-                error: "",
-                retryCount: 0,
-                startTime: Date.now(),
-                endTime: null,
-                authHeaderFile: null,
-                curlConfigFile: null
-            }
+        var upload = {
+            id: Date.now() + Math.random(),
+            type: "upload",
+            state: "pending",
+            srcPath: localFilePath,
+            destUploadPath: destPath,
+            fileName: nameResult.sanitized,
+            repoId: repoId,
+            repoName: "",
+            token: token,
+            baseUrl: baseUrl,
+            process: null,
+            uploadLink: null,
+            progress: 0,
+            speed: "",
+            error: "",
+            retryCount: 0,
+            startTime: Date.now(),
+            endTime: null,
+            authHeaderFile: null,
+            curlConfigFile: null
+        }
 
-            root.transfers.push(upload)
-            root.transfersChanged()
-            root.getUploadLinkAndExecute(upload)
-            return upload
-        })
+        root.transfers.push(upload)
+        root.transfersChanged()
+        root.getUploadLinkAndExecute(upload)
+        return upload
     }
 
     function getUploadLinkAndExecute(upload) {
@@ -690,7 +726,7 @@ QtObject {
                 }
                 curlProc.transferRef = upload
                 curlProc.command = [
-                    "curl",
+                    "setsid", "curl",
                     "-q",
                     "-f",
                     "-H", "@" + authHeaderFile,
@@ -700,7 +736,7 @@ QtObject {
                     "--form-string", "parent_dir=" + upload.destUploadPath,
                     "--form-string", "replace=0",
                     "--config", curlConfigFile,
-                    "--max-filesize", root.maxTransferBytes,
+                    "--max-filesize", root.maxUploadResponseBytes,
                     "--connect-timeout", Math.ceil(root.connectTimeoutMs / 1000),
                     "--max-time", Math.ceil(root.totalTimeoutMs / 1000),
                     "--speed-limit", root.stallSpeedBytes,
@@ -739,6 +775,11 @@ QtObject {
                 upload.error = "Upload server response was invalid"
                 root.sanitizeForHistory(upload)
             }
+        } else if (upload.state !== "cancelled" && exitCode === 63) {
+            if (process) process.destroy()
+            upload.state = "failed"
+            upload.error = "Upload response too large (exceeds " + root.maxUploadResponseBytes + " bytes)"
+            root.sanitizeForHistory(upload)
         } else if (upload.state !== "cancelled") {
             if (process) process.destroy()
             upload.state = "failed"
@@ -875,7 +916,7 @@ QtObject {
                 }
                 var uniqueSuffix = Date.now() + "_" + Math.random().toString(36).substr(2, 9)
                 var cachePath = cacheResult.path + "/" + uniqueSuffix + "_" + nameResult.sanitized
-                var tempPath = cachePath + ".part-" + Date.now()
+                var tempPath = ""
 
                 var download = {
                     id: Date.now() + Math.random(),
@@ -994,14 +1035,18 @@ QtObject {
                     return
                 }
                 curlProc.transferRef = download
+                var scriptsBase = Qt.resolvedUrl("../scripts")
+                var outputHelper = scriptsBase + "/secure_output.py"
                 curlProc.command = [
+                    "setsid", "python3",
+                    outputHelper.replace(/^file:\/\//, ""),
+                    download.cacheDir, "dl", "--",
                     "curl",
                     "-q",
                     "-f",
                     "-H", "@" + authHeaderFile,
                     "-H", "Accept: */*",
                     "--progress-bar",
-                    "--output", download.tempPath,
                     "--config", curlConfigFile,
                     "--max-filesize", root.maxTransferBytes,
                     "--connect-timeout", Math.ceil(root.connectTimeoutMs / 1000),
@@ -1019,6 +1064,7 @@ QtObject {
     function handleOpenDownloadExited(exitCode, download) {
         var process = download.process
         download.process = null
+        var outText = process ? process.stdout.text : ""
         if (process) process.destroy()
         root.cleanupTransferAuthFile(download)
         root.cleanupTransferConfigFile(download)
@@ -1026,8 +1072,17 @@ QtObject {
         if (download.state === "cancelled") {
             root.deleteFile(download.tempPath)
         } else if (exitCode === 0) {
-            root.finalizeOpenDownload(download)
-            return
+            var validation = root.validateHelperOutput(outText, "dl")
+            if (!validation.valid) {
+                download.state = "failed"
+                download.error = "Invalid helper output: " + validation.error
+                root.sanitizeForHistory(download)
+            } else {
+                var tempPath = download.cacheDir + "/" + validation.basename
+                download.tempPath = tempPath
+                root.finalizeOpenDownload(download)
+                return
+            }
         } else {
             if (download.retryCount < root.maxRetries) {
                 download.retryCount++
@@ -1060,7 +1115,9 @@ QtObject {
             return
         }
         proc.transferRef = download
-        proc.command = ["sh", "-c", "mkdir -p -m 0700 -- \"$(dirname \"$1\")\" && mv -f -- \"$1\" \"$2\" && chmod 600 -- \"$2\"", "sh", download.tempPath, download.cachePath]
+        // Non-overwriting move: mv -n (do not overwrite existing file)
+        // The cache target should be unique; collision is treated as failure.
+        proc.command = ["sh", "-c", "mkdir -p -m 0700 -- \"$(dirname \"$2\")\" && mv -n -- \"$1\" \"$2\" && test ! -e \"$1\" && chmod 600 -- \"$2\"", "sh", download.tempPath, download.cachePath]
         download.process = proc
         proc.running = true
     }
@@ -1115,7 +1172,16 @@ QtObject {
             var t = root.transfers[i]
             t.state = "cancelled"
             if (t.process) {
-                t.process.kill()
+                try {
+                    var pgid = t.process.pgid
+                    if (pgid > 0) {
+                        Qt.createComponent("dummy").createObject({ command: ["kill", "-TERM", "-" + pgid], running: true })
+                    } else {
+                        t.process.kill()
+                    }
+                } catch (e) {
+                    try { t.process.kill() } catch (e) {}
+                }
                 t.process.destroy()
                 t.process = null
             }
