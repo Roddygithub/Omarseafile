@@ -6,30 +6,19 @@ import Quickshell.Io
 QtObject {
     id: root
 
-    property int maxResponseBytes: 10 * 1024 * 1024
     property int connectTimeoutMs: 5000
     property int totalTimeoutMs: 30000
     property int maxCollectionItems: 1000
     property int maxStringLength: 10000
+    property int maxResponseBytes: 10 * 1024 * 1024
 
     property Component _requestFactory: Component {
         Process {
             property var onDone: null
-            property var requestConfig: null
             property var headerFilePath: ""
             property var bodyFilePath: ""
-            property bool haveAuth: false
-            property bool haveBody: false
-            stdinEnabled: true
             stdout: StdioCollector {}
             stderr: StdioCollector {}
-            onStarted: {
-                if (haveAuth && headerFilePath) {
-                    // curl reads config from stdin when we pass --config -
-                    // but we'll use --config @- approach: config is passed via stdin after auth header
-                    // Actually, let's use a different approach: write auth header to file, reference it in config
-                }
-            }
             onExited: function(exitCode, exitStatus) {
                 var cb = onDone
                 var out = stdout.text
@@ -46,105 +35,96 @@ QtObject {
             url: url,
             headers: headers || ({}),
             body: body,
-            timeoutMs: root.totalTimeoutMs,
-            maxBytes: root.maxResponseBytes
+            timeoutMs: root.totalTimeoutMs
         }
 
-        // Extract auth header if present
         var authHeader = config.headers ? config.headers["Authorization"] : null
+        var hasBody = config.body !== undefined && config.body !== null && config.body !== ""
 
-        // Build curl args
-        var args = ["curl", "-q", "-f", "-s", "-S"]
-        args.push("--connect-timeout", Math.ceil(root.connectTimeoutMs / 1000))
-        args.push("--max-time", Math.ceil(root.totalTimeoutMs / 1000))
-        args.push("--max-filesize", root.maxResponseBytes)
-        args.push("--speed-limit", "1")
-        args.push("--speed-time", "30")
-        args.push("--no-location")
-
-        // Add non-auth headers
-        for (var h in config.headers) {
-            if (h.toLowerCase() !== "authorization") {
-                args.push("-H", h + ": " + config.headers[h])
-            }
-        }
-        args.push("-X", config.method)
-        if (config.body) {
-            args.push("--data-binary", "@-")
-        }
-        args.push(config.url)
-
-        // Create secure temp files for auth header and config
         SafePath.getRuntimeSubdir("http", function(httpResult) {
             if (!httpResult.valid) { callback(false, null, "Runtime dir unavailable: " + httpResult.error); return }
 
-            SafePath.createSecureFile(httpResult.path, "curl_auth", authHeader || "", function(authFileResult) {
-                if (!authFileResult.valid) { callback(false, null, "Auth file failed: " + authFileResult.error); return }
-                var authFile = authFileResult.path
+            var curlArgs = [
+                "curl", "-q", "-f", "-s", "-S",
+                "--connect-timeout", Math.ceil(root.connectTimeoutMs / 1000).toString(),
+                "--max-time", Math.ceil(root.totalTimeoutMs / 1000).toString(),
+                "--speed-limit", "1",
+                "--speed-time", "30",
+                "--no-location",
+                "--max-filesize", root.maxResponseBytes.toString()
+            ]
 
-                // Build curl config content
-                var configContent = ""
-                if (authHeader) {
-                    configContent += "header = \"Authorization: " + authHeader.replace(/"/g, "\\\"") + "\"\n"
+            for (var h in config.headers) {
+                if (h.toLowerCase() !== "authorization") {
+                    curlArgs.push("-H", h + ": " + config.headers[h])
                 }
-                configContent += "url = " + JSON.stringify(config.url) + "\n"
+            }
 
-                SafePath.createSecureFile(httpResult.path, "curl_cfg", configContent, function(cfgFileResult) {
-                    if (!cfgFileResult.valid) {
-                        Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", authFile], running: true })
-                        callback(false, null, "Config file failed: " + cfgFileResult.error); return
-                    }
-                    var cfgFile = cfgFileResult.path
+            if (authHeader) {
+                var configContent = "header = \"Authorization: " + authHeader.replace(/"/g, "\\\"") + "\"\n"
+                SafePath.createSecureFile(httpResult.path, "curl_hdr", configContent, function(hdrResult) {
+                    if (!hdrResult.valid) { callback(false, null, "Header file failed: " + hdrResult.error); return }
+                    runRequest(hdrResult.path)
+                })
+            } else {
+                runRequest("")
+            }
 
-                    // Build body file if needed
-                    var hasBody = config.body !== undefined && config.body !== null && config.body !== ""
-                    if (hasBody) {
-                        SafePath.createSecureFile(httpResult.path, "curl_body", config.body, function(bodyFileResult) {
-                            if (!bodyFileResult.valid) {
-                                cleanupFiles(); callback(false, null, "Body file failed: " + bodyFileResult.error); return
-                            }
-                            runCurl(authFile, cfgFile, bodyFileResult.path, true)
-                        })
-                    } else {
-                        runCurl(authFile, cfgFile, "", false)
-                    }
-
-                    function cleanupFiles() {
-                        Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", authFile], running: true })
-                        Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", cfgFile], running: true })
-                        if (hasBody) Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", bodyFileResult.path], running: true })
-                    }
-
-                    function runCurl(authFile, cfgFile, bodyFile, hasBodyData) {
-                        var proc = _requestFactory.createObject(root, {
-                            onDone: function(exitCode, out, err) {
-                                cleanupFiles()
-                                if (exitCode === 0) {
-                                    var data = null
-                                    try { data = out ? JSON.parse(out) : null } catch (e) {
-                                        callback(false, null, "Invalid JSON response"); return
-                                    }
-                                    var validation = validateResponse(data)
-                                    if (!validation.valid) { callback(false, null, validation.error); return }
-                                    callback(true, validation.data, null)
-                                } else {
-                                    callback(false, null, "Request failed (exit " + exitCode + "): " + (err || "unknown"))
-                                }
-                            }
-                        })
-                        var finalArgs = []
-                        for (var i = 0; i < args.length; i++) {
-                            finalArgs.push(args[i])
+            function runRequest(headerFile) {
+                if (hasBody) {
+                    SafePath.createSecureFile(httpResult.path, "curl_body", config.body, function(bodyResult) {
+                        if (!bodyResult.valid) {
+                            cleanup(headerFile)
+                            callback(false, null, "Body file failed: " + bodyResult.error); return
                         }
-                        finalArgs.push("--config", cfgFile)
-                        if (hasBodyData) {
-                            finalArgs.push("--data-binary", "@" + bodyFile)
+                        execute(headerFile, bodyResult.path, curlArgs.slice())
+                    })
+                } else {
+                    execute(headerFile, "", curlArgs.slice())
+                }
+            }
+
+            function execute(hdrFile, bodyFile, args) {
+                if (hdrFile) {
+                    args.push("--config", hdrFile)
+                }
+                if (bodyFile) {
+                    args.push("--data-binary", "@" + bodyFile)
+                }
+                args.push("-X", config.method)
+                args.push(config.url)
+
+                var proc = _requestFactory.createObject(root, {
+                    onDone: function(exitCode, out, err) {
+                        cleanup(hdrFile)
+                        cleanup(bodyFile)
+                        if (exitCode === 0) {
+                            var data = null
+                            try { data = out ? JSON.parse(out) : null } catch (e) {
+                                callback(false, null, "Invalid JSON response"); return
+                            }
+                            var validation = validateResponse(data)
+                            if (!validation.valid) { callback(false, null, validation.error); return }
+                            callback(true, validation.data, null)
+                        } else if (exitCode === 63 || exitCode === 23) {
+                            // 63: max-filesize exceeded (curl 7.56.0+); 23: write error (older curl)
+                            callback(false, null, "Response too large (exceeds " + root.maxResponseBytes + " bytes)")
+                        } else {
+                            callback(false, null, "Request failed (exit " + exitCode + "): " + (err || "unknown"))
                         }
-                        proc.command = finalArgs
-                        proc.running = true
                     }
                 })
-            })
+                proc.command = args
+                proc.running = true
+            }
+
+            function cleanup(path) {
+                if (!path) return
+                var c = Qt.createComponent("dummy").createObject(root, {
+                    command: ["rm", "-f", "--", path],
+                    running: true
+                })
+            }
         })
     }
 

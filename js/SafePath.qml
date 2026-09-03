@@ -45,19 +45,6 @@ QtObject {
         }
     }
 
-    property Component _mktempFactory: Component {
-        Process {
-            property var onDone: null
-            stdout: StdioCollector {}
-            onExited: function(exitCode) {
-                var cb = onDone
-                var out = stdout.text.trim()
-                destroy()
-                if (cb) cb(exitCode === 0 ? out : null)
-            }
-        }
-    }
-
     function sanitizeBasename(name) {
         if (!name || typeof name !== "string") {
             return { valid: false, error: "Empty filename" }
@@ -167,7 +154,23 @@ QtObject {
         proc.running = true
     }
 
-    // Creates a secure temp file with atomic write via stdin (no TOCTOU)
+    // Atomic writer: single Python process using mkstemp for exclusive creation,
+    // mode 0600 enforced on the open fd, content via stdin, path via stdout
+    property Component _atomicWriterFactory: Component {
+        Process {
+            property var onDone: null
+            stdinEnabled: true
+            stdout: StdioCollector {}
+            onExited: function(exitCode) {
+                var cb = onDone
+                var out = stdout.text.trim()
+                destroy()
+                if (cb) cb(exitCode === 0 ? out : null)
+            }
+        }
+    }
+
+    // Creates a secure temp file atomically: single writer process using mkstemp
     // dir: subdirectory under omarseafile/ (e.g., "secrets", "transfers", "cache", "http")
     // prefix: filename prefix
     // content: file content to write atomically via stdin
@@ -175,36 +178,28 @@ QtObject {
     function createSecureFile(dir, prefix, content, callback) {
         getRuntimeSubdir(dir, function(runtimeResult) {
             if (!runtimeResult.valid) { callback({ valid: false, error: runtimeResult.error }); return }
-            // mktemp creates file atomically with O_CREAT|O_EXCL|O_NOFOLLOW
-            var proc = Qt.createComponent("dummy").createObject({
-                command: ["mktemp", "--", runtimeResult.path + "/" + prefix.replace(/[^a-zA-Z0-9_-]/g, "_") + "_XXXXXX"],
-                running: true
-            })
-            proc.onExited = function(exitCode, path) {
-                if (exitCode !== 0 || !path || !path.trim()) {
-                    callback({ valid: false, error: "Failed to create secure temp file" })
-                    return
-                }
-                var filePath = path.trim()
-                // Write content atomically via stdin (no shell redirection, no TOCTOU)
-                var writeProc = Qt.createComponent("dummy").createObject({
-                    command: ["sh", "-c", "cat > \"$1\"", "sh", filePath],
-                    running: true
-                })
-                writeProc.onStarted = function() {
-                    writeProc.write(content)
-                    writeProc.stdinEnabled = false
-                }
-                writeProc.onExited = function(exitCode) {
-                    if (exitCode === 0) {
-                        callback({ valid: true, path: filePath })
+            var safePrefix = prefix.replace(/[^a-zA-Z0-9_-]/g, "_")
+            var proc = _atomicWriterFactory.createObject(root, {
+                onDone: function(path) {
+                    if (!path) {
+                        callback({ valid: false, error: "Atomic write failed" })
                     } else {
-                        Qt.createComponent("dummy").createObject({ command: ["rm", "-f", "--", filePath], running: true })
-                        callback({ valid: false, error: "Failed to write content" })
+                        callback({ valid: true, path: path })
                     }
                 }
-                writeProc.running = true
+            })
+            var scriptsBase = Qt.resolvedUrl("../scripts")
+            var scriptPath = scriptsBase + "/atomic_write.py"
+            proc.command = [
+                "python3",
+                scriptPath.replace(/^file:\/\//, ""),
+                runtimeResult.path, safePrefix
+            ]
+            proc.onStarted = function() {
+                proc.write(content)
+                proc.stdinEnabled = false
             }
+            proc.running = true
         })
     }
 }

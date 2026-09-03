@@ -9,4 +9,3 @@ singleton SelectionHelper 1.0 SelectionHelper.qml
 singleton UrlPolicy 1.0 UrlPolicy.qml
 singleton SafePath 1.0 SafePath.qml
 singleton HttpTransport 1.0 HttpTransport.qml
-singleton ProcessWithTimeout 1.0 ProcessWithTimeout.qml
