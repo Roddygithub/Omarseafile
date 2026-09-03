@@ -86,7 +86,6 @@ def main():
     basename = None
     fd = None
     for attempt in range(10):  # Retry up to 10 times with new random names
-        random_suffix = secrets.token_urlsafe(16)  # ~22 chars, URL-safe
         basename = f"{prefix}_{secrets.token_urlsafe(16)}"
         if not _validate_basename(basename):
             continue
@@ -143,6 +142,7 @@ def main():
                     pass
 
         rc = proc.wait()
+        _child_pid[0] = None
 
     except Exception as e:
         sys.stderr.write(f"child execution failed: {e}\n")
