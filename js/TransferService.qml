@@ -403,6 +403,15 @@ QtObject {
             root.transfersChanged()
 
             if (typeof downloadLink === "string" && downloadLink !== "") {
+                var vUrl = UrlPolicy.validateTransferUrl(downloadLink)
+                if (!vUrl.valid) {
+                    download.state = "failed"
+                    download.error = "Invalid download URL: " + vUrl.error
+                    root.sanitizeForHistory(download)
+                    root.transferStateChanged(download)
+                    root.transfersChanged()
+                    return
+                }
                 download.downloadLink = downloadLink
                 download.state = "downloading"
                 root.transferStateChanged(download)
