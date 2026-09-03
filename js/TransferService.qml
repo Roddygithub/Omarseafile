@@ -431,6 +431,15 @@ QtObject {
                         root.transfersChanged()
                         return
                     }
+                    var vUrl = UrlPolicy.validateTransferUrl(data)
+                    if (!vUrl.valid) {
+                        download.state = "failed"
+                        download.error = "Invalid download URL: " + vUrl.error
+                        root.sanitizeForHistory(download)
+                        root.transferStateChanged(download)
+                        root.transfersChanged()
+                        return
+                    }
                     download.downloadLink = data
                     download.state = "downloading"
                     root.transferStateChanged(download)
@@ -463,6 +472,16 @@ QtObject {
 
     function executeCurlDownload(download) {
         if (download.state !== "pending" && download.state !== "downloading") return
+
+        // Only attach auth header if transfer URL is same-origin as Seafile base
+        var attachAuth = UrlPolicy.shouldAttachAuth(download.downloadLink, download.baseUrl)
+
+        if (!attachAuth) {
+            // Cross-origin: no auth header
+            executeCurlDownloadNoAuth(download)
+            return
+        }
+
         createAuthHeaderFile(download.token, function(authHeaderFile) {
             if (download.state !== "pending" && download.state !== "downloading") {
                 cleanupAuthHeaderFile(authHeaderFile)
@@ -521,6 +540,54 @@ QtObject {
                 download.process = curlProc
                 curlProc.running = true
             })
+        })
+    }
+
+    // Cross-origin download: no auth header attached
+    function executeCurlDownloadNoAuth(download) {
+        if (download.state !== "pending" && download.state !== "downloading") return
+        createCurlConfigFile(download.downloadLink, function(curlConfigFile) {
+            if (download.state !== "pending" && download.state !== "downloading") { deleteFile(curlConfigFile); return }
+            if (!curlConfigFile) {
+                download.state = "failed"
+                download.error = "Failed to create curl configuration"
+                root.sanitizeForHistory(download)
+                root.transferStateChanged(download)
+                root.transfersChanged()
+                return
+            }
+            download.curlConfigFile = curlConfigFile
+            var curlProc = downloadProcessComponent.createObject(root)
+            if (!curlProc) {
+                download.state = "failed"
+                download.error = "Failed to create download process"
+                root.sanitizeForHistory(download)
+                root.transferStateChanged(download)
+                root.transfersChanged()
+                return
+            }
+            curlProc.transferRef = download
+            var scriptsBase = Qt.resolvedUrl("../scripts")
+            var outputHelper = scriptsBase + "/secure_output.py"
+            curlProc.command = [
+                "setsid", "python3",
+                outputHelper.replace(/^file:\/\//, ""),
+                download.destDir, "dl", "--",
+                "curl",
+                "-q",
+                "-f",
+                "-H", "Accept: */*",
+                "--progress-bar",
+                "--config", curlConfigFile,
+                "--max-filesize", root.maxTransferBytes,
+                "--connect-timeout", Math.ceil(root.connectTimeoutMs / 1000),
+                "--max-time", Math.ceil(root.totalTimeoutMs / 1000),
+                "--speed-limit", root.stallSpeedBytes,
+                "--speed-time", Math.ceil(root.stallTimeMs / 1000),
+                "--no-location"
+            ]
+            download.process = curlProc
+            curlProc.running = true
         })
     }
 
@@ -657,6 +724,15 @@ QtObject {
                         root.transfersChanged()
                         return
                     }
+                    var vUrl = UrlPolicy.validateTransferUrl(data)
+                    if (!vUrl.valid) {
+                        upload.state = "failed"
+                        upload.error = "Invalid upload URL: " + vUrl.error
+                        root.sanitizeForHistory(upload)
+                        root.transferStateChanged(upload)
+                        root.transfersChanged()
+                        return
+                    }
                     upload.uploadLink = data
                     upload.state = "uploading"
                     root.transferStateChanged(upload)
@@ -689,6 +765,17 @@ QtObject {
 
     function executeCurlUpload(upload) {
         if (upload.state !== "pending" && upload.state !== "uploading") return
+
+        // Only attach auth header if transfer URL is same-origin as Seafile base
+        var uploadUrl = upload.uploadLink + (upload.uploadLink.indexOf("?") === -1 ? "?" : "&") + "ret-json=1"
+        var attachAuth = UrlPolicy.shouldAttachAuth(uploadUrl, upload.baseUrl)
+
+        if (!attachAuth) {
+            // Cross-origin: no auth header
+            executeCurlUploadNoAuth(upload)
+            return
+        }
+
         createAuthHeaderFile(upload.token, function(authHeaderFile) {
             if (upload.state !== "pending" && upload.state !== "uploading") {
                 cleanupAuthHeaderFile(authHeaderFile)
@@ -703,7 +790,6 @@ QtObject {
                 return
             }
             upload.authHeaderFile = authHeaderFile
-            var uploadUrl = upload.uploadLink + (upload.uploadLink.indexOf("?") === -1 ? "?" : "&") + "ret-json=1"
             createCurlConfigFile(uploadUrl, function(curlConfigFile) {
                 if (upload.state !== "pending" && upload.state !== "uploading") { deleteFile(curlConfigFile); return }
                 if (!curlConfigFile) {
@@ -749,6 +835,53 @@ QtObject {
         })
     }
 
+    // Cross-origin upload: no auth header attached
+    function executeCurlUploadNoAuth(upload) {
+        if (upload.state !== "pending" && upload.state !== "uploading") return
+        var uploadUrl = upload.uploadLink + (upload.uploadLink.indexOf("?") === -1 ? "?" : "&") + "ret-json=1"
+        createCurlConfigFile(uploadUrl, function(curlConfigFile) {
+            if (upload.state !== "pending" && upload.state !== "uploading") { deleteFile(curlConfigFile); return }
+            if (!curlConfigFile) {
+                upload.state = "failed"
+                upload.error = "Failed to create curl configuration"
+                root.sanitizeForHistory(upload)
+                root.transferStateChanged(upload)
+                root.transfersChanged()
+                return
+            }
+            upload.curlConfigFile = curlConfigFile
+            var curlProc = uploadProcessComponent.createObject(root)
+            if (!curlProc) {
+                upload.state = "failed"
+                upload.error = "Failed to create upload process"
+                root.sanitizeForHistory(upload)
+                root.transferStateChanged(upload)
+                root.transfersChanged()
+                return
+            }
+            curlProc.transferRef = upload
+            curlProc.command = [
+                "setsid", "curl",
+                "-q",
+                "-f",
+                "-H", "Accept: application/json",
+                "--progress-bar",
+                "--form", root.curlFileForm(upload.srcPath),
+                "--form-string", "parent_dir=" + upload.destUploadPath,
+                "--form-string", "replace=0",
+                "--config", curlConfigFile,
+                "--max-filesize", root.maxUploadResponseBytes,
+                "--connect-timeout", Math.ceil(root.connectTimeoutMs / 1000),
+                "--max-time", Math.ceil(root.totalTimeoutMs / 1000),
+                "--speed-limit", root.stallSpeedBytes,
+                "--speed-time", Math.ceil(root.stallTimeMs / 1000),
+                "--no-location"
+            ]
+            upload.process = curlProc
+            curlProc.running = true
+        })
+    }
+
     function handleUploadExited(exitCode, upload) {
         var process = upload.process
         upload.process = null
@@ -763,13 +896,20 @@ QtObject {
                 response = JSON.parse(process ? process.stdout.text : "")
             } catch (e) {}
             if (process) process.destroy()
-            if (Array.isArray(response) && response.length > 0 && typeof response[0].name === "string" && response[0].name.length > 0) {
-                upload.fileName = response[0].name
-                upload.state = "completed"
-                upload.progress = 1.0
-                upload.speed = ""
-                root.sanitizeForHistory(upload)
-                root.pruneHistory()
+            if (Array.isArray(response) && response.length > 0 && response.length <= 10) {
+                var item = response[0]
+                if (item && typeof item === "object" && typeof item.name === "string" && item.name.length > 0 && item.name.length <= 1024) {
+                    upload.fileName = item.name
+                    upload.state = "completed"
+                    upload.progress = 1.0
+                    upload.speed = ""
+                    root.sanitizeForHistory(upload)
+                    root.pruneHistory()
+                } else {
+                    upload.state = "failed"
+                    upload.error = "Upload server response was invalid"
+                    root.sanitizeForHistory(upload)
+                }
             } else {
                 upload.state = "failed"
                 upload.error = "Upload server response was invalid"
@@ -968,6 +1108,15 @@ QtObject {
                         root.transfersChanged()
                         return
                     }
+                    var vUrl = UrlPolicy.validateTransferUrl(data)
+                    if (!vUrl.valid) {
+                        download.state = "failed"
+                        download.error = "Invalid download URL: " + vUrl.error
+                        root.sanitizeForHistory(download)
+                        root.transferStateChanged(download)
+                        root.transfersChanged()
+                        return
+                    }
                     download.downloadLink = data
                     download.state = "downloading"
                     root.transferStateChanged(download)
@@ -1000,6 +1149,16 @@ QtObject {
 
     function executeCurlOpenDownload(download) {
         if (download.state !== "pending" && download.state !== "downloading") return
+
+        // Only attach auth header if transfer URL is same-origin as Seafile base
+        var attachAuth = UrlPolicy.shouldAttachAuth(download.downloadLink, download.baseUrl)
+
+        if (!attachAuth) {
+            // Cross-origin: no auth header
+            executeCurlOpenDownloadNoAuth(download)
+            return
+        }
+
         createAuthHeaderFile(download.token, function(authHeaderFile) {
             if (download.state !== "pending" && download.state !== "downloading") {
                 cleanupAuthHeaderFile(authHeaderFile)
@@ -1058,6 +1217,54 @@ QtObject {
                 download.process = curlProc
                 curlProc.running = true
             })
+        })
+    }
+
+    // Cross-origin open download: no auth header attached
+    function executeCurlOpenDownloadNoAuth(download) {
+        if (download.state !== "pending" && download.state !== "downloading") return
+        createCurlConfigFile(download.downloadLink, function(curlConfigFile) {
+            if (download.state !== "pending" && download.state !== "downloading") { deleteFile(curlConfigFile); return }
+            if (!curlConfigFile) {
+                download.state = "failed"
+                download.error = "Failed to create curl configuration"
+                root.sanitizeForHistory(download)
+                root.transferStateChanged(download)
+                root.transfersChanged()
+                return
+            }
+            download.curlConfigFile = curlConfigFile
+            var curlProc = openDownloadProcessComponent.createObject(root)
+            if (!curlProc) {
+                download.state = "failed"
+                download.error = "Failed to create download process"
+                root.sanitizeForHistory(download)
+                root.transferStateChanged(download)
+                root.transfersChanged()
+                return
+            }
+            curlProc.transferRef = download
+            var scriptsBase = Qt.resolvedUrl("../scripts")
+            var outputHelper = scriptsBase + "/secure_output.py"
+            curlProc.command = [
+                "setsid", "python3",
+                outputHelper.replace(/^file:\/\//, ""),
+                download.cacheDir, "dl", "--",
+                "curl",
+                "-q",
+                "-f",
+                "-H", "Accept: */*",
+                "--progress-bar",
+                "--config", curlConfigFile,
+                "--max-filesize", root.maxTransferBytes,
+                "--connect-timeout", Math.ceil(root.connectTimeoutMs / 1000),
+                "--max-time", Math.ceil(root.totalTimeoutMs / 1000),
+                "--speed-limit", root.stallSpeedBytes,
+                "--speed-time", Math.ceil(root.stallTimeMs / 1000),
+                "--no-location"
+            ]
+            download.process = curlProc
+            curlProc.running = true
         })
     }
 

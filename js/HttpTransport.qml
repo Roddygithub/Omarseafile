@@ -190,6 +190,15 @@ QtObject {
             if (typeof val === "string") {
                 var strValidation = validateString(val)
                 if (!strValidation.valid) return { valid: false, error: "Field '" + key + "': " + strValidation.error }
+            } else if (Array.isArray(val)) {
+                var collValidation = validateCollection(val)
+                if (!collValidation.valid) return { valid: false, error: "Field '" + key + "': " + collValidation.error }
+                for (var i = 0; i < val.length; i++) {
+                    if (typeof val[i] === "object" && val[i] !== null) {
+                        var nestedValidation = validateObject(val[i])
+                        if (!nestedValidation.valid) return { valid: false, error: "Field '" + key + "[" + i + "]': " + nestedValidation.error }
+                    }
+                }
             } else if (typeof val === "object" && val !== null) {
                 var nestedValidation = validateObject(val)
                 if (!nestedValidation.valid) return { valid: false, error: "Field '" + key + "': " + nestedValidation.error }
