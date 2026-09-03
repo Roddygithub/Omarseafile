@@ -161,9 +161,11 @@ QtObject {
                     if (!vMtime.valid) { callback(false, null, "Item mtime: " + vMtime.error); return }
                     var vPerm = _optionalBoundedString(item.permission, _maxPermission)
                     if (!vPerm.valid) { callback(false, null, "Item permission: " + vPerm.error); return }
-                    var vSize = _safeNonNegativeNumber(item.size || 0)
+                    var rawSize = (item.size === undefined || item.size === null) ? 0 : item.size
+                    var vSize = _safeNonNegativeNumber(rawSize)
                     if (!vSize.valid) { callback(false, null, "Item size: " + vSize.error); return }
-                    var vStarred = _safeBoolean(item.starred || false)
+                    var rawStarred = (item.starred === undefined || item.starred === null) ? false : item.starred
+                    var vStarred = _safeBoolean(rawStarred)
                     if (!vStarred.valid) { callback(false, null, "Item starred: " + vStarred.error); return }
                     items.push({
                         type: item.type,
@@ -171,8 +173,8 @@ QtObject {
                         id: item.id,
                         mtime: item.mtime,
                         permission: item.permission,
-                        size: item.size || 0,
-                        starred: item.starred || false
+                        size: rawSize,
+                        starred: rawStarred
                     })
                 }
                 items.sort(function(a, b) {
@@ -367,8 +369,8 @@ QtObject {
                     if (!vExpireDate.valid) { callback(false, null, "Share link expire_date: " + vExpireDate.error); return }
                     var vIsExpired = _safeBoolean(link.is_expired)
                     if (!vIsExpired.valid) { callback(false, null, "Share link is_expired: " + vIsExpired.error); return }
-                    var perms = link.permissions || {}
-                    if (typeof perms !== "object" || perms === null) { callback(false, null, "Share link permissions: expected object"); return }
+                    var rawPerms = (link.permissions === undefined || link.permissions === null) ? {} : link.permissions
+                    if (typeof rawPerms !== "object" || rawPerms === null || Array.isArray(rawPerms)) { callback(false, null, "Share link permissions: expected object"); return }
                     var vPassword = _optionalBoundedString(link.password, _maxToken)
                     if (!vPassword.valid) { callback(false, null, "Share link password: " + vPassword.error); return }
                     var vCanEdit = _safeBoolean(link.can_edit)
@@ -385,7 +387,7 @@ QtObject {
                         ctime: link.ctime,
                         expire_date: link.expire_date,
                         is_expired: link.is_expired,
-                        permissions: perms,
+                        permissions: rawPerms,
                         password: link.password || "",
                         can_edit: link.can_edit
                     })
@@ -441,8 +443,8 @@ QtObject {
                     if (!vExpireDate.valid) { callback(false, null, "Share link expire_date: " + vExpireDate.error); return }
                     var vIsExpired = _safeBoolean(data.is_expired)
                     if (!vIsExpired.valid) { callback(false, null, "Share link is_expired: " + vIsExpired.error); return }
-                    var perms = data.permissions || {}
-                    if (typeof perms !== "object" || perms === null) { callback(false, null, "Share link permissions: expected object"); return }
+                    var rawPerms = (data.permissions === undefined || data.permissions === null) ? {} : data.permissions
+                    if (typeof rawPerms !== "object" || rawPerms === null || Array.isArray(rawPerms)) { callback(false, null, "Share link permissions: expected object"); return }
                     var vPassword = _optionalBoundedString(data.password, _maxToken)
                     if (!vPassword.valid) { callback(false, null, "Share link password: " + vPassword.error); return }
                     var vCanEdit = _safeBoolean(data.can_edit)
@@ -459,7 +461,7 @@ QtObject {
                         ctime: data.ctime,
                         expire_date: data.expire_date,
                         is_expired: data.is_expired,
-                        permissions: perms,
+                        permissions: rawPerms,
                         password: data.password || "",
                         can_edit: data.can_edit
                     }, null)
@@ -675,7 +677,8 @@ QtObject {
                             if (!item || typeof item !== "object") throw new Error("Invalid search result at index " + i)
                             var vPath = _boundedString(item.path, _maxPath)
                             if (!vPath.valid) throw new Error("Search result path: " + vPath.error)
-                            var vSize = _safeNonNegativeNumber(item.size || 0)
+                            var rawSize = (item.size === undefined || item.size === null) ? 0 : item.size
+                            var vSize = _safeNonNegativeNumber(rawSize)
                             if (!vSize.valid) throw new Error("Search result size: " + vSize.error)
                             var vMtime = _safeTimestamp(item.mtime)
                             if (!vMtime.valid) throw new Error("Search result mtime: " + vMtime.error)
@@ -688,7 +691,7 @@ QtObject {
                                 name: name,
                                 path: item.path,
                                 parentPath: parentPath,
-                                size: item.size || 0,
+                                size: rawSize,
                                 mtime: item.mtime,
                                 type: item.type,
                                 repoId: repoId
@@ -803,7 +806,8 @@ QtObject {
                     if (!vCommitId.valid) { callback(false, null, "Trash commit_id: " + vCommitId.error); return }
                     var vIsDir = _safeBoolean(item.is_dir)
                     if (!vIsDir.valid) { callback(false, null, "Trash is_dir: " + vIsDir.error); return }
-                    var vSize = _safeNonNegativeNumber(item.size || 0)
+                    var rawSize = (item.size === undefined || item.size === null) ? 0 : item.size
+                    var vSize = _safeNonNegativeNumber(rawSize)
                     if (!vSize.valid) { callback(false, null, "Trash size: " + vSize.error); return }
                     var vObjId = _optionalBoundedString(item.obj_id, _maxId)
                     if (!vObjId.valid) { callback(false, null, "Trash obj_id: " + vObjId.error); return }
@@ -813,7 +817,7 @@ QtObject {
                         deletedTime: item.deleted_time,
                         commitId: item.commit_id,
                         isDir: item.is_dir,
-                        size: item.size || 0,
+                        size: rawSize,
                         objId: item.obj_id || ""
                     })
                 }

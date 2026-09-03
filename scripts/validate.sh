@@ -215,6 +215,11 @@ if problems:
 sys.exit(0)
 PY
 
+# --- Security microfix tests ---
+echo ""
+echo "--- Security Microfix Tests ---"
+check "security fixes tests pass" python3 scripts/test_security_fixes.py
+
 # --- Dependency Reporting ---
 echo ""
 echo "--- Dependency Report ---"
