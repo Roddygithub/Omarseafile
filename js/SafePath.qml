@@ -109,17 +109,17 @@ QtObject {
             callback({ valid: false, error: "XDG_RUNTIME_DIR not set" })
             return
         }
+        var expectedUid = parseInt(Qt.Quickshell.env("UID"), 10)
         var proc = _statFactory.createObject(root, {
             onDone: function(out) {
                 if (!out) { callback({ valid: false, error: "Cannot stat XDG_RUNTIME_DIR" }); return }
                 var parts = out.split(" ")
                 var uid = parseInt(parts[0], 10)
-                var mode = parts[1]
-                if (uid !== Qt.Quickshell.env("UID")) {
+                var perm = parseInt(parts[1], 8)
+                if (uid !== expectedUid) {
                     callback({ valid: false, error: "XDG_RUNTIME_DIR not owned by current user" })
                     return
                 }
-                var perm = parseInt(mode.slice(-3), 8)
                 if (perm & 0o022) {
                     callback({ valid: false, error: "XDG_RUNTIME_DIR has unsafe permissions" })
                     return
@@ -133,16 +133,15 @@ QtObject {
                                 if (!out2) { callback({ valid: false, error: "Cannot verify runtime subdir" }); return }
                                 var parts2 = out2.split(" ")
                                 var uid2 = parseInt(parts2[0], 10)
-                                var mode2 = parts2[1]
-                                var perm2 = parseInt(mode2.slice(-3), 8)
-                                if (uid2 !== Qt.Quickshell.env("UID") || perm2 !== 0o700) {
+                                var perm2 = parseInt(parts2[1], 8)
+                                if (uid2 !== expectedUid || perm2 !== 0o700) {
                                     callback({ valid: false, error: "Runtime subdir has incorrect ownership or permissions" })
                                     return
                                 }
                                 callback({ valid: true, path: Qt.Quickshell.env("XDG_RUNTIME_DIR") + "/omarseafile" })
                             }
                         })
-                        verify.command = ["stat", "-c", "%u %A", Qt.Quickshell.env("XDG_RUNTIME_DIR") + "/omarseafile"]
+                        verify.command = ["stat", "-c", "%u %a", Qt.Quickshell.env("XDG_RUNTIME_DIR") + "/omarseafile"]
                         verify.running = true
                     }
                 })
@@ -150,7 +149,7 @@ QtObject {
                 mk.running = true
             }
         })
-        proc.command = ["stat", "-c", "%u %A", Qt.Quickshell.env("XDG_RUNTIME_DIR")]
+        proc.command = ["stat", "-c", "%u %a", Qt.Quickshell.env("XDG_RUNTIME_DIR")]
         proc.running = true
     }
 
