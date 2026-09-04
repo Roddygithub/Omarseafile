@@ -178,28 +178,55 @@ finally:
 # H. WRITE FAILURE CLEANUP
 # ======================================================================
 print("--- H. Write failure cleanup ---")
-# Test oversized content causes cleanup (skipped: subprocess posix_spawn
-# cannot handle 65MB+ stdin; manual verification shows correct behavior:
-# rc=1, err='Content exceeds 67108864 bytes', no leftover files)
-check("write failure cleanup (manual verified)", True)
-
-# ======================================================================
-# I. SIGTERM CLEANUP (best effort)
-# ======================================================================
-print("--- I. SIGTERM cleanup (best effort) ---")
+# Test oversized content causes cleanup - write incrementally via stdin
 tmpdir = tempfile.mkdtemp()
 try:
-    # The signal handler attempts cleanup but has a known limitation:
-    # when blocked on stdin read, the signal handler runs but the unlink
-    # may not complete due to Python signal handling semantics with
-    # blocking I/O. Normal failure paths clean up correctly.
+    # Use Popen to stream data incrementally, avoiding 65MB stdin blob
+    proc = subprocess.Popen(
+        [sys.executable, "-u", ATOMIC_WRITE, tmpdir, "huge"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    # Stream 65MB in chunks (MAXSIZE is 64 MiB)
+    # Handle early exit when process detects size limit
+    try:
+        for _ in range(65 * 16):  # 65 * 16 * 65536 = ~65 MB
+            proc.stdin.write(b"x" * 65536)
+    except BrokenPipeError:
+        # Process exited early due to size limit - this is expected
+        pass
+    try:
+        proc.stdin.close()
+    except BrokenPipeError:
+        pass
+    rc, out, err = proc.wait(), proc.stdout.read(), proc.stderr.read()
+    check("write failure: exit non-zero", rc != 0)
+    check("write failure: error mentions size", b"exceed" in err.lower() or b"size" in err.lower())
+    check("write failure: no leftover files", len(os.listdir(tmpdir)) == 0)
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+
+# ======================================================================
+# I. SIGTERM CLEANUP (deterministic)
+# ======================================================================
+print("--- I. SIGTERM cleanup ---")
+tmpdir = tempfile.mkdtemp()
+try:
     proc = subprocess.Popen(
         [sys.executable, "-u", ATOMIC_WRITE, tmpdir, "sigterm"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    time.sleep(0.3)
+    # Wait until the temp file is created (poll directory)
+    file_created = False
+    for _ in range(30):  # up to 3 seconds
+        time.sleep(0.1)
+        if any(f.startswith("sigterm_") for f in os.listdir(tmpdir)):
+            file_created = True
+            break
+    check("SIGTERM test: file created before signal", file_created)
     proc.send_signal(15)
     try:
         proc.wait(timeout=3)
@@ -207,11 +234,38 @@ try:
         proc.kill()
         proc.wait()
     remaining = [f for f in os.listdir(tmpdir) if f.startswith("sigterm_")]
-    # Best effort - document but don't fail
-    if len(remaining) == 0:
-        check("SIGTERM cleanup succeeded", True)
-    else:
-        check("SIGTERM cleanup (best effort, known limitation)", True)
+    check("SIGTERM cleanup: no leftover secret files", len(remaining) == 0)
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+
+# ======================================================================
+# I2. SIGINT CLEANUP
+# ======================================================================
+print("--- I2. SIGINT cleanup ---")
+tmpdir = tempfile.mkdtemp()
+try:
+    proc = subprocess.Popen(
+        [sys.executable, "-u", ATOMIC_WRITE, tmpdir, "sigint"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    # Wait for file creation
+    file_created = False
+    for _ in range(30):
+        time.sleep(0.1)
+        if any(f.startswith("sigint_") for f in os.listdir(tmpdir)):
+            file_created = True
+            break
+    check("SIGINT test: file created before signal", file_created)
+    proc.send_signal(2)  # SIGINT
+    try:
+        proc.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+    remaining = [f for f in os.listdir(tmpdir) if f.startswith("sigint_")]
+    check("SIGINT cleanup: no leftover secret files", len(remaining) == 0)
 finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
 

@@ -138,6 +138,14 @@ if child_pid is not None:
     except (FileNotFoundError, PermissionError):
         # Process gone, no /proc entry means reaped
         pass
+    # Check it's not a zombie
+    try:
+        with open(f"/proc/{child_pid}/status") as f:
+            status = f.read()
+        check("child is not zombie", "Z (zombie)" not in status)
+    except (FileNotFoundError, PermissionError):
+        # Process gone, no /proc entry means reaped
+        pass
 else:
     # Could not find child PID - test inconclusive, don't count as pass/fail
     pass
