@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../js"
 
 Item {
     id: root
@@ -19,7 +20,7 @@ Item {
 
         Text {
             id: text
-            text: root.message
+            text: Models.boundedDisplayText(root.message, 4096)
             color: Color.background
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.body
@@ -27,6 +28,7 @@ Item {
             anchors.centerIn: parent
             wrapMode: Text.WordWrap
             width: parent.width - Style.space(24)
+            textFormat: Text.PlainText
         }
     }
 }

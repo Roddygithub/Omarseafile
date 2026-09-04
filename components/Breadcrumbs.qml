@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../js"
 
 Item {
     id: root
@@ -24,7 +25,7 @@ Item {
 
                 Text {
                     id: segmentLabel
-                    text: modelData.name
+                    text: Models.boundedDisplayText(modelData.name, 1024)
                     color: index === root.path.length - 1 ? root.bar.foreground : Qt.darker(root.bar.foreground, 1.4)
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
@@ -32,6 +33,7 @@ Item {
                     elide: Text.ElideRight
                     width: parent.width - (index < root.path.length - 1 ? separator.implicitWidth : 0)
                     anchors.verticalCenter: parent.verticalCenter
+                    textFormat: Text.PlainText
 
                     MouseArea {
                         anchors.fill: parent

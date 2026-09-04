@@ -95,17 +95,18 @@ Column {
 
                         Text {
                             id: nameLabel
-                            text: trashItem.objName
+                            text: Models.boundedDisplayText(trashItem.objName, 1024)
                             color: root.bar.foreground
                             font.family: root.bar.fontFamily
                             font.pixelSize: Style.font.body
                             elide: Text.ElideRight
                             width: parent.width
+                            textFormat: Text.PlainText
                         }
 
                         Text {
                             id: detailLabel
-                            text: {
+                            text: Models.boundedDisplayText((function() {
                                 var parts = []
                                 if (trashItem.deletedTime) {
                                     var date = new Date(trashItem.deletedTime * 1000)
@@ -116,13 +117,14 @@ Column {
                                 }
                                 parts.push(isDir ? "Folder" : "File")
                                 return parts.join(" \u2022 ")
-                            }
+                            })(), 1024)
                             color: Qt.darker(root.bar.foreground, 1.4)
                             font.family: root.bar.fontFamily
                             font.pixelSize: Style.font.caption
                             elide: Text.ElideRight
                             width: parent.width
                             visible: text !== ""
+                            textFormat: Text.PlainText
                         }
                     }
 

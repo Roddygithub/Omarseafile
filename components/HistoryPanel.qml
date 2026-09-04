@@ -43,7 +43,7 @@ Column {
             spacing: Style.space(8)
 
             Text {
-                text: "History: " + root.fileName
+                text: Models.boundedDisplayText("History: " + root.fileName, 1024)
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.title
@@ -108,11 +108,12 @@ Column {
                             font.bold: isCurrent
                             elide: Text.ElideRight
                             width: parent.width
+                            textFormat: Text.PlainText
                         }
 
                         Text {
                             id: descLabel
-                            text: revision.desc || ""
+                            text: Models.boundedDisplayText(revision.desc || "", 1024)
                             color: Qt.darker(root.bar.foreground, 1.4)
                             font.family: root.bar.fontFamily
                             font.pixelSize: Style.font.caption

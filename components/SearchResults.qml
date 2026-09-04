@@ -52,7 +52,7 @@ ListView {
 
                 Text {
                     id: nameLabel
-                    text: delegate.modelData.name
+                    text: Models.boundedDisplayText(delegate.modelData.name, 1024)
                     color: delegate.bar.foreground
                     font.family: delegate.bar.fontFamily
                     font.pixelSize: Style.font.body
@@ -63,7 +63,7 @@ ListView {
 
                 Text {
                     id: pathLabel
-                    text: delegate.repoName + " \u2022 " + delegate.modelData.parentPath
+                    text: Models.boundedDisplayText(delegate.repoName + " \u2022 " + delegate.modelData.parentPath, 4096)
                     color: Qt.darker(delegate.bar.foreground, 1.4)
                     font.family: delegate.bar.fontFamily
                     font.pixelSize: Style.font.caption
@@ -83,6 +83,7 @@ ListView {
                 width: Style.space(80)
                 horizontalAlignment: Text.AlignRight
                 anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
             }
         }
 

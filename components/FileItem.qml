@@ -77,7 +77,7 @@ Item {
 
         Text {
             id: nameLabel
-            text: safeItem.name || ""
+            text: Models.boundedDisplayText(safeItem.name || "", 1024)
             color: root.isSelected ? Color.accent : (root.bar ? root.bar.foreground : Color.foreground)
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.body

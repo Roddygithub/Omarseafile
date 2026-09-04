@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../js"
 
 Item {
     id: root
@@ -28,7 +29,7 @@ Item {
         }
 
         Text {
-            text: root.message
+            text: Models.boundedDisplayText(root.message, 4096)
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body

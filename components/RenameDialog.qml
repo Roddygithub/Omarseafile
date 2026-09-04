@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../js"
 
 Item {
     id: root
@@ -30,11 +31,12 @@ Item {
         width: Math.min(parent.width, Style.space(400))
 
         Text {
-            text: root.title
+            text: Models.boundedDisplayText(root.title, 1024)
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.display
             font.bold: true
+            textFormat: Text.PlainText
         }
 
         TextField {
@@ -58,6 +60,9 @@ Item {
             font.pixelSize: Style.font.caption
             visible: text !== ""
             wrapMode: Text.WordWrap
+            textFormat: Text.PlainText
+            text: Models.boundedDisplayText(errorText._raw, 4096)
+            property string _raw: ""
         }
 
         Row {

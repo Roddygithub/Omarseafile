@@ -513,16 +513,18 @@ Panel {
                                 font.family: root.bar.fontFamily
                                 font.pixelSize: Style.font.caption
                                 horizontalAlignment: Text.AlignHCenter
+                                textFormat: Text.PlainText
                             }
                             Text {
                                 width: parent.width
-                                text: root.currentRepo ? root.currentRepo.name + (root.currentPath === "/" ? " /" : " / " + root.currentPath.substring(1)) : ""
+                                text: Models.boundedDisplayText(root.currentRepo ? root.currentRepo.name + (root.currentPath === "/" ? " /" : " / " + root.currentPath.substring(1)) : "", 4096)
                                 color: Qt.darker(root.bar.foreground, 1.3)
                                 font.family: root.bar.fontFamily
                                 font.pixelSize: Style.font.caption
                                 font.bold: true
                                 elide: Text.ElideMiddle
                                 horizontalAlignment: Text.AlignHCenter
+                                textFormat: Text.PlainText
                             }
                             Row {
                                 width: parent.width
@@ -608,6 +610,7 @@ Panel {
                             horizontalAlignment: Text.AlignHCenter
                             anchors.horizontalCenter: parent.horizontalCenter
                             topPadding: Style.space(4)
+                            textFormat: Text.PlainText
                         }
 
                         ErrorOverlay {
@@ -753,7 +756,7 @@ Panel {
             bar: root.bar
             // Canonical item-context shape: { items: [...], isDir }. The legacy
             // { item } field is honored only as a safety fallback.
-            message: {
+            message: Models.boundedDisplayText((function() {
                 var d = root.deleteItemData
                 if (!d) return "Are you sure?"
                 var list = d.items && d.items.length > 0 ? d.items : (d.item ? [d.item] : [])
@@ -761,7 +764,7 @@ Panel {
                 if (list.length > 1) return "Delete " + list.length + " item(s)?"
                 var it = list[0]
                 return "Delete " + (it.type === "dir" ? "folder" : "file") + " \"" + (it.name || "") + "\"?"
-            }
+            })(), 4096)
             onConfirm: function() { root.confirmDelete() }
             onCancel: function() { root.cancelDelete() }
         }
