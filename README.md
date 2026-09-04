@@ -53,7 +53,7 @@ omarchy plugin update roddy.seafile
 2. Enter the server URL, email, and password.
 3. Select **Connect**.
 
-HTTPS is recommended. HTTP URLs are accepted with a warning. The URL is normalized and validated before authentication. Auto-login can be enabled or disabled in Settings.
+HTTPS is required for non-loopback servers. HTTP is accepted only for loopback addresses (localhost, 127.0.0.1). The URL is normalized and validated before authentication. Auto-login can be enabled or disabled in Settings.
 
 The session token, server URL, and account email are stored through the desktop Secret Service using `secret-tool`. The login password is not persisted.
 
@@ -114,7 +114,7 @@ Shortcuts are contextual and are not intercepted while a text field has focus. S
 - Copy and Move are limited to the current source library.
 - Seafile CE support depends on the server's enabled APIs. In the tested CE 12.0.x environment, trash restore and revision revert are unavailable; repo-scoped search returns all matching results without pagination.
 - Large uploads use a single request rather than chunked or resumable upload.
-- HTTPS is strongly recommended. Certificate verification uses the system trust store; TLS verification is not bypassed.
+- HTTPS is required for non-loopback servers. Certificate verification uses the system trust store; TLS verification is not bypassed.
 - The plugin assumes Omarchy's Quickshell runtime and Wayland desktop integration.
 
 ## Troubleshooting
@@ -122,7 +122,7 @@ Shortcuts are contextual and are not intercepted while a text field has focus. S
 | Problem | Action |
 | --- | --- |
 | Missing dependency | Install `curl`, `libsecret`, and optionally `wl-clipboard`. |
-| Invalid URL | Include an `http://` or `https://` scheme and check the server address. |
+| Invalid URL | Include an `https://` scheme and check the server address. HTTP is only allowed for loopback. |
 | Authentication failure | Check the credentials and try the Seafile web interface. |
 | TLS failure | Use a certificate trusted by the system; do not disable verification. |
 | Auto-login failure | Check that Secret Service is available and Auto-login is enabled in Settings. |

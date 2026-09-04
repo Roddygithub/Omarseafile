@@ -175,6 +175,12 @@ QtObject {
 
     // ===== COMMON =====
 
+    // Defense-in-depth: reject non-loopback HTTP before token-bearing transfer requests.
+    function _authUrlPolicy(baseUrl) {
+        if (!baseUrl) return { valid: false, error: "No server URL configured" }
+        return UrlPolicy.validateForAuth(baseUrl)
+    }
+
     function parseError(response) {
         if (!response) return "Unknown error"
         if (typeof response === "string") return response
@@ -428,6 +434,15 @@ QtObject {
 
     function getDownloadLinkAndExecute(download) {
         if (download.state === "cancelled") return
+        var policy = root._authUrlPolicy(download.baseUrl)
+        if (!policy.valid) {
+            download.state = "failed"
+            download.error = policy.error
+            root.sanitizeForHistory(download)
+            root.transferStateChanged(download)
+            root.transfersChanged()
+            return
+        }
         var path = download.fullPath || "/" + download.fileName
         var url = download.baseUrl.replace(/\/+$/, "") + "/api2/repos/" + download.repoId + "/file/?p=" + encodeURIComponent(path) + "&reuse=1"
         HttpTransport.get(url, { "Authorization": "Token " + download.token, "Accept": "application/json" },
@@ -726,6 +741,15 @@ QtObject {
 
     function getUploadLinkAndExecute(upload) {
         if (upload.state === "cancelled") return
+        var policy = root._authUrlPolicy(upload.baseUrl)
+        if (!policy.valid) {
+            upload.state = "failed"
+            upload.error = policy.error
+            root.sanitizeForHistory(upload)
+            root.transferStateChanged(upload)
+            root.transfersChanged()
+            return
+        }
         var url = upload.baseUrl.replace(/\/+$/, "") + "/api2/repos/" + upload.repoId + "/upload-link/?p=" + encodeURIComponent(upload.destUploadPath)
         HttpTransport.get(url, { "Authorization": "Token " + upload.token, "Accept": "application/json" },
             function(success, data, error) {
@@ -1113,6 +1137,15 @@ QtObject {
 
     function getDownloadLinkAndOpen(download) {
         if (download.state === "cancelled") return
+        var policy = root._authUrlPolicy(download.baseUrl)
+        if (!policy.valid) {
+            download.state = "failed"
+            download.error = policy.error
+            root.sanitizeForHistory(download)
+            root.transferStateChanged(download)
+            root.transfersChanged()
+            return
+        }
         var path = download.fullPath || "/" + download.fileName
         var url = download.baseUrl.replace(/\/+$/, "") + "/api2/repos/" + download.repoId + "/file/?p=" + encodeURIComponent(path) + "&reuse=1"
         HttpTransport.get(url, { "Authorization": "Token " + download.token, "Accept": "application/json" },

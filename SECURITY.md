@@ -14,7 +14,7 @@ Please report suspected vulnerabilities privately through the repository's GitHu
 - Transfer authentication and server-provided transfer URLs are kept out of process arguments and environment variables.
 - Temporary authorization header and curl configuration files are created with mode 0600 and removed after use, including failure and cancellation paths.
 - Transfer processes disable user curl configuration and do not follow redirects, so a custom authorization header is not forwarded to another origin.
-- TLS certificate verification is not disabled. HTTPS is recommended; HTTP is accepted only with a warning.
+- TLS certificate verification is not disabled. HTTPS is required for non-loopback servers; HTTP is accepted only for loopback (localhost, 127.0.0.1, ::1).
 - The plugin has no telemetry service. Network requests are made to the Seafile server configured by the user and to local desktop utilities such as `wl-copy`.
 
 These are implementation goals and documented behavior, not a guarantee against abrupt host/process termination or a compromised host or Seafile server. Keep Omarchy, Quickshell, Seafile, and the host system updated.
