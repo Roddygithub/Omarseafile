@@ -34,6 +34,7 @@ if $DRY_RUN; then
     --exclude='README.md' \
     --exclude='deploy.sh' \
     --exclude='.gitignore' \
+    --exclude='__pycache__/' \
     "$REPO_DIR/" "$PLUGIN_DIR/")"
   if [[ -n "$CHANGES" ]]; then
     printf '%s\n' "$CHANGES"
@@ -51,6 +52,7 @@ else
     --exclude='README.md' \
     --exclude='deploy.sh' \
     --exclude='.gitignore' \
+    --exclude='__pycache__/' \
     "$REPO_DIR/" "$PLUGIN_DIR/"
   echo ""
   echo "Deploy complete."
