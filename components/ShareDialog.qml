@@ -196,12 +196,13 @@ Item {
         }
 
         Text {
-            text: root.isDir ? "Folder: " + root.item.name : "File: " + root.item.name
+            text: root.isDir ? "Folder: " + Models.boundedDisplayText(root.item.name, 1024) : "File: " + Models.boundedDisplayText(root.item.name, 1024)
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
             elide: Text.ElideRight
             width: parent.width
+            textFormat: Text.PlainText
         }
 
         // Loading indicator
@@ -215,13 +216,14 @@ Item {
 
         // Error message
         Text {
-            text: root.errorMessage
+            text: Models.boundedDisplayText(root.errorMessage, 4096)
             color: Color.urgent
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
             visible: root.errorMessage !== ""
             wrapMode: Text.WordWrap
             width: parent.width
+            textFormat: Text.PlainText
         }
 
         // Existing links list
@@ -250,13 +252,14 @@ Item {
                         spacing: Style.space(8)
 
                         Text {
-                            text: modelData.link
+                            text: Models.boundedDisplayText(modelData.link, 8192)
                             color: root.bar.foreground
                             font.family: root.bar.fontFamily
                             font.pixelSize: Style.font.caption
                             elide: Text.ElideRight
                             width: parent.width - copyBtn.width - deleteBtn.width - Style.space(16)
                             anchors.verticalCenter: parent.verticalCenter
+                            textFormat: Text.PlainText
 
                             MouseArea {
                                 anchors.fill: parent
@@ -286,7 +289,7 @@ Item {
                     }
 
                     Text {
-                        text: {
+                        text: Models.boundedDisplayText((function() {
                             var info = []
                             if (modelData.expire_date) {
                                 info.push("Expires: " + modelData.expire_date.split("T")[0])
@@ -302,11 +305,12 @@ Item {
                                 if (perms.length > 0) info.push(perms.join(", "))
                             }
                             return info.join(" | ")
-                        }
+                        })(), 1024)
                         color: Qt.darker(root.bar.foreground, 1.4)
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
                         visible: text !== ""
+                        textFormat: Text.PlainText
                     }
                 }
             }
@@ -523,13 +527,14 @@ Item {
                     spacing: Style.space(8)
 
                     Text {
-                        text: root.shareUrl
+                        text: Models.boundedDisplayText(root.shareUrl, 8192)
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
                         elide: Text.ElideRight
                         width: parent.width - copyCreatedBtn.width - Style.space(8)
                         anchors.verticalCenter: parent.verticalCenter
+                        textFormat: Text.PlainText
 
                         MouseArea {
                             anchors.fill: parent

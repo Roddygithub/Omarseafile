@@ -63,6 +63,7 @@ Column {
                 font.pixelSize: Style.font.caption
                 font.bold: true
                 anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
             }
         }
 
@@ -95,6 +96,7 @@ Column {
                 font.pixelSize: Style.font.caption
                 font.bold: true
                 anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
             }
 
             Item { width: parent.width - clearCompletedBtn.width - Style.space(20); height: 1 }
@@ -145,6 +147,7 @@ Column {
                 font.pixelSize: Style.font.caption
                 font.bold: true
                 anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
             }
 
             Item { width: parent.width - clearFailedBtn.width - Style.space(20); height: 1 }

@@ -49,7 +49,7 @@ Item {
 
             Text {
                 id: nameLabel
-                text: root.transfer.fileName || "Unknown"
+                text: Models.boundedDisplayText(root.transfer.fileName || "Unknown", 1024)
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.body
@@ -60,7 +60,7 @@ Item {
 
             Text {
                 id: detailLabel
-                text: {
+                text: Models.boundedDisplayText((function() {
                     if (root.isActive) {
                         var parts = []
                         if (root.transfer.progress > 0) parts.push(Math.round(root.transfer.progress * 100) + "%")
@@ -72,7 +72,7 @@ Item {
                         return root.transfer.error || "Failed"
                     }
                     return ""
-                }
+                })(), 4096)
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption

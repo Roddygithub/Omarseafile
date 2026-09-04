@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../js"
 
 Item {
     id: root
@@ -23,7 +24,7 @@ Item {
         spacing: Style.space(16)
 
         Text {
-            text: root.message
+            text: Models.boundedDisplayText(root.message, 4096)
             color: Color.urgent
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.body

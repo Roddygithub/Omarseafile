@@ -117,12 +117,13 @@ Item {
             Text {
                 id: connectionTestResult
                 width: parent.width
-                text: root.connectionTestMessage
+                text: Models.boundedDisplayText(root.connectionTestMessage, 4096)
                 color: root.connectionTestSuccess ? Style.green : (root.connectionTestRunning ? Qt.darker(root.bar.foreground, 1.3) : Color.urgent)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
                 wrapMode: Text.WordWrap
                 visible: text !== ""
+                textFormat: Text.PlainText
             }
 
         }
@@ -162,12 +163,13 @@ Item {
                         width: Style.space(24)
                     }
                     Text {
-                        text: root.accountEmail || Auth.cachedEmail || "Not signed in"
+                        text: Models.boundedDisplayText(root.accountEmail || Auth.cachedEmail || "Not signed in", 320)
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.body
                         elide: Text.ElideRight
                         anchors.verticalCenter: parent.verticalCenter
+                        textFormat: Text.PlainText
                     }
                 }
             }
@@ -281,10 +283,11 @@ Item {
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: "Omarseafile v" + root.pluginVersion + "\nSeafile client for Omarchy\n\nReport issues: https://github.com/Roddygithub/Omarseafile/issues"
+                text: Models.boundedDisplayText("Omarseafile v" + root.pluginVersion + "\nSeafile client for Omarchy\n\nReport issues: https://github.com/Roddygithub/Omarseafile/issues", 1024)
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
+                textFormat: Text.PlainText
             }
         }
 

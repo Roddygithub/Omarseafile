@@ -34,6 +34,7 @@ Item {
             font.pixelSize: Style.font.caption
             font.bold: true
             anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
         }
 
         Item {

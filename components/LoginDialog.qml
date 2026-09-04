@@ -59,7 +59,8 @@ Item {
             font.pixelSize: Style.font.caption
             visible: root.depErrorMessage !== ""
             wrapMode: Text.WordWrap
-            text: root.depErrorMessage
+            text: Models.boundedDisplayText(root.depErrorMessage, 4096)
+            textFormat: Text.PlainText
         }
 
         TextField {
@@ -112,6 +113,9 @@ Item {
             font.pixelSize: Style.font.caption
             visible: text !== ""
             wrapMode: Text.WordWrap
+            textFormat: Text.PlainText
+            text: Models.boundedDisplayText(errorText._raw, 4096)
+            property string _raw: ""
         }
 
         Button {

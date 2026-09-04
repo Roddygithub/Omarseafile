@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../js"
 
 Item {
     id: root
@@ -28,21 +29,23 @@ Item {
         }
 
         Text {
-            text: root.title
+            text: Models.boundedDisplayText(root.title, 1024)
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
             font.bold: true
             anchors.horizontalCenter: parent.horizontalCenter
+            textFormat: Text.PlainText
         }
 
         Text {
-            text: root.subtitle
+            text: Models.boundedDisplayText(root.subtitle, 1024)
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
             anchors.horizontalCenter: parent.horizontalCenter
             visible: root.subtitle !== ""
+            textFormat: Text.PlainText
         }
 
         Button {
