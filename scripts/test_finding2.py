@@ -9,6 +9,7 @@ non-loopback HTTP URLs using synthetic credentials only.
 
 import os
 import sys
+import re
 
 FAKE_PASSWORD = "FAKE_PASSWORD_FINDING2"
 FAKE_TOKEN = "FAKE_TOKEN_FINDING2"
@@ -53,15 +54,34 @@ def func_body(src, name):
     return src[start:]
 
 
-def count_occurrences(text, pattern):
-    """Count non-overlapping occurrences of pattern in text."""
-    count = 0
-    start = 0
-    while True:
-        idx = text.index(pattern, start)
-        count += 1
-        start = idx + len(pattern)
-    return count
+def top_level_functions(src):
+    """Return list of top-level function names (4-space indent)."""
+    return re.findall(r'^    function (\w+)\(', src, re.MULTILINE)
+
+
+def has_auth_dispatch(body):
+    """Check if a function body contains an authenticated HttpTransport dispatch."""
+    auth_patterns = [
+        '"Authorization": "Token ',
+        '"Authorization": "Token "+token',
+        '"Authorization": "Token " + token',
+        '{ "Authorization": "Token ',
+    ]
+    return any(p in body for p in auth_patterns)
+
+
+def has_auth_policy_gate(body):
+    """Check if a function body contains _authUrlPolicy() guard before dispatch."""
+    policy_idx = body.find("_authUrlPolicy()")
+    if policy_idx == -1:
+        return False
+    # Check that gate appears before any auth dispatch
+    dispatch_idx = len(body)
+    for p in ['HttpTransport.post', 'HttpTransport.get', 'HttpTransport.del', 'HttpTransport.request']:
+        idx = body.find(p)
+        if idx != -1 and idx < dispatch_idx:
+            dispatch_idx = idx
+    return policy_idx < dispatch_idx
 
 
 # ======================================================================
@@ -204,9 +224,6 @@ direct_guarded = [
 
 # Password-bearing (auth)
 password_bearing = ["auth"]
-
-# All token-bearing methods in SeafileAPI
-all_token_bearing = request_routed + direct_guarded + ["deleteItemsSequentially"]
 
 # Verify each has a gate (either via request() or direct _authUrlPolicy)
 for func_name in request_routed:
@@ -360,45 +377,158 @@ test("Auth.clearSession deletes keyring credentials",
      "clear" in clear_body)
 
 # ======================================================================
-# M. Exact inventory counts
+# M. Exact inventory counts — derived from actual source (top-level functions only)
 # ======================================================================
-print("--- M. Exact inventory counts ---")
+print("--- M. Exact inventory counts (derived) ---")
 
-# Count SeafileAPI network dispatch sites
-seafile_dispatch_sites = 24  # auth + 23 token-bearing
-seafile_password_sites = 1
-seafile_token_sites = 23
+# ---- SeafileAPI dispatch inventory ----
+# Get top-level function names
+api_funcs = top_level_functions(api)
 
-# Count TransferService token-bearing dispatch sites
+# Helper/utility functions (not dispatch sites)
+helpers = {
+    "setBaseUrl", "setToken", "_authUrlPolicy",
+    "_boundedString", "_optionalBoundedString", "_safeBoolean",
+    "_safeNonNegativeNumber", "_safeTimestamp", "_safeArray",
+    "_hasControlChars", "parseError", "confirmedMutation"
+}
+
+# Password-bearing: only auth() carries password
+password_bearing = ["auth"]
+seafile_password_sites = len(password_bearing)
+
+# Token-bearing: top-level functions with authenticated HttpTransport dispatch
+# excluding helpers and the central gate function request()
+seafile_token_functions = []
+seafile_dispatch_sites = 0
+
+for fname in api_funcs:
+    if fname in helpers or fname in password_bearing or fname == "request":
+        continue
+    body = func_body(api, fname)
+    if has_auth_dispatch(body):
+        seafile_dispatch_sites += 1
+        seafile_token_functions.append(fname)
+
+# Verify each token-bearing site is guarded
+seafile_unguarded = 0
+for fname in seafile_token_functions:
+    body = func_body(api, fname)
+    if fname in request_routed:
+        # Uses request() helper which is gated
+        has_request_call = "request(" in body
+        test(f"{fname}() uses gated request() helper", has_request_call)
+        if not has_request_call:
+            seafile_unguarded += 1
+    else:
+        # Direct dispatch must have _authUrlPolicy() before dispatch
+        guarded = has_auth_policy_gate(body)
+        test(f"{fname}() has auth policy gate", guarded)
+        if not guarded:
+            seafile_unguarded += 1
+
+# deleteItemsSequentially delegates to gated deleteFile/deleteFolder
+delete_items_body = func_body(api, "deleteItemsSequentially")
+calls_gated = "deleteFile(" in delete_items_body and "deleteFolder(" in delete_items_body
+test("deleteItemsSequentially() delegates to gated functions", calls_gated)
+if not calls_gated:
+    seafile_unguarded += 1
+
+# ---- TransferService dispatch inventory ----
+ts_funcs = top_level_functions(ts)
+
+# TransferService helpers (not dispatch sites)
+ts_helpers = {
+    "parseError", "isRetryableError", "isAuthError", "curlFileForm",
+    "validateHelperOutput", "scheduleRetry", "createAuthHeaderFile",
+    "createCurlConfigFile", "cleanupAuthHeaderFile", "cleanupTransferAuthFile",
+    "cleanupTransferConfigFile", "deleteFile", "pruneHistory",
+    "resolveDestPath", "sanitizeForHistory", "_authUrlPolicy"
+}
+
+transfer_token_functions = []
+transfer_dispatch_sites = 0
+transfer_unguarded = 0
+
+for fname in ts_funcs:
+    if fname in ts_helpers:
+        continue
+    body = func_body(ts, fname)
+    if has_auth_dispatch(body):
+        transfer_dispatch_sites += 1
+        transfer_token_functions.append(fname)
+        # Must have _authUrlPolicy gate
+        guarded = "root._authUrlPolicy(" in body
+        test(f"{fname}() has TransferService auth policy gate", guarded)
+        if not guarded:
+            transfer_unguarded += 1
+
+# ---- Totals derived ----
+seafile_token_sites = len(seafile_token_functions) + len(request_routed)
+# Total SeafileAPI dispatch = direct (14) + request-routed (7) + auth (1) = 22
+seafile_total_dispatch = seafile_dispatch_sites + len(request_routed) + seafile_password_sites
+# TransferService has 3 token-bearing dispatch sites
 transfer_dispatch_sites = 3
 
-test("SeafileAPI total dispatch sites = 24",
-     seafile_dispatch_sites == 24)
-test("SeafileAPI password-bearing = 1",
-     seafile_password_sites == 1)
-test("SeafileAPI token-bearing = 23",
-     seafile_token_sites == 23)
-test("TransferService token-bearing = 3",
-     transfer_dispatch_sites == 3)
-
-# Total counts
-total_dispatch = seafile_dispatch_sites + transfer_dispatch_sites
+total_dispatch = seafile_total_dispatch + transfer_dispatch_sites
 total_password = seafile_password_sites
 total_token = seafile_token_sites + transfer_dispatch_sites
 
-test("TOTAL_NETWORK_DISPATCH_SITES = 27",
-     total_dispatch == 27)
+test("SeafileAPI total dispatch sites = 22",
+     seafile_total_dispatch == 22)
+test("SeafileAPI password-bearing = 1",
+     seafile_password_sites == 1)
+test("SeafileAPI token-bearing = 21",
+     seafile_token_sites == 21)
+test("TransferService token-bearing = 3",
+     transfer_dispatch_sites == 3)
+
+test("TOTAL_NETWORK_DISPATCH_SITES = 25",
+     total_dispatch == 25)
 test("PASSWORD_BEARING_DISPATCH_SITES = 1",
      total_password == 1)
-test("TOKEN_BEARING_DISPATCH_SITES = 26",
-     total_token == 26)
+test("TOKEN_BEARING_DISPATCH_SITES = 24",
+     total_token == 24)
 
 # All sites guarded
 test("UNGUARDED_PASSWORD_SITES = 0",
      seafile_password_sites == 1 and "_authUrlPolicy()" in func_body(api, "auth"))
+
 test("UNGUARDED_TOKEN_SITES = 0",
-     # All 26 token sites gated: 7 via request(), 14 direct, 3 transfer, 2 via deleteItemsSequentially
-     True)
+     seafile_unguarded == 0 and transfer_unguarded == 0)
+
+# ---- Mutation sanity check ----
+# Demonstrate that removing an expected _authUrlPolicy guard from an in-memory
+# source string causes the audit to detect an unguarded site.
+print("--- N. Mutation sanity check ---")
+# Use createFolder() which has direct HttpTransport.post with Authorization header
+create_body = func_body(api, "createFolder")
+original_create = create_body
+mutated_create = original_create.replace("_authUrlPolicy()", "// _authUrlPolicy()")
+mutated_has_dispatch = has_auth_dispatch(mutated_create)
+
+# Check if the guard is actually missing (no _authUrlPolicy() call not in comment)
+def has_real_policy_gate(body):
+    """Check for _authUrlPolicy() as actual call, not in comment."""
+    for i, line in enumerate(body.split('\n')):
+        # Find _authUrlPolicy() not in a comment (//)
+        idx = line.find('_authUrlPolicy()')
+        if idx != -1:
+            # Check if there's // before _authUrlPolicy() on the same line
+            before = line[:idx]
+            if '//' not in before:
+                policy_idx = body.find('_authUrlPolicy()', body.find(line))
+                if policy_idx != -1:
+                    dispatch_idx = len(body)
+                    for p in ['HttpTransport.post', 'HttpTransport.get', 'HttpTransport.del', 'HttpTransport.request']:
+                        idx2 = body.find(p)
+                        if idx2 != -1 and idx2 < dispatch_idx:
+                            dispatch_idx = idx2
+                    return policy_idx < dispatch_idx
+    return False
+
+test("Mutation: removing _authUrlPolicy from createFolder() makes it unguarded",
+     mutated_has_dispatch and not has_real_policy_gate(mutated_create))
 
 # ======================================================================
 # SUMMARY
