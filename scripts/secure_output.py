@@ -2,12 +2,15 @@
 """Securely stream curl output to an exclusively-created temporary file.
 
 Usage:
-  secure_output.py <outdir> <prefix> -- <curl args...>
+  secure_output.py <outdir> <prefix> [--max-stderr-bytes N] -- <curl args...>
 
 Creates a fresh temp file in <outdir> with exclusive creation (O_CREAT|O_EXCL|O_NOFOLLOW)
 relative to a held directory FD, mode 0600. Streams curl body into the held fd
 (via stdout redirection, never a pathname re-open). On success, prints ONLY the
 basename of the created file to stdout. curl's stderr (progress) is passed through.
+
+Optional --max-stderr-bytes N: hard producer-side byte ceiling on forwarded
+stderr. Overflow truncates and returns exit 1.
 
 This removes the TOCTOU/symlink race of pathname-based `--output <path>`.
 """
@@ -17,6 +20,7 @@ import secrets
 import subprocess
 import signal
 import errno
+import threading
 
 _cancelled = [False]
 _child_pid = [None]
@@ -37,22 +41,43 @@ def _validate_basename(basename: str) -> bool:
     return True
 
 def _signal_handler(signum, frame):
-    """Signal handler: mark cancellation, terminate child if running."""
+    """Signal handler: mark cancellation, terminate child process group."""
     _cancelled[0] = True
     pid = _child_pid[0]
     if pid is not None:
         try:
-            os.kill(pid, signal.SIGTERM)
+            os.killpg(os.getpgid(pid), signal.SIGTERM)
         except OSError:
             pass
 
 def main():
-    if len(sys.argv) < 5 or sys.argv[3] != "--":
-        sys.stderr.write("usage: secure_output.py <outdir> <prefix> -- <curl args...>\n")
+    # Parse optional --max-stderr-bytes before the -- separator
+    max_stderr_bytes = None
+    args = sys.argv[1:]
+    dash_idx = args.index("--") if "--" in args else -1
+    if dash_idx > 0:
+        before = args[:dash_idx]
+        after = args[dash_idx:]
+        kept = []
+        i = 0
+        while i < len(before):
+            if before[i] == "--max-stderr-bytes" and i + 1 < len(before):
+                try:
+                    max_stderr_bytes = int(before[i + 1])
+                except ValueError:
+                    pass
+                i += 2
+            else:
+                kept.append(before[i])
+                i += 1
+        args = kept + after
+
+    if len(args) < 4 or args[2] != "--":
+        sys.stderr.write("usage: secure_output.py <outdir> <prefix> [--max-stderr-bytes N] -- <curl args...>\n")
         return 2
 
-    outdir, prefix = sys.argv[1], sys.argv[2]
-    curl_args = sys.argv[4:]
+    outdir, prefix = args[0], args[1]
+    curl_args = args[3:]
 
     # Open output directory with O_DIRECTORY|O_NOFOLLOW to avoid symlink races
     try:
@@ -108,6 +133,7 @@ def main():
     signal.signal(signal.SIGTERM, _signal_handler)
     signal.signal(signal.SIGINT, _signal_handler)
 
+    stderr_truncated = False
     try:
         # Spawn curl child, streaming body into the held fd
         proc = subprocess.Popen(
@@ -118,37 +144,43 @@ def main():
         )
         _child_pid[0] = proc.pid
 
-        # Wait for curl to complete, forwarding progress from stderr
-        while True:
+        # Forward stderr in a thread so signal handlers can fire during reads
+        stderr_fwd = [0]
+        stderr_truncated = [False]
+        stderr_lock = threading.Lock()
+
+        def _forward_stderr():
             try:
-                line = proc.stderr.readline()
-            except (OSError, IOError) as e:
-                if e.errno == errno.EINTR:
-                    if _cancelled[0]:
+                while True:
+                    line = proc.stderr.readline()
+                    if not line:
                         break
-                    continue
-                raise
+                    with stderr_lock:
+                        if not stderr_truncated[0] and (
+                            max_stderr_bytes is None or
+                            stderr_fwd[0] + len(line) <= max_stderr_bytes
+                        ):
+                            sys.stderr.buffer.write(line)
+                            sys.stderr.buffer.flush()
+                            stderr_fwd[0] += len(line)
+                        else:
+                            stderr_truncated[0] = True
+            except Exception:
+                pass
 
-            if not line and proc.poll() is not None:
-                break
-            if line:
-                sys.stderr.buffer.write(line)
-                sys.stderr.buffer.flush()
-
-            if _cancelled[0]:
-                try:
-                    os.kill(proc.pid, signal.SIGTERM)
-                except OSError:
-                    pass
+        stderr_thread = threading.Thread(target=_forward_stderr, daemon=True)
+        stderr_thread.start()
 
         rc = proc.wait()
         _child_pid[0] = None
+        stderr_thread.join(timeout=5)
+        stderr_truncated = stderr_truncated[0]
 
     except Exception as e:
         sys.stderr.write(f"child execution failed: {e}\n")
         if _child_pid[0] is not None:
             try:
-                os.kill(_child_pid[0], signal.SIGTERM)
+                os.killpg(os.getpgid(_child_pid[0]), signal.SIGTERM)
             except OSError:
                 pass
             try:
@@ -164,7 +196,7 @@ def main():
         except OSError:
             pass
 
-    if _cancelled[0] or rc != 0:
+    if _cancelled[0] or rc != 0 or stderr_truncated:
         # On cancellation or curl failure: unlink temp file
         if basename is not None:
             try:
@@ -175,7 +207,7 @@ def main():
             os.close(dir_fd)
             return 128 + signal.SIGTERM
         os.close(dir_fd)
-        return rc
+        return 1 if stderr_truncated else rc
 
     # Success: print ONLY the basename (validated, no path components)
     if _validate_basename(basename):

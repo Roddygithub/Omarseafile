@@ -21,6 +21,8 @@ QtObject {
     property int totalTimeoutMs: 30 * 60 * 1000
     property int stallSpeedBytes: 1
     property int stallTimeMs: 30000
+    readonly property int maxTransferStderrBytes: 65536
+    readonly property string _transferOutputHelper: Qt.resolvedUrl("../scripts/transfer_output.py").toString().replace(/^file:\/\//, "")
 
     // ===== SIGNALS =====
 
@@ -531,7 +533,9 @@ QtObject {
                 curlProc.command = [
                     "setsid", "python3",
                     outputHelper.replace(/^file:\/\//, ""),
-                    download.destDir, "dl", "--",
+                    download.destDir, "dl",
+                    "--max-stderr-bytes", root.maxTransferStderrBytes,
+                    "--",
                     "curl",
                     "-q",
                     "-f",
@@ -581,7 +585,9 @@ QtObject {
             curlProc.command = [
                 "setsid", "python3",
                 outputHelper.replace(/^file:\/\//, ""),
-                download.destDir, "dl", "--",
+                download.destDir, "dl",
+                "--max-stderr-bytes", root.maxTransferStderrBytes,
+                "--",
                 "curl",
                 "-q",
                 "-f",
@@ -821,7 +827,9 @@ QtObject {
                 }
                 curlProc.transferRef = upload
                 curlProc.command = [
-                    "setsid", "curl",
+                    "setsid", "python3", root._transferOutputHelper,
+                    root.maxTransferStderrBytes, "--",
+                    "curl",
                     "-q",
                     "-f",
                     "-H", "@" + authHeaderFile,
@@ -870,7 +878,9 @@ QtObject {
             }
             curlProc.transferRef = upload
             curlProc.command = [
-                "setsid", "curl",
+                "setsid", "python3", root._transferOutputHelper,
+                root.maxTransferStderrBytes, "--",
+                "curl",
                 "-q",
                 "-f",
                 "-H", "Accept: application/json",
@@ -1208,7 +1218,9 @@ QtObject {
                 curlProc.command = [
                     "setsid", "python3",
                     outputHelper.replace(/^file:\/\//, ""),
-                    download.cacheDir, "dl", "--",
+                    download.cacheDir, "dl",
+                    "--max-stderr-bytes", root.maxTransferStderrBytes,
+                    "--",
                     "curl",
                     "-q",
                     "-f",
@@ -1258,7 +1270,9 @@ QtObject {
             curlProc.command = [
                 "setsid", "python3",
                 outputHelper.replace(/^file:\/\//, ""),
-                download.cacheDir, "dl", "--",
+                download.cacheDir, "dl",
+                "--max-stderr-bytes", root.maxTransferStderrBytes,
+                "--",
                 "curl",
                 "-q",
                 "-f",
