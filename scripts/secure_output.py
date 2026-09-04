@@ -129,10 +129,6 @@ def main():
         sys.stderr.write("failed to create unique temp file after retries\n")
         return 1
 
-    # Set up signal handlers
-    signal.signal(signal.SIGTERM, _signal_handler)
-    signal.signal(signal.SIGINT, _signal_handler)
-
     stderr_truncated = False
     try:
         # Spawn curl child, streaming body into the held fd
@@ -141,6 +137,7 @@ def main():
             stdout=fd,
             stderr=subprocess.PIPE,
             pass_fds=(fd,),
+            start_new_session=True,
         )
         _child_pid[0] = proc.pid
 

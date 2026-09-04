@@ -83,6 +83,7 @@ def main():
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        start_new_session=True,
     )
     _child_pid[0] = proc.pid
 
