@@ -136,9 +136,11 @@ if child_pid is not None:
             status = f.read()
         check("child is not zombie", "Z (zombie)" not in status)
     except (FileNotFoundError, PermissionError):
-        check("child process reaped (no /proc entry)", True)
+        # Process gone, no /proc entry means reaped
+        pass
 else:
-    check("could not find child PID (test inconclusive)", True)
+    # Could not find child PID - test inconclusive, don't count as pass/fail
+    pass
 
 # ===== F. Cancellation leaves no child alive =====
 section("F. Cancellation leaves no child alive")
@@ -166,7 +168,8 @@ except subprocess.TimeoutExpired:
     parent_c.kill()
     parent_c.wait()
 
-check("parent process exited", parent_c.returncode != 0 or True)
+# Parent should have exited (may be non-zero due to SIGTERM)
+check("parent process exited", parent_c.returncode != 0)
 if child_pid_c is not None:
     try:
         os.kill(child_pid_c, 0)
@@ -174,7 +177,8 @@ if child_pid_c is not None:
     except OSError:
         check("cancelled child killed", True)
 else:
-    check("child PID tracked (test inconclusive)", True)
+    # Could not track child PID - test inconclusive
+    pass
 
 # ===== G. QML validateHelperOutput contract accepts actual output =====
 section("G. QML validateHelperOutput contract accepts actual output")
