@@ -15,6 +15,13 @@ QtObject {
         token = t
     }
 
+    // Defense-in-depth: reject non-loopback HTTP before any credential-bearing
+    // request. Covers request(), auth(), and direct HttpTransport callers.
+    function _authUrlPolicy() {
+        if (!baseUrl) return { valid: false, error: "No server URL configured" }
+        return UrlPolicy.validateForAuth(baseUrl)
+    }
+
     // ===== VALIDATION BOUNDS =====
     readonly property int _maxItems: 1000
     readonly property int _maxName: 1024
@@ -72,6 +79,11 @@ QtObject {
     }
 
     function auth(username, password, callback) {
+        var policy = _authUrlPolicy()
+        if (!policy.valid) {
+            callback(false, null, policy.error)
+            return
+        }
         var url = baseUrl + "/api2/auth-token/"
         HttpTransport.post(url, { "Content-Type": "application/x-www-form-urlencoded" },
             "username=" + encodeURIComponent(username) + "&password=" + encodeURIComponent(password),
@@ -203,6 +215,8 @@ QtObject {
     }
 
     function createFolder(repoId, parentPath, folderName, token, callback) {
+        var policy = _authUrlPolicy()
+        if (!policy.valid) { callback(false, policy.error); return }
         var createName = parentPath === "/" ? folderName : "Omarseafile temporary " + Date.now() + " " + Math.random().toString(36).substring(2, 8)
         var fullPath = "/" + createName
         var url = "/api2/repos/" + repoId + "/dir/?p=" + encodeURIComponent(fullPath)
@@ -231,6 +245,8 @@ QtObject {
     }
 
     function renameFile(repoId, filePath, newName, token, callback) {
+        var policy = _authUrlPolicy()
+        if (!policy.valid) { callback(false, policy.error); return }
         var url = baseUrl + "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
         HttpTransport.post(url, { "Authorization": "Token " + token, "Content-Type": "application/x-www-form-urlencoded" },
             "operation=rename&oldname=" + encodeURIComponent(filePath) + "&newname=" + encodeURIComponent(newName),
@@ -242,6 +258,8 @@ QtObject {
     }
 
     function renameFolder(repoId, parentPath, oldName, newName, token, callback) {
+        var policy = _authUrlPolicy()
+        if (!policy.valid) { callback(false, policy.error); return }
         var parent = parentPath === "/" ? "" : parentPath
         var fullPath = parent + "/" + oldName
         var url = baseUrl + "/api2/repos/" + repoId + "/dir/?p=" + encodeURIComponent(fullPath)
@@ -255,6 +273,8 @@ QtObject {
     }
 
     function moveFile(repoId, filePath, destPath, token, callback) {
+        var policy = _authUrlPolicy()
+        if (!policy.valid) { callback(false, policy.error); return }
         var url = baseUrl + "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
         HttpTransport.post(url, { "Authorization": "Token " + token, "Content-Type": "application/x-www-form-urlencoded" },
             "operation=move&dst_repo=" + encodeURIComponent(repoId) + "&dst_dir=" + encodeURIComponent(destPath),
@@ -266,6 +286,8 @@ QtObject {
     }
 
     function deleteFile(repoId, filePath, token, callback) {
+        var policy = _authUrlPolicy()
+        if (!policy.valid) { callback(false, policy.error); return }
         var url = baseUrl + "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
         HttpTransport.del(url, { "Authorization": "Token " + token }, function(success, data, error) {
             if (success) callback(true, null)
@@ -274,6 +296,8 @@ QtObject {
     }
 
     function deleteFolder(repoId, folderPath, token, callback) {
+        var policy = _authUrlPolicy()
+        if (!policy.valid) { callback(false, policy.error); return }
         var url = baseUrl + "/api2/repos/" + repoId + "/dir/?p=" + encodeURIComponent(folderPath)
         HttpTransport.del(url, { "Authorization": "Token " + token }, function(success, data, error) {
             if (success) callback(true, null)
@@ -282,6 +306,8 @@ QtObject {
     }
 
     function moveFolder(repoId, folderName, srcParentPath, destRepoId, destParentPath, token, callback) {
+        var policy = _authUrlPolicy()
+        if (!policy.valid) { callback(false, policy.error); return }
         var url = baseUrl + "/api/v2.1/repos/sync-batch-move-item/"
         var body = JSON.stringify({
             src_repo_id: repoId,
@@ -320,6 +346,11 @@ QtObject {
     function request(method, path, body, callback) {
         if (!token) {
             callback(false, null, "No authentication token")
+            return
+        }
+        var policy = _authUrlPolicy()
+        if (!policy.valid) {
+            callback(false, null, policy.error)
             return
         }
         var headers = {
@@ -400,6 +431,8 @@ QtObject {
     }
 
     function createShareLink(repoId, path, options, callback) {
+        var policy = _authUrlPolicy()
+        if (!policy.valid) { callback(false, null, policy.error); return }
         var body = {
             repo_id: repoId,
             path: path
@@ -473,6 +506,8 @@ QtObject {
     }
 
     function deleteShareLink(shareToken, callback) {
+        var policy = _authUrlPolicy()
+        if (!policy.valid) { callback(false, policy.error); return }
         HttpTransport.del(baseUrl + "/api/v2.1/share-links/" + encodeURIComponent(shareToken) + "/",
             { "Authorization": "Token " + token },
             function(success, data, error) {
@@ -489,6 +524,8 @@ QtObject {
     // ===== COPY =====
 
     function copyFile(repoId, filePath, dstRepoId, dstDir, newName, token, callback) {
+        var policy = _authUrlPolicy()
+        if (!policy.valid) { callback(false, policy.error); return }
         var url = baseUrl + "/api/v2.1/repos/" + repoId + "/file/?p=" + encodeURIComponent(filePath)
         HttpTransport.post(url, { "Authorization": "Token " + token, "Content-Type": "application/x-www-form-urlencoded" },
             "operation=copy&dst_repo=" + encodeURIComponent(dstRepoId) + "&dst_dir=" + encodeURIComponent(dstDir) + "&newname=" + encodeURIComponent(newName),
@@ -500,6 +537,8 @@ QtObject {
     }
 
     function copyFolder(repoId, folderName, srcParentDir, dstRepoId, dstParentDir, token, callback) {
+        var policy = _authUrlPolicy()
+        if (!policy.valid) { callback(false, policy.error); return }
         var url = baseUrl + "/api/v2.1/repos/sync-batch-copy-item/"
         var body = JSON.stringify({
             src_repo_id: repoId,
@@ -525,6 +564,8 @@ QtObject {
             callback(false, "No items to copy")
             return
         }
+        var policy = _authUrlPolicy()
+        if (!policy.valid) { callback(false, policy.error); return }
 
         var groups = {}
         for (var i = 0; i < items.length; i++) {
@@ -575,6 +616,8 @@ QtObject {
             callback(false, "No items to move")
             return
         }
+        var policy = _authUrlPolicy()
+        if (!policy.valid) { callback(false, policy.error); return }
 
         var groups = {}
         for (var i = 0; i < items.length; i++) {
@@ -663,6 +706,8 @@ QtObject {
     }
 
     function search(query, repoId, callback) {
+        var policy = _authUrlPolicy()
+        if (!policy.valid) { callback(false, null, policy.error); return }
         var url = "/api/v2.1/search-file/?q=" + encodeURIComponent(query) + "&repo_id=" + encodeURIComponent(repoId)
         HttpTransport.get(baseUrl + url, { "Authorization": "Token " + token, "Accept": "application/json" },
             function(success, data, error) {

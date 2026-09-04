@@ -863,7 +863,7 @@ Panel {
         var normalized = normalizeUrl(url)
         if (!normalized) {
             root.loading = false
-            root.errorMessage = "Invalid URL format. Use https://domain.com or http://ip:port"
+            root.errorMessage = "Invalid URL format. Use https://domain.com"
             return
         }
         var policy = UrlPolicy.validateForAuth(normalized)
@@ -1398,6 +1398,11 @@ Panel {
             root.showToast("Invalid URL format", "error")
             return
         }
+        var policy = UrlPolicy.validateForAuth(normalized)
+        if (!policy.valid) {
+            root.showToast(policy.error, "error")
+            return
+        }
         if (apply && normalized !== root.serverUrl) {
             root.doLogout()
             root.serverUrl = normalized
@@ -1830,6 +1835,14 @@ Panel {
                 if (authenticated && !hasRequiredMissing) {
                     var token = Auth.getToken()
                     var serverUrl = Auth.getServerUrl()
+                    var policy = UrlPolicy.validateForAuth(serverUrl)
+                    if (!policy.valid) {
+                        root.errorMessage = "Stored server URL requires HTTPS. Update the server URL in Settings."
+                        Auth.cachedToken = ""
+                        Auth.cachedServerUrl = ""
+                        Auth.cachedEmail = ""
+                        return
+                    }
                     root.serverUrl = serverUrl
                     SeafileAPI.setBaseUrl(serverUrl)
                     SeafileAPI.setToken(token)
