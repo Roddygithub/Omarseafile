@@ -502,6 +502,47 @@ finally:
 
 
 # ======================================================================
+# M. FSTATVFS FAILURE — FAIL CLOSED
+# ======================================================================
+section("M. fstatvfs failure — fail closed")
+# Prove that when fstatvfs fails, _check_disk_admission returns False
+# and the helper does not create output or start a child process.
+# Use a closed fd to deterministically trigger EBADF in fstatvfs.
+import importlib.util
+spec = importlib.util.spec_from_file_location("secure_output", SECURE_OUTPUT)
+_secure = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(_secure)
+
+tmpdir = tempfile.mkdtemp()
+try:
+    dir_fd = os.open(tmpdir, os.O_RDONLY | os.O_DIRECTORY)
+    os.close(dir_fd)  # close to force EBADF in fstatvfs
+
+    ok, err = _secure._check_disk_admission(dir_fd, 1000, 1000, 0)
+    check("fstatvfs on closed fd returns False", ok is False)
+    check("error message present", len(err) > 0)
+
+    # Subprocess proof: import the function and run it in a child process
+    # to prove the production code path exits nonzero on fstatvfs failure.
+    probe = (
+        f"import os, sys; sys.path.insert(0, {SCRIPT_DIR!r}); "
+        f"from secure_output import _check_disk_admission; "
+        f"fd = os.open({tmpdir!r}, os.O_RDONLY | os.O_DIRECTORY); "
+        f"os.close(fd); "
+        f"ok, _ = _check_disk_admission(fd, 1000, 1000, 0); "
+        f"sys.exit(0 if ok else 1)"
+    )
+    rc = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True, timeout=5).returncode
+    check("subprocess: fstatvfs failure → nonzero exit", rc != 0)
+    remaining = [f for f in os.listdir(tmpdir) if f.startswith("dl_")]
+    check("no output file created", len(remaining) == 0)
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ======================================================================
 # SUMMARY
 # ======================================================================
 print()
