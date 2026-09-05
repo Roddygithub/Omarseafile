@@ -7,7 +7,10 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 - Browse accessible Seafile libraries and folders with breadcrumbs.
 - Search across accessible non-encrypted libraries.
 - Download files to `~/Downloads` with progress, cancellation, retry, and no-overwrite collision protection.
+- **Secure download target creation**: temporary files created with exclusive O_CREAT|O_EXCL|O_NOFOLLOW on a held directory FD, mode 0600, curl writes to held FD (no pathname reopen), producer-side byte ceiling (1 GiB default) and disk-space admission check (256 MiB safety margin), automatic cleanup on failure/cancellation, symlink and clobber protection.
+- **Open Local**: download to private XDG_RUNTIME_DIR cache, same secure creation, bounded cache (2 GiB default, LRU eviction on completion), cached file opened with xdg-open.
 - Upload a local file by entering its path, with progress, cancellation, manual retry, and server-side conflict protection.
+- **Upload source hardening**: absolute path required, must be regular file (rejects symlinks, directories, devices, FIFOs, sockets), size precheck (1 GiB default).
 - Create folders, rename items, and delete files or folders.
 - Select multiple items with Ctrl+Click, Shift+Click, or Ctrl+A for batch actions.
 - Copy and move files and folders, including batch operations.
@@ -163,6 +166,18 @@ secret-tool clear service seafile key user-email
 ## Security
 
 See [SECURITY.md](SECURITY.md) for reporting and security boundaries. In brief, credentials use Secret Service, transfer authentication avoids argv/environment exposure, temporary authorization/configuration files are restricted and cleaned up, and the plugin makes no telemetry connection.
+
+**Transfer security (Finding 5 remediation):**
+- Download targets created exclusively via held directory FD (O_DIRECTORY|O_NOFOLLOW), verified ownership and permissions, unpredictable basename, O_CREAT|O_EXCL|O_NOFOLLOW, mode 0600
+- curl writes to held file descriptor (stdout), never a pathname target
+- Producer-side byte ceiling (default 1 GiB via curl --max-filesize) and disk-space admission check (fstatvfs on held dir_fd, default 256 MiB safety margin)
+- Download deadlines: --max-time 30 min, --connect-timeout 10s, stall protection (--speed-limit 1 --speed-time 30s)
+- Process group isolation via setsid; cancellation kills entire process tree (kill -TERM -pgid)
+- Open Local cache bounded (default 2 GiB), LRU eviction on successful completion, active/temp files protected
+- Upload source validation: absolute path, regular file only (rejects symlinks, directories, devices, FIFOs, sockets), size precheck (default 1 GiB)
+- Cross-origin transfer URLs never receive Authorization header (same-origin check)
+- Redirects disabled (--no-location)
+- Helper stdout/stderr bounded (64 KiB stderr cap)
 
 ## Project Documents
 
