@@ -57,6 +57,28 @@ def _validate_basename(basename: str) -> bool:
         return False
     return True
 
+def _check_disk_admission(dir_fd, max_transfer_bytes, safety_margin, already_reserved):
+    """Check disk-space admission using held directory FD.
+
+    Aggregate policy: free - already_reserved >= max_transfer + safety_margin.
+    Returns (ok, error_msg). On fstatvfs failure, returns (False, ...) to fail closed.
+    """
+    try:
+        vfs = os.fstatvfs(dir_fd)
+    except OSError:
+        return False, "failed to query disk space"
+    free_bytes = vfs.f_bavail * vfs.f_frsize
+    available = free_bytes - already_reserved
+    required_bytes = max_transfer_bytes + safety_margin
+    if available < required_bytes:
+        return False, (
+            f"insufficient disk space: {available} bytes available after "
+            f"reservations, {required_bytes} required (max_transfer="
+            f"{max_transfer_bytes}, margin={safety_margin}, reserved="
+            f"{already_reserved})"
+        )
+    return True, ""
+
 def _signal_handler(signum, frame):
     """Signal handler: mark cancellation, terminate child process group."""
     _cancelled[0] = True
@@ -150,22 +172,12 @@ def main():
         return 1
 
     # Disk-space admission check using held directory FD.
-    # Aggregate policy: free - already_reserved >= max_transfer + safety_margin.
-    # This prevents concurrent unreserved transfers from collectively exceeding
-    # the safety margin. already_reserved accounts for other active transfers
-    # that reserved capacity on this same filesystem.
-    try:
-        vfs = os.fstatvfs(dir_fd)
-        free_bytes = vfs.f_bavail * vfs.f_frsize
-        available = free_bytes - already_reserved
-        required_bytes = max_transfer_bytes + safety_margin
-        if available < required_bytes:
-            os.close(dir_fd)
-            sys.stderr.write(f"insufficient disk space: {available} bytes available after reservations, {required_bytes} required (max_transfer={max_transfer_bytes}, margin={safety_margin}, reserved={already_reserved})\n")
-            return 1
-    except OSError:
-        # If fstatvfs fails, proceed without disk check (don't block on stat failure)
-        pass
+    # Fail closed: if the check cannot be performed, do not proceed.
+    ok, err = _check_disk_admission(dir_fd, max_transfer_bytes, safety_margin, already_reserved)
+    if not ok:
+        os.close(dir_fd)
+        sys.stderr.write(f"{err}\n")
+        return 1
 
     # Set up signal handlers
     signal.signal(signal.SIGTERM, _signal_handler)
