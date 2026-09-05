@@ -17,11 +17,15 @@ QtObject {
     // ===== TRANSFER LIMITS =====
     property int maxTransferBytes: 1024 * 1024 * 1024
     property int maxUploadResponseBytes: 64 * 1024
+    property int maxUploadBodyBytes: 1024 * 1024 * 1024  // 1 GiB
     property int connectTimeoutMs: 10000
     property int totalTimeoutMs: 30 * 60 * 1000
     property int stallSpeedBytes: 1
     property int stallTimeMs: 30000
     readonly property int maxTransferStderrBytes: 65536
+    readonly property int safetyMarginBytes: 268435456  // 256 MiB
+    readonly property int _reservationPerTransfer: root.maxTransferBytes + root.safetyMarginBytes
+    property int _activeReservedBytes: 0
     readonly property string _transferOutputHelper: Qt.resolvedUrl("../scripts/transfer_output.py").toString().replace(/^file:\/\//, "")
 
     // ===== SIGNALS =====
@@ -54,6 +58,19 @@ QtObject {
                 if (transferRef) {
                     root.handleDownloadExited(exitCode, transferRef)
                 }
+            }
+        }
+    }
+
+    property Component _statFactory: Component {
+        Process {
+            property var onDone: null
+            stdout: StdioCollector {}
+            onExited: function(exitCode) {
+                var cb = onDone
+                var out = stdout.text.trim()
+                destroy()
+                if (cb) cb(exitCode === 0 ? out : null)
             }
         }
     }
@@ -179,6 +196,36 @@ QtObject {
     function _authUrlPolicy(baseUrl) {
         if (!baseUrl) return { valid: false, error: "No server URL configured" }
         return UrlPolicy.validateForAuth(baseUrl)
+    }
+
+    // ===== CONCURRENT DISK RESERVATION =====
+    // Each download/Open Local reserves maxTransferBytes + safetyMargin bytes
+    // before starting its helper. The helper's fstatvfs admission subtracts
+    // active reservations from free space, so concurrent transfers cannot
+    // collectively exhaust disk. Reservations are released exactly once on the
+    // terminal path (success, failure, cancellation, start failure, logout).
+
+    function _reserveTransferCapacity(transfer) {
+        if (transfer._reserved) return true
+        transfer._reserved = true
+        transfer._reservedBytes = root._reservationPerTransfer
+        root._activeReservedBytes += transfer._reservedBytes
+        return true
+    }
+
+    function _releaseTransferCapacity(transfer) {
+        if (transfer._reserved) {
+            root._activeReservedBytes -= transfer._reservedBytes
+            transfer._reserved = false
+            transfer._reservedBytes = 0
+        }
+    }
+
+    function _currentlyReservedBytes(transfer) {
+        // Bytes reserved by OTHER active transfers (excluding this transfer) so
+        // a new admission is checked against aggregate reservations that exist
+        // on the target filesystem from concurrent transfers.
+        return root._activeReservedBytes - (transfer._reservedBytes || 0)
     }
 
     function parseError(response) {
@@ -333,6 +380,7 @@ QtObject {
     // ===== HISTORY MANAGEMENT =====
 
     function sanitizeForHistory(transfer) {
+        root._releaseTransferCapacity(transfer)
         transfer.token = undefined
         transfer.process = null
         transfer.downloadLink = undefined
@@ -535,6 +583,7 @@ QtObject {
                 download.curlConfigFile = curlConfigFile
                 var curlProc = downloadProcessComponent.createObject(root)
                 if (!curlProc) {
+                    root._releaseTransferCapacity(download)
                     download.state = "failed"
                     download.error = "Failed to create download process"
                     root.sanitizeForHistory(download)
@@ -543,6 +592,7 @@ QtObject {
                     return
                 }
                 curlProc.transferRef = download
+                root._reserveTransferCapacity(download)
                 var scriptsBase = Qt.resolvedUrl("../scripts")
                 var outputHelper = scriptsBase + "/secure_output.py"
                 curlProc.command = [
@@ -550,6 +600,9 @@ QtObject {
                     outputHelper.replace(/^file:\/\//, ""),
                     download.destDir, "dl",
                     "--max-stderr-bytes", root.maxTransferStderrBytes,
+                    "--max-transfer-bytes", root.maxTransferBytes,
+                    "--safety-margin", "268435456",
+                    "--already-reserved-bytes", String(root._currentlyReservedBytes(download)),
                     "--",
                     "curl",
                     "-q",
@@ -587,6 +640,7 @@ QtObject {
             download.curlConfigFile = curlConfigFile
             var curlProc = downloadProcessComponent.createObject(root)
             if (!curlProc) {
+                root._releaseTransferCapacity(download)
                 download.state = "failed"
                 download.error = "Failed to create download process"
                 root.sanitizeForHistory(download)
@@ -595,6 +649,7 @@ QtObject {
                 return
             }
             curlProc.transferRef = download
+            root._reserveTransferCapacity(download)
             var scriptsBase = Qt.resolvedUrl("../scripts")
             var outputHelper = scriptsBase + "/secure_output.py"
             curlProc.command = [
@@ -602,6 +657,9 @@ QtObject {
                 outputHelper.replace(/^file:\/\//, ""),
                 download.destDir, "dl",
                 "--max-stderr-bytes", root.maxTransferStderrBytes,
+                "--max-transfer-bytes", root.maxTransferBytes,
+                "--safety-margin", "268435456",
+                "--already-reserved-bytes", String(root._currentlyReservedBytes(download)),
                 "--",
                 "curl",
                 "-q",
@@ -703,40 +761,71 @@ QtObject {
     // ===== UPLOAD =====
 
     function startUpload(localFilePath, token, baseUrl, repoId, destPath, fileName) {
-        var nameResult = SafePath.sanitizeBasename(fileName)
-        if (!nameResult.valid) {
-            var errTransfer = { error: nameResult.error, state: "failed" }
-            root.showToast("Invalid filename: " + nameResult.error, "error")
+        // Validate upload source: absolute path, regular file, not symlink, size limit
+        if (!localFilePath || typeof localFilePath !== "string" || !localFilePath.startsWith("/")) {
+            var errTransfer = { error: "Upload source must be an absolute path", state: "failed" }
+            root.showToast("Invalid upload source: must be absolute path", "error")
             return
         }
+        var statProc = _statFactory.createObject(root, {
+            onDone: function(out) {
+                if (!out) {
+                    var errTransfer = { error: "Upload source does not exist or cannot be accessed", state: "failed" }
+                    root.showToast("Invalid upload source: " + errTransfer.error, "error")
+                    return
+                }
+                var parts = out.split(" ")
+                var ftype = parts[0]
+                var size = parseInt(parts[1], 10)
+                if (ftype !== "regular file") {
+                    var errTransfer = { error: "Upload source must be a regular file (not symlink, directory, device, FIFO, or socket)", state: "failed" }
+                    root.showToast("Invalid upload source: " + errTransfer.error, "error")
+                    return
+                }
+                if (size > root.maxUploadBodyBytes) {
+                    var errTransfer = { error: "Upload source exceeds maximum size of " + root.maxUploadBodyBytes + " bytes", state: "failed" }
+                    root.showToast("Upload too large: " + errTransfer.error, "error")
+                    return
+                }
 
-        var upload = {
-            id: Date.now() + Math.random(),
-            type: "upload",
-            state: "pending",
-            srcPath: localFilePath,
-            destUploadPath: destPath,
-            fileName: nameResult.sanitized,
-            repoId: repoId,
-            repoName: "",
-            token: token,
-            baseUrl: baseUrl,
-            process: null,
-            uploadLink: null,
-            progress: 0,
-            speed: "",
-            error: "",
-            retryCount: 0,
-            startTime: Date.now(),
-            endTime: null,
-            authHeaderFile: null,
-            curlConfigFile: null
-        }
+                var nameResult = SafePath.sanitizeBasename(fileName)
+                if (!nameResult.valid) {
+                    var errTransfer = { error: nameResult.error, state: "failed" }
+                    root.showToast("Invalid filename: " + nameResult.error, "error")
+                    return
+                }
 
-        root.transfers.push(upload)
-        root.transfersChanged()
-        root.getUploadLinkAndExecute(upload)
-        return upload
+                var upload = {
+                    id: Date.now() + Math.random(),
+                    type: "upload",
+                    state: "pending",
+                    srcPath: localFilePath,
+                    destUploadPath: destPath,
+                    fileName: nameResult.sanitized,
+                    repoId: repoId,
+                    repoName: "",
+                    token: token,
+                    baseUrl: baseUrl,
+                    process: null,
+                    uploadLink: null,
+                    progress: 0,
+                    speed: "",
+                    error: "",
+                    retryCount: 0,
+                    startTime: Date.now(),
+                    endTime: null,
+                    authHeaderFile: null,
+                    curlConfigFile: null
+                }
+
+                root.transfers.push(upload)
+                root.transfersChanged()
+                root.getUploadLinkAndExecute(upload)
+                return upload
+            }
+        })
+        statProc.command = ["stat", "-c", "%F %s", "--", localFilePath]
+        statProc.running = true
     }
 
     function getUploadLinkAndExecute(upload) {
@@ -1238,6 +1327,7 @@ QtObject {
                 download.curlConfigFile = curlConfigFile
                 var curlProc = openDownloadProcessComponent.createObject(root)
                 if (!curlProc) {
+                    root._releaseTransferCapacity(download)
                     download.state = "failed"
                     download.error = "Failed to create download process"
                     root.sanitizeForHistory(download)
@@ -1246,6 +1336,7 @@ QtObject {
                     return
                 }
                 curlProc.transferRef = download
+                root._reserveTransferCapacity(download)
                 var scriptsBase = Qt.resolvedUrl("../scripts")
                 var outputHelper = scriptsBase + "/secure_output.py"
                 curlProc.command = [
@@ -1253,6 +1344,9 @@ QtObject {
                     outputHelper.replace(/^file:\/\//, ""),
                     download.cacheDir, "dl",
                     "--max-stderr-bytes", root.maxTransferStderrBytes,
+                    "--max-transfer-bytes", root.maxTransferBytes,
+                    "--safety-margin", "268435456",
+                    "--already-reserved-bytes", String(root._currentlyReservedBytes(download)),
                     "--",
                     "curl",
                     "-q",
@@ -1290,6 +1384,7 @@ QtObject {
             download.curlConfigFile = curlConfigFile
             var curlProc = openDownloadProcessComponent.createObject(root)
             if (!curlProc) {
+                root._releaseTransferCapacity(download)
                 download.state = "failed"
                 download.error = "Failed to create download process"
                 root.sanitizeForHistory(download)
@@ -1298,6 +1393,7 @@ QtObject {
                 return
             }
             curlProc.transferRef = download
+            root._reserveTransferCapacity(download)
             var scriptsBase = Qt.resolvedUrl("../scripts")
             var outputHelper = scriptsBase + "/secure_output.py"
             curlProc.command = [
@@ -1305,6 +1401,9 @@ QtObject {
                 outputHelper.replace(/^file:\/\//, ""),
                 download.cacheDir, "dl",
                 "--max-stderr-bytes", root.maxTransferStderrBytes,
+                "--max-transfer-bytes", root.maxTransferBytes,
+                "--safety-margin", "268435456",
+                "--already-reserved-bytes", String(root._currentlyReservedBytes(download)),
                 "--",
                 "curl",
                 "-q",
@@ -1396,7 +1495,14 @@ QtObject {
             download.destPath = download.cachePath
             root.sanitizeForHistory(download)
             root.pruneHistory()
-            root.openCachedFile(download)
+            // Evict old cache files to stay within bound
+            SafePath.evictCache(function(ok) {
+                if (!ok) {
+                    // Eviction failed but download succeeded; log and continue
+                    console.warn("Cache eviction failed, continuing")
+                }
+                root.openCachedFile(download)
+            })
         } else {
             download.state = "failed"
             download.error = "Cache file already exists or could not be finalized"

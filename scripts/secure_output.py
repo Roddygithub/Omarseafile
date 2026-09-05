@@ -2,7 +2,8 @@
 """Securely stream curl output to an exclusively-created temporary file.
 
 Usage:
-  secure_output.py <outdir> <prefix> [--max-stderr-bytes N] -- <curl args...>
+  secure_output.py <outdir> <prefix> [--max-stderr-bytes N] [--max-transfer-bytes N]
+                    [--safety-margin N] -- <curl args...>
 
 Creates a fresh temp file in <outdir> with exclusive creation (O_CREAT|O_EXCL|O_NOFOLLOW)
 relative to a held directory FD, mode 0600. Streams curl body into the held fd
@@ -11,6 +12,17 @@ basename of the created file to stdout. curl's stderr (progress) is passed throu
 
 Optional --max-stderr-bytes N: hard producer-side byte ceiling on forwarded
 stderr. Overflow truncates and returns exit 1.
+
+Optional --max-transfer-bytes N: maximum allowed transfer size in bytes.
+Used for disk-space admission check. Defaults to 1 GiB if not provided.
+
+Optional --safety-margin N: required free space margin in bytes beyond the
+max transfer size. Defaults to 256 MiB.
+
+Optional --already-reserved-bytes N: bytes already reserved by other
+concurrent transfers on the same target filesystem. Subtracted from free
+space before admission, so aggregate admission across concurrent transfers
+cannot exceed the safety policy. Defaults to 0.
 
 This removes the TOCTOU/symlink race of pathname-based `--output <path>`.
 """
@@ -24,9 +36,14 @@ import threading
 
 _cancelled = [False]
 _child_pid = [None]
+_basename = [None]
+_dir_fd = [None]
 
 MAX_BASENAME_LEN = 128
 VALID_BASENAME_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-")
+
+DEFAULT_MAX_TRANSFER_BYTES = 1024 * 1024 * 1024  # 1 GiB
+DEFAULT_SAFETY_MARGIN = 256 * 1024 * 1024  # 256 MiB
 
 def _validate_basename(basename: str) -> bool:
     """Validate basename: ASCII-safe, no slash/backslash, no special names, length <= MAX."""
@@ -49,10 +66,21 @@ def _signal_handler(signum, frame):
             os.killpg(os.getpgid(pid), signal.SIGTERM)
         except OSError:
             pass
+    # Also perform cleanup directly in handler for robustness against SIGHUP
+    # when session leader dies. The main loop will also clean up, but this
+    # ensures cleanup even if process terminates before main loop continues.
+    if _basename[0] is not None and _dir_fd[0] is not None:
+        try:
+            os.unlink(_basename[0], dir_fd=_dir_fd[0])
+        except OSError:
+            pass
 
 def main():
-    # Parse optional --max-stderr-bytes before the -- separator
+    # Parse optional --max-stderr-bytes, --max-transfer-bytes, --safety-margin before the -- separator
     max_stderr_bytes = None
+    max_transfer_bytes = DEFAULT_MAX_TRANSFER_BYTES
+    safety_margin = DEFAULT_SAFETY_MARGIN
+    already_reserved = 0
     args = sys.argv[1:]
     dash_idx = args.index("--") if "--" in args else -1
     if dash_idx > 0:
@@ -67,13 +95,31 @@ def main():
                 except ValueError:
                     pass
                 i += 2
+            elif before[i] == "--max-transfer-bytes" and i + 1 < len(before):
+                try:
+                    max_transfer_bytes = int(before[i + 1])
+                except ValueError:
+                    pass
+                i += 2
+            elif before[i] == "--safety-margin" and i + 1 < len(before):
+                try:
+                    safety_margin = int(before[i + 1])
+                except ValueError:
+                    pass
+                i += 2
+            elif before[i] == "--already-reserved-bytes" and i + 1 < len(before):
+                try:
+                    already_reserved = int(before[i + 1])
+                except ValueError:
+                    pass
+                i += 2
             else:
                 kept.append(before[i])
                 i += 1
         args = kept + after
 
     if len(args) < 4 or args[2] != "--":
-        sys.stderr.write("usage: secure_output.py <outdir> <prefix> [--max-stderr-bytes N] -- <curl args...>\n")
+        sys.stderr.write("usage: secure_output.py <outdir> <prefix> [--max-stderr-bytes N] [--max-transfer-bytes N] [--safety-margin N] [--already-reserved-bytes N] -- <curl args...>\n")
         return 2
 
     outdir, prefix = args[0], args[1]
@@ -103,6 +149,24 @@ def main():
         sys.stderr.write("output directory has unsafe permissions (group/other writable)\n")
         return 1
 
+    # Disk-space admission check using held directory FD.
+    # Aggregate policy: free - already_reserved >= max_transfer + safety_margin.
+    # This prevents concurrent unreserved transfers from collectively exceeding
+    # the safety margin. already_reserved accounts for other active transfers
+    # that reserved capacity on this same filesystem.
+    try:
+        vfs = os.fstatvfs(dir_fd)
+        free_bytes = vfs.f_bavail * vfs.f_frsize
+        available = free_bytes - already_reserved
+        required_bytes = max_transfer_bytes + safety_margin
+        if available < required_bytes:
+            os.close(dir_fd)
+            sys.stderr.write(f"insufficient disk space: {available} bytes available after reservations, {required_bytes} required (max_transfer={max_transfer_bytes}, margin={safety_margin}, reserved={already_reserved})\n")
+            return 1
+    except OSError:
+        # If fstatvfs fails, proceed without disk check (don't block on stat failure)
+        pass
+
     # Set up signal handlers
     signal.signal(signal.SIGTERM, _signal_handler)
     signal.signal(signal.SIGINT, _signal_handler)
@@ -117,6 +181,8 @@ def main():
         try:
             flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
             fd = os.open(basename, flags, 0o600, dir_fd=dir_fd)
+            _basename[0] = basename
+            _dir_fd[0] = dir_fd
             break
         except OSError as e:
             if e.errno == errno.EEXIST:
@@ -210,6 +276,8 @@ def main():
     if _validate_basename(basename):
         sys.stdout.write(basename)
         sys.stdout.flush()
+        _basename[0] = None
+        _dir_fd[0] = None
         os.close(dir_fd)
         return 0
     else:

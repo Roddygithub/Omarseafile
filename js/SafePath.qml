@@ -7,6 +7,7 @@ QtObject {
     id: root
 
     readonly property int maxBasenameLength: 255
+    readonly property int maxCacheBytes: 1073741824  // 1 GiB (fits in int32)
 
     property Component _mkdirFactory: Component {
         Process {
@@ -151,6 +152,40 @@ QtObject {
         })
         proc.command = ["stat", "-c", "%u %a", Qt.Quickshell.env("XDG_RUNTIME_DIR")]
         proc.running = true
+    }
+
+    property Component _evictCacheFactory: Component {
+        Process {
+            property var onDone: null
+            onExited: function(exitCode) {
+                var cb = onDone
+                destroy()
+                if (cb) cb(exitCode === 0)
+            }
+        }
+    }
+
+    // Evict oldest cache files until total size <= maxCacheBytes.
+    // Delegates to scripts/cache_evict.py which uses a held O_DIRECTORY|O_NOFOLLOW
+    // directory FD, lstat semantics (no symlink following), excludes active
+    // download temp files (dl_*), hidden files, and anything outside the cache
+    // directory root. Deterministic, no shell output parsing.
+    function evictCache(callback) {
+        var cacheDir = Qt.Quickshell.env("XDG_RUNTIME_DIR") + "/omarseafile/cache"
+        var scriptsBase = Qt.resolvedUrl("../scripts")
+        var helper = scriptsBase + "/cache_evict.py"
+        var evictProc = _evictCacheFactory.createObject(root, {
+            onDone: function(ok) {
+                if (callback) callback(ok)
+            }
+        })
+        evictProc.command = [
+            "python3",
+            helper.replace(/^file:\/\//, ""),
+            cacheDir,
+            String(root.maxCacheBytes)
+        ]
+        evictProc.running = true
     }
 
     // Atomic writer: single Python process using mkstemp for exclusive creation,
