@@ -153,12 +153,22 @@ def main():
         sys.exit(1)
 
     os.close(fd)
+
+    # Keep the held directory fd until the caller has received the path. A
+    # signal before publication can still unlink the otherwise orphaned file.
+    result_path = os.path.join(dir_path, basename)
+    try:
+        sys.stdout.write(result_path + "\n")
+        sys.stdout.flush()
+    except OSError:
+        try:
+            os.unlink(basename, dir_fd=dir_fd)
+        except OSError:
+            pass
+        sys.exit(1)
+    _basename[0] = None
     os.close(dir_fd)
     _dir_fd[0] = None
-
-    # Success — print only the usable path (directory + basename)
-    result_path = os.path.join(dir_path, basename)
-    sys.stdout.write(result_path + "\n")
     sys.exit(0)
 
 if __name__ == "__main__":

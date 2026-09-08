@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import signal
 import time
+import textwrap
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 WRAPPER = os.path.join(SCRIPT_DIR, "secret_tool_wrapper.py")
@@ -43,6 +44,100 @@ def exited_or_zombie(pid):
         return state == "Z"
     except OSError:
         return True
+
+
+def startup_window_probe(helper, mode, inherited_mask=False):
+    """Signal the wrapper after Popen returns but before it can store proc.pid."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        pid_file = os.path.join(tmpdir, "child-pid")
+        outdir = os.path.join(tmpdir, "cache")
+        os.mkdir(outdir)
+        probe = textwrap.dedent("""
+            import importlib.util
+            import os
+            import signal
+            import sys
+
+            helper, pid_file, outdir, mode, inherited_mask = sys.argv[1:]
+            if inherited_mask == "1":
+                signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM, signal.SIGINT})
+            spec = importlib.util.spec_from_file_location("helper", helper)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            original_popen = module.subprocess.Popen
+
+            def injected_popen(*args, **kwargs):
+                proc = original_popen(*args, **kwargs)
+                with open(pid_file, "w", encoding="ascii") as f:
+                    f.write(str(proc.pid))
+                os.kill(os.getpid(), signal.SIGTERM)
+                return proc
+
+            module.subprocess.Popen = injected_popen
+            child = [sys.executable, "-c", "import signal; signal.pause()"]
+            if mode == "transfer":
+                module.sys.argv = ["transfer_output.py", "4096", "--"] + child
+            elif mode == "secret":
+                module.sys.argv = ["secret_tool_wrapper.py", "4096", "4096", "--"] + child
+            else:
+                module.sys.argv = ["secure_output.py", outdir, "dl", "--max-transfer-bytes", "0", "--safety-margin", "0", "--"] + child
+            raise SystemExit(module.main())
+        """)
+        wrapper = subprocess.Popen(
+            [sys.executable, "-c", probe, helper, pid_file, outdir, mode, "1" if inherited_mask else "0"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        exited = True
+        try:
+            wrapper.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            exited = False
+            wrapper.kill()
+            wrapper.wait()
+
+        child_pid = None
+        try:
+            with open(pid_file, encoding="ascii") as f:
+                child_pid = int(f.read())
+        except (OSError, ValueError):
+            pass
+        child_stopped = child_pid is not None and exited_or_zombie(child_pid)
+        if child_pid is not None and not child_stopped:
+            try:
+                os.killpg(os.getpgid(child_pid), signal.SIGKILL)
+            except OSError:
+                pass
+        return exited, child_stopped, os.listdir(outdir)
+
+
+# ===== 0. Startup-window cancellation =====
+section("0. Startup-window cancellation")
+exited, stopped, _ = startup_window_probe(TRANSFER, "transfer")
+check("transfer_output startup-window SIGTERM exits", exited)
+check("transfer_output startup-window SIGTERM kills child group", stopped)
+
+exited, stopped, _ = startup_window_probe(WRAPPER, "secret")
+check("secret_tool_wrapper startup-window SIGTERM exits", exited)
+check("secret_tool_wrapper startup-window SIGTERM kills child group", stopped)
+
+exited, stopped, files = startup_window_probe(SECURE, "secure")
+check("secure_output startup-window SIGTERM exits", exited)
+check("secure_output startup-window SIGTERM kills child group", stopped)
+check("secure_output startup-window SIGTERM cleans output", not files)
+
+exited, stopped, _ = startup_window_probe(TRANSFER, "transfer", True)
+check("transfer_output inherited SIGTERM mask exits", exited)
+check("transfer_output inherited SIGTERM mask kills child group", stopped)
+
+exited, stopped, _ = startup_window_probe(WRAPPER, "secret", True)
+check("secret_tool_wrapper inherited SIGTERM mask exits", exited)
+check("secret_tool_wrapper inherited SIGTERM mask kills child group", stopped)
+
+exited, stopped, files = startup_window_probe(SECURE, "secure", True)
+check("secure_output inherited SIGTERM mask exits", exited)
+check("secure_output inherited SIGTERM mask kills child group", stopped)
+check("secure_output inherited SIGTERM mask cleans output", not files)
 
 
 # ===== 1. secret-tool wrapper: normal success =====

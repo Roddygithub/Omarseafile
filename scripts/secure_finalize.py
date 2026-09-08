@@ -79,10 +79,8 @@ def main():
             os.unlink(".active_" + sys.argv[2], dir_fd=_dir_fd)
         except FileNotFoundError:
             pass
-        try:
-            os.unlink(".active_" + sys.argv[3], dir_fd=_dir_fd)
-        except FileNotFoundError:
-            pass
+        # Keep the target marker through xdg-open. TransferService releases it
+        # when the Open Local transfer reaches a terminal state.
         # TERM/INT remain blocked through process exit, so no signal can split
         # the link/unlink ownership transition.
         os._exit(0)

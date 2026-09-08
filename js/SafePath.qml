@@ -8,6 +8,7 @@ QtObject {
 
     readonly property int maxBasenameLength: 255
     readonly property int maxCacheBytes: 1073741824  // 1 GiB (fits in int32)
+    property var _protectedCacheNames: []
 
     property Component _mkdirFactory: Component {
         Process {
@@ -292,6 +293,30 @@ QtObject {
         }
     }
 
+    function _validCacheName(name) {
+        return typeof name === "string" && /^[A-Za-z0-9._-]{1,128}$/.test(name)
+    }
+
+    function protectCache(name) {
+        if (!_validCacheName(name) || root._protectedCacheNames.indexOf(name) !== -1) return
+        root._protectedCacheNames = root._protectedCacheNames.concat([name])
+    }
+
+    function releaseCache(name, callback) {
+        if (!_validCacheName(name)) { if (callback) callback(true); return }
+        root._protectedCacheNames = root._protectedCacheNames.filter(function(protectedName) {
+            return protectedName !== name
+        })
+        getCacheDir(function(cacheResult) {
+            if (!cacheResult.valid) { if (callback) callback(false); return }
+            var proc = _evictCacheFactory.createObject(root, {
+                onDone: function(ok) { if (callback) callback(ok) }
+            })
+            proc.command = ["rm", "-f", "--", cacheResult.path + "/.active_" + name]
+            proc.running = true
+        })
+    }
+
     // Evict oldest cache files until total size <= maxCacheBytes.
     // Delegates to scripts/cache_evict.py which uses a held O_DIRECTORY|O_NOFOLLOW
     // directory FD, lstat semantics, and PID-backed active-download markers.
@@ -301,6 +326,10 @@ QtObject {
             protectedNames = []
         }
         protectedNames = protectedNames || []
+        var effectiveProtected = root._protectedCacheNames.slice()
+        for (var i = 0; i < protectedNames.length; i++) {
+            if (effectiveProtected.indexOf(protectedNames[i]) === -1) effectiveProtected.push(protectedNames[i])
+        }
         getCacheDir(function(cacheResult) {
             if (!cacheResult.valid) { if (callback) callback(false); return }
             var scriptsBase = Qt.resolvedUrl("../scripts")
@@ -315,14 +344,16 @@ QtObject {
                 helper.replace(/^file:\/\//, ""),
                 cacheResult.path,
                 String(maxBytes === undefined ? root.maxCacheBytes : maxBytes)
-            ].concat(protectedNames)
+            ].concat(effectiveProtected)
             evictProc.running = true
         })
     }
 
     // Clear only safe, non-active files in Omarseafile's private cache.
     function clearPersistentCache(callback) {
-        root.evictCache([], callback, 0)
+        root.evictCache([], function(ok) {
+            if (callback) callback(ok || root._protectedCacheNames.length > 0)
+        }, 0)
     }
 
     // Atomic writer: single Python process using mkstemp for exclusive creation,
