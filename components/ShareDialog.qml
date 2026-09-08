@@ -23,6 +23,7 @@ Item {
     property string errorMessage: ""
     property string shareUrl: ""
     property string shareToken: ""
+    property int requestGeneration: 0
 
     // Create form state
     property bool showCreateForm: false
@@ -50,10 +51,14 @@ Item {
         loadExistingLinks()
     }
 
+    Component.onDestruction: requestGeneration++
+
     function loadExistingLinks() {
+        var generation = ++root.requestGeneration
         root.loading = true
         root.errorMessage = ""
         SeafileAPI.listShareLinks(root.repoId, root.itemPath, function(success, data, error) {
+            if (generation !== root.requestGeneration) return
             root.loading = false
             if (success) {
                 root.existingLinks = Array.isArray(data) ? data : []
@@ -72,6 +77,7 @@ Item {
             return
         }
         root.loading = true
+        var generation = ++root.requestGeneration
         root.errorMessage = ""
         var options = {}
         if (root.enablePassword && root.passwordValue) {
@@ -88,6 +94,7 @@ Item {
             }
         }
         SeafileAPI.createShareLink(root.repoId, root.itemPath, options, function(success, data, error) {
+            if (generation !== root.requestGeneration) return
             root.loading = false
             if (success) {
                 root.shareUrl = data.link
@@ -104,8 +111,10 @@ Item {
 
     function deleteLink(token) {
         root.loading = true
+        var generation = ++root.requestGeneration
         root.errorMessage = ""
         SeafileAPI.deleteShareLink(token, function(success, error) {
+            if (generation !== root.requestGeneration) return
             root.loading = false
             if (success) {
                 root.existingLinks = root.existingLinks.filter(function(l) {

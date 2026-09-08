@@ -37,6 +37,14 @@ def run(cmd, timeout=10):
     return subprocess.run(cmd, capture_output=True, timeout=timeout)
 
 
+def exited_or_zombie(pid):
+    try:
+        state = open(f"/proc/{pid}/stat", encoding="ascii").read().rsplit(") ", 1)[1].split()[0]
+        return state == "Z"
+    except OSError:
+        return True
+
+
 # ===== 1. secret-tool wrapper: normal success =====
 section("1. Secret-tool wrapper normal success")
 r = run([sys.executable, WRAPPER, "4096", "4096", "--",
@@ -101,11 +109,8 @@ except subprocess.TimeoutExpired:
     proc.wait()
 all_dead = True
 for pid in desc_pids + grandchildren:
-    try:
-        os.kill(pid, 0)
+    if not exited_or_zombie(pid):
         all_dead = False
-    except OSError:
-        pass
 check("all descendants dead after SIGTERM", all_dead)
 
 # ===== 4. stdout flood exceeds cap -> bounded =====

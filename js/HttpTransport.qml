@@ -6,11 +6,14 @@ import Quickshell.Io
 QtObject {
     id: root
 
-    property int connectTimeoutMs: 5000
+    property int connectTimeoutMs: 10000
     property int totalTimeoutMs: 30000
     property int maxCollectionItems: 1000
     property int maxStringLength: 10000
     property int maxResponseBytes: 10 * 1024 * 1024
+    property int maxStderrBytes: 65536
+    property int maxValidationDepth: 32
+    readonly property string _transferOutputHelper: Qt.resolvedUrl("../scripts/transfer_output.py").toString().replace(/^file:\/\//, "")
 
     property Component _requestFactory: Component {
         Process {
@@ -29,7 +32,19 @@ QtObject {
         }
     }
 
+    property Component _cleanupProcessFactory: Component {
+        Process {
+            onExited: destroy()
+        }
+    }
+
     function request(method, url, headers, body, callback) {
+        var finished = false
+        function finish(success, data, error) {
+            if (finished) return
+            finished = true
+            callback(success, data, error)
+        }
         var config = {
             method: method,
             url: url,
@@ -42,7 +57,7 @@ QtObject {
         var hasBody = config.body !== undefined && config.body !== null && config.body !== ""
 
         SafePath.getRuntimeSubdir("http", function(httpResult) {
-            if (!httpResult.valid) { callback(false, null, "Runtime dir unavailable: " + httpResult.error); return }
+            if (!httpResult.valid) { finish(false, null, "Runtime dir unavailable: " + httpResult.error); return }
 
             var curlArgs = [
                 "curl", "-q", "-f", "-s", "-S",
@@ -62,8 +77,8 @@ QtObject {
 
             if (authHeader) {
                 var configContent = "header = \"Authorization: " + authHeader.replace(/"/g, "\\\"") + "\"\n"
-                SafePath.createSecureFile(httpResult.path, "curl_hdr", configContent, function(hdrResult) {
-                    if (!hdrResult.valid) { callback(false, null, "Header file failed: " + hdrResult.error); return }
+                SafePath.createSecureFile("http", "curl_hdr", configContent, function(hdrResult) {
+                    if (!hdrResult.valid) { finish(false, null, "Header file failed: " + hdrResult.error); return }
                     runRequest(hdrResult.path)
                 })
             } else {
@@ -72,10 +87,10 @@ QtObject {
 
             function runRequest(headerFile) {
                 if (hasBody) {
-                    SafePath.createSecureFile(httpResult.path, "curl_body", config.body, function(bodyResult) {
+                    SafePath.createSecureFile("http", "curl_body", config.body, function(bodyResult) {
                         if (!bodyResult.valid) {
                             cleanup(headerFile)
-                            callback(false, null, "Body file failed: " + bodyResult.error); return
+                            finish(false, null, "Body file failed: " + bodyResult.error); return
                         }
                         execute(headerFile, bodyResult.path, curlArgs.slice())
                     })
@@ -91,6 +106,8 @@ QtObject {
                 if (bodyFile) {
                     args.push("--data-binary", "@" + bodyFile)
                 }
+                args = ["setsid", "python3", root._transferOutputHelper,
+                    root.maxStderrBytes.toString(), "--"].concat(args)
                 args.push("-X", config.method)
                 args.push(config.url)
 
@@ -99,31 +116,38 @@ QtObject {
                         cleanup(hdrFile)
                         cleanup(bodyFile)
                         if (exitCode === 0) {
-                            var data = null
-                            try { data = out ? JSON.parse(out) : null } catch (e) {
-                                callback(false, null, "Invalid JSON response"); return
+                            try {
+                                var data = out ? JSON.parse(out) : null
+                                var validation = validateResponse(data)
+                                if (!validation.valid) { finish(false, null, validation.error); return }
+                                finish(true, validation.data, null)
+                            } catch (e) {
+                                finish(false, null, "Invalid JSON response")
                             }
-                            var validation = validateResponse(data)
-                            if (!validation.valid) { callback(false, null, validation.error); return }
-                            callback(true, validation.data, null)
                         } else if (exitCode === 63 || exitCode === 23) {
                             // 63: max-filesize exceeded (curl 7.56.0+); 23: write error (older curl)
-                            callback(false, null, "Response too large (exceeds " + root.maxResponseBytes + " bytes)")
+                            finish(false, null, "Response too large (exceeds " + root.maxResponseBytes + " bytes)")
                         } else {
-                            callback(false, null, "Request failed (exit " + exitCode + "): " + (err || "unknown"))
+                            finish(false, null, "Request failed (exit " + exitCode + "): " + (err || "unknown"))
                         }
                     }
                 })
+                if (!proc) {
+                    cleanup(hdrFile)
+                    cleanup(bodyFile)
+                    finish(false, null, "Failed to create request process")
+                    return
+                }
                 proc.command = args
                 proc.running = true
             }
 
             function cleanup(path) {
                 if (!path) return
-                var c = Qt.createComponent("dummy").createObject(root, {
-                    command: ["rm", "-f", "--", path],
-                    running: true
-                })
+                var proc = root._cleanupProcessFactory.createObject(root)
+                if (!proc) return
+                proc.command = ["rm", "-f", "--", path]
+                proc.running = true
             }
         })
     }
@@ -162,6 +186,11 @@ QtObject {
     }
 
     function validateResponse(data) {
+        return validateValue(data, 0)
+    }
+
+    function validateValue(data, depth) {
+        if (depth > root.maxValidationDepth) return { valid: false, error: "Response nesting exceeds maximum depth" }
         if (data === null || data === undefined) {
             return { valid: true, data: null }
         }
@@ -169,22 +198,21 @@ QtObject {
             var collValidation = validateCollection(data)
             if (!collValidation.valid) return { valid: false, error: collValidation.error }
             for (var i = 0; i < data.length; i++) {
-                if (typeof data[i] === "object" && data[i] !== null) {
-                    var objValidation = validateObject(data[i])
-                    if (!objValidation.valid) return { valid: false, error: "Item " + i + ": " + objValidation.error }
-                }
+                var itemValidation = validateValue(data[i], depth + 1)
+                if (!itemValidation.valid) return { valid: false, error: "Item " + i + ": " + itemValidation.error }
             }
             return { valid: true, data: data }
         }
         if (typeof data === "object") {
-            var objValidation = validateObject(data)
+            var objValidation = validateObject(data, depth + 1)
             if (!objValidation.valid) return { valid: false, error: objValidation.error }
             return { valid: true, data: data }
         }
         return { valid: true, data: data }
     }
 
-    function validateObject(obj) {
+    function validateObject(obj, depth) {
+        if (depth > root.maxValidationDepth) return { valid: false, error: "Response nesting exceeds maximum depth" }
         for (var key in obj) {
             var val = obj[key]
             if (typeof val === "string") {
@@ -194,13 +222,11 @@ QtObject {
                 var collValidation = validateCollection(val)
                 if (!collValidation.valid) return { valid: false, error: "Field '" + key + "': " + collValidation.error }
                 for (var i = 0; i < val.length; i++) {
-                    if (typeof val[i] === "object" && val[i] !== null) {
-                        var nestedValidation = validateObject(val[i])
-                        if (!nestedValidation.valid) return { valid: false, error: "Field '" + key + "[" + i + "]': " + nestedValidation.error }
-                    }
+                    var nestedValidation = validateValue(val[i], depth + 1)
+                    if (!nestedValidation.valid) return { valid: false, error: "Field '" + key + "[" + i + "]': " + nestedValidation.error }
                 }
             } else if (typeof val === "object" && val !== null) {
-                var nestedValidation = validateObject(val)
+                var nestedValidation = validateObject(val, depth + 1)
                 if (!nestedValidation.valid) return { valid: false, error: "Field '" + key + "': " + nestedValidation.error }
             }
         }

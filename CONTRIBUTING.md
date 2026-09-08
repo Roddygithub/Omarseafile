@@ -3,7 +3,8 @@
 ## Prerequisites
 
 - Omarchy, Quickshell, and a Wayland session for runtime testing.
-- `curl`, `libsecret`/`secret-tool`, `rsync`, and optionally `wl-clipboard`.
+- Python 3, `curl`, `libsecret`/`secret-tool`, `coreutils`, `util-linux`, `xdg-user-dirs`, `xdg-utils`, `rsync`, and optionally `wl-clipboard`.
+- The Linux helper tests also require `procps-ng` for `pgrep`.
 - A disposable Seafile test account/library for mutation tests.
 
 ## Development Setup

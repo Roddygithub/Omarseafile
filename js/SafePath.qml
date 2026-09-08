@@ -91,7 +91,7 @@ QtObject {
         }
         var expanded = dir
         if (dir.startsWith("~")) {
-            var home = Qt.Quickshell.env("HOME")
+            var home = Quickshell.env("HOME")
             if (home) expanded = home + dir.substring(1)
         }
         var proc = _realpathFactory.createObject(root, {
@@ -105,53 +105,180 @@ QtObject {
     }
 
     function getRuntimeSubdir(subdir, callback) {
-        var runtimeDir = Qt.Quickshell.env("XDG_RUNTIME_DIR")
+        if (!subdir || !/^[A-Za-z0-9_-]{1,64}$/.test(subdir)) {
+            callback({ valid: false, error: "Invalid runtime subdirectory" })
+            return
+        }
+        var runtimeDir = Quickshell.env("XDG_RUNTIME_DIR")
         if (!runtimeDir) {
             callback({ valid: false, error: "XDG_RUNTIME_DIR not set" })
             return
         }
-        var expectedUid = parseInt(Qt.Quickshell.env("UID"), 10)
-        var proc = _statFactory.createObject(root, {
-            onDone: function(out) {
-                if (!out) { callback({ valid: false, error: "Cannot stat XDG_RUNTIME_DIR" }); return }
-                var parts = out.split(" ")
-                var uid = parseInt(parts[0], 10)
-                var perm = parseInt(parts[1], 8)
-                if (uid !== expectedUid) {
-                    callback({ valid: false, error: "XDG_RUNTIME_DIR not owned by current user" })
+        var uidProc = _statFactory.createObject(root, {
+            onDone: function(expectedUidOutput) {
+                if (!expectedUidOutput || !/^\d+$/.test(expectedUidOutput)) {
+                    callback({ valid: false, error: "Cannot determine current user UID" })
                     return
                 }
-                if (perm & 0o022) {
-                    callback({ valid: false, error: "XDG_RUNTIME_DIR has unsafe permissions" })
-                    return
-                }
-                var dir = Qt.Quickshell.env("XDG_RUNTIME_DIR") + "/omarseafile"
-                var mk = _mkdirFactory.createObject(root, {
-                    onDone: function(ok) {
-                        if (!ok) { callback({ valid: false, error: "Cannot create runtime subdir" }); return }
-                        var verify = _statFactory.createObject(root, {
-                            onDone: function(out2) {
-                                if (!out2) { callback({ valid: false, error: "Cannot verify runtime subdir" }); return }
-                                var parts2 = out2.split(" ")
-                                var uid2 = parseInt(parts2[0], 10)
-                                var perm2 = parseInt(parts2[1], 8)
-                                if (uid2 !== expectedUid || perm2 !== 0o700) {
-                                    callback({ valid: false, error: "Runtime subdir has incorrect ownership or permissions" })
-                                    return
-                                }
-                                callback({ valid: true, path: Qt.Quickshell.env("XDG_RUNTIME_DIR") + "/omarseafile" })
+                var expectedUid = parseInt(expectedUidOutput, 10)
+                var proc = _statFactory.createObject(root, {
+                    onDone: function(out) {
+                        var parts = out ? out.split(" ") : []
+                        if (parts.length !== 2 || !/^\d+$/.test(parts[0]) || !/^[0-7]+$/.test(parts[1])) {
+                            callback({ valid: false, error: "Cannot stat XDG_RUNTIME_DIR" })
+                            return
+                        }
+                        var uid = parseInt(parts[0], 10)
+                        var perm = parseInt(parts[1], 8)
+                        if (uid !== expectedUid) {
+                            callback({ valid: false, error: "XDG_RUNTIME_DIR not owned by current user" })
+                            return
+                        }
+                        if (perm & 0o022) {
+                            callback({ valid: false, error: "XDG_RUNTIME_DIR has unsafe permissions" })
+                            return
+                        }
+                        var dir = runtimeDir + "/omarseafile/" + subdir
+                        var mk = _mkdirFactory.createObject(root, {
+                            onDone: function(ok) {
+                                if (!ok) { callback({ valid: false, error: "Cannot create runtime subdir" }); return }
+                                var verify = _statFactory.createObject(root, {
+                                    onDone: function(out2) {
+                                        var parts2 = out2 ? out2.split(" ") : []
+                                        if (parts2.length !== 2 || !/^\d+$/.test(parts2[0]) || !/^[0-7]+$/.test(parts2[1])) {
+                                            callback({ valid: false, error: "Cannot verify runtime subdir" })
+                                            return
+                                        }
+                                        var uid2 = parseInt(parts2[0], 10)
+                                        var perm2 = parseInt(parts2[1], 8)
+                                        if (uid2 !== expectedUid || perm2 !== 0o700) {
+                                            callback({ valid: false, error: "Runtime subdir has incorrect ownership or permissions" })
+                                            return
+                                        }
+                                        callback({ valid: true, path: dir })
+                                    }
+                                })
+                                verify.command = ["stat", "-c", "%u %a", dir]
+                                verify.running = true
                             }
                         })
-                        verify.command = ["stat", "-c", "%u %a", Qt.Quickshell.env("XDG_RUNTIME_DIR") + "/omarseafile"]
-                        verify.running = true
+                        mk.command = ["mkdir", "-p", "-m", "0700", "--", dir]
+                        mk.running = true
                     }
                 })
-                mk.command = ["mkdir", "-p", "-m", "0700", "--", Qt.Quickshell.env("XDG_RUNTIME_DIR") + "/omarseafile"]
-                mk.running = true
+                proc.command = ["stat", "-c", "%u %a", runtimeDir]
+                proc.running = true
             }
         })
-        proc.command = ["stat", "-c", "%u %a", Qt.Quickshell.env("XDG_RUNTIME_DIR")]
+        uidProc.command = ["id", "-u"]
+        uidProc.running = true
+    }
+
+    function getCacheDir(callback) {
+        var cacheRoot = Quickshell.env("XDG_CACHE_HOME")
+        if (!cacheRoot) {
+            var home = Quickshell.env("HOME")
+            if (!home) {
+                callback({ valid: false, error: "No cache directory available" })
+                return
+            }
+            cacheRoot = home + "/.cache"
+        }
+        if (!cacheRoot.startsWith("/")) {
+            callback({ valid: false, error: "XDG_CACHE_HOME must be absolute" })
+            return
+        }
+        // Create the configured root on first use, then canonicalize it before
+        // checking ownership and permissions. Existing symlinks resolve before
+        // validation and cannot become Omarseafile's private directory.
+        var ensure = _mkdirFactory.createObject(root, {
+            onDone: function(ok) {
+                if (!ok) { callback({ valid: false, error: "Cannot create cache root" }); return }
+                var checkRoot = _statFactory.createObject(root, {
+                    onDone: function(kind) {
+                        if (kind !== "directory") { callback({ valid: false, error: "Cache root must be a directory" }); return }
+                        var canonicalize = _realpathFactory.createObject(root, {
+                            onDone: function(path) {
+                                if (!path) { callback({ valid: false, error: "Cannot resolve cache directory" }); return }
+                                root._getCacheDirAt(path, callback)
+                            }
+                        })
+                        canonicalize.command = ["realpath", "-e", "--", cacheRoot]
+                        canonicalize.running = true
+                    }
+                })
+                checkRoot.command = ["stat", "-c", "%F", "--", cacheRoot]
+                checkRoot.running = true
+            }
+        })
+        ensure.command = ["mkdir", "-p", "-m", "0700", "--", cacheRoot]
+        ensure.running = true
+    }
+
+    function getDownloadsDir(callback) {
+        var home = Quickshell.env("HOME")
+        var proc = _realpathFactory.createObject(root, {
+            onDone: function(path) {
+                callback(path && path.startsWith("/") ? path : (home ? home + "/Downloads" : null))
+            }
+        })
+        proc.command = ["xdg-user-dir", "DOWNLOAD"]
         proc.running = true
+    }
+
+    function _getCacheDirAt(cacheRoot, callback) {
+        var uidProc = _statFactory.createObject(root, {
+            onDone: function(expectedUidOutput) {
+                if (!expectedUidOutput || !/^\d+$/.test(expectedUidOutput)) {
+                    callback({ valid: false, error: "Cannot determine current user UID" })
+                    return
+                }
+                var expectedUid = parseInt(expectedUidOutput, 10)
+                var proc = _statFactory.createObject(root, {
+                    onDone: function(out) {
+                        var parts = out ? out.split(" ") : []
+                        if (parts.length !== 2 || !/^\d+$/.test(parts[0]) || !/^[0-7]+$/.test(parts[1])) {
+                            callback({ valid: false, error: "Cannot stat cache directory" })
+                            return
+                        }
+                        var uid = parseInt(parts[0], 10)
+                        var perm = parseInt(parts[1], 8)
+                        if (uid !== expectedUid || perm & 0o022) {
+                            callback({ valid: false, error: "Cache directory has unsafe ownership or permissions" })
+                            return
+                        }
+                        var dir = cacheRoot + "/omarseafile"
+                        var mk = _mkdirFactory.createObject(root, {
+                            onDone: function(ok) {
+                                if (!ok) { callback({ valid: false, error: "Cannot create cache directory" }); return }
+                                var verify = _statFactory.createObject(root, {
+                                    onDone: function(out2) {
+                                        var parts2 = out2 ? out2.split(" ") : []
+                                        if (parts2.length !== 2 || !/^\d+$/.test(parts2[0]) || !/^[0-7]+$/.test(parts2[1])) {
+                                            callback({ valid: false, error: "Cannot verify cache directory" })
+                                            return
+                                        }
+                                        if (parseInt(parts2[0], 10) !== expectedUid || parseInt(parts2[1], 8) !== 0o700) {
+                                            callback({ valid: false, error: "Cache directory has incorrect ownership or permissions" })
+                                            return
+                                        }
+                                        callback({ valid: true, path: dir })
+                                    }
+                                })
+                                verify.command = ["stat", "-c", "%u %a", dir]
+                                verify.running = true
+                            }
+                        })
+                        mk.command = ["mkdir", "-p", "-m", "0700", "--", dir]
+                        mk.running = true
+                    }
+                })
+                proc.command = ["stat", "-c", "%u %a", cacheRoot]
+                proc.running = true
+            }
+        })
+        uidProc.command = ["id", "-u"]
+        uidProc.running = true
     }
 
     property Component _evictCacheFactory: Component {
@@ -167,35 +294,70 @@ QtObject {
 
     // Evict oldest cache files until total size <= maxCacheBytes.
     // Delegates to scripts/cache_evict.py which uses a held O_DIRECTORY|O_NOFOLLOW
-    // directory FD, lstat semantics (no symlink following), excludes active
-    // download temp files (dl_*), hidden files, and anything outside the cache
-    // directory root. Deterministic, no shell output parsing.
-    function evictCache(callback) {
-        var cacheDir = Qt.Quickshell.env("XDG_RUNTIME_DIR") + "/omarseafile/cache"
-        var scriptsBase = Qt.resolvedUrl("../scripts")
-        var helper = scriptsBase + "/cache_evict.py"
-        var evictProc = _evictCacheFactory.createObject(root, {
-            onDone: function(ok) {
-                if (callback) callback(ok)
-            }
+    // directory FD, lstat semantics, and PID-backed active-download markers.
+    function evictCache(protectedNames, callback, maxBytes) {
+        if (typeof protectedNames === "function") {
+            callback = protectedNames
+            protectedNames = []
+        }
+        protectedNames = protectedNames || []
+        getCacheDir(function(cacheResult) {
+            if (!cacheResult.valid) { if (callback) callback(false); return }
+            var scriptsBase = Qt.resolvedUrl("../scripts")
+            var helper = scriptsBase + "/cache_evict.py"
+            var evictProc = _evictCacheFactory.createObject(root, {
+                onDone: function(ok) {
+                    if (callback) callback(ok)
+                }
+            })
+            evictProc.command = [
+                "python3",
+                helper.replace(/^file:\/\//, ""),
+                cacheResult.path,
+                String(maxBytes === undefined ? root.maxCacheBytes : maxBytes)
+            ].concat(protectedNames)
+            evictProc.running = true
         })
-        evictProc.command = [
-            "python3",
-            helper.replace(/^file:\/\//, ""),
-            cacheDir,
-            String(root.maxCacheBytes)
-        ]
-        evictProc.running = true
+    }
+
+    // Clear only safe, non-active files in Omarseafile's private cache.
+    function clearPersistentCache(callback) {
+        root.evictCache([], callback, 0)
     }
 
     // Atomic writer: single Python process using mkstemp for exclusive creation,
     // mode 0600 enforced on the open fd, content via stdin, path via stdout
+    property Component _atomicTimeoutFactory: Component {
+        Timer {
+            property var targetProcess: null
+            interval: 30000
+            repeat: false
+            onTriggered: {
+                if (targetProcess) targetProcess.running = false
+            }
+        }
+    }
+
     property Component _atomicWriterFactory: Component {
         Process {
+            id: atomicProc
             property var onDone: null
+            property string writeContent: ""
+            property var writeTimeout: null
             stdinEnabled: true
             stdout: StdioCollector {}
+            onStarted: {
+                atomicProc.write(writeContent)
+                atomicProc.stdinEnabled = false
+                writeTimeout = root._atomicTimeoutFactory.createObject(root, { targetProcess: atomicProc })
+                writeTimeout.start()
+            }
             onExited: function(exitCode) {
+                if (writeTimeout) {
+                    writeTimeout.stop()
+                    writeTimeout.destroy()
+                    writeTimeout = null
+                }
                 var cb = onDone
                 var out = stdout.text.trim()
                 destroy()
@@ -229,10 +391,7 @@ QtObject {
                 scriptPath.replace(/^file:\/\//, ""),
                 runtimeResult.path, safePrefix
             ]
-            proc.onStarted = function() {
-                proc.write(content)
-                proc.stdinEnabled = false
-            }
+            proc.writeContent = content === undefined || content === null ? "" : String(content)
             proc.running = true
         })
     }

@@ -17,7 +17,8 @@ Item {
     implicitHeight: row.implicitHeight + Style.space(8)
     width: parent.width
 
-    property bool isActive: transfer.state === "pending" || transfer.state === "downloading" || transfer.state === "uploading"
+    property bool isCancelling: transfer.state === "cancelling"
+    property bool isActive: transfer.state === "pending" || transfer.state === "downloading" || transfer.state === "uploading" || transfer.state === "opening" || isCancelling
     property bool isCompleted: transfer.state === "completed"
     property bool isFailed: transfer.state === "failed" || transfer.state === "cancelled" || transfer.state === "auth_failed"
 
@@ -62,6 +63,8 @@ Item {
                 id: detailLabel
                 text: Models.boundedDisplayText((function() {
                     if (root.isActive) {
+                        if (root.isCancelling) return "Cancelling..."
+                        if (root.transfer.state === "opening") return "Opening..."
                         var parts = []
                         if (root.transfer.progress > 0) parts.push(Math.round(root.transfer.progress * 100) + "%")
                         if (root.transfer.speed) parts.push(root.transfer.speed)
@@ -158,7 +161,7 @@ Item {
                 ToolTip.text: "Cancel transfer"
                 horizontalAlignment: Text.AlignHCenter
                 anchors.horizontalCenter: parent.horizontalCenter
-                visible: root.isActive
+                visible: root.isActive && !root.isCancelling
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor

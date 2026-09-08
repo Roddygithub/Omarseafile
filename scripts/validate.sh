@@ -218,7 +218,12 @@ PY
 # --- Security microfix tests ---
 echo ""
 echo "--- Security Microfix Tests ---"
-check "security fixes tests pass" python3 scripts/test_security_fixes.py
+check "portable CI suite passes" python3 scripts/test_portable.py
+if command -v qs >/dev/null; then
+    check "Quickshell runtime remediation suite passes" python3 scripts/test_runtime_remediation.py
+else
+    echo "  Quickshell runtime remediation suite... SKIP (qs not installed)"
+fi
 
 # --- Dependency Reporting ---
 echo ""

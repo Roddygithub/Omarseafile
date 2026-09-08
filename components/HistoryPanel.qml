@@ -59,7 +59,7 @@ Column {
         ListView {
             id: historyList
             width: parent.width
-            height: parent.height - Style.space(40)
+            height: root.historyData.length === 0 ? Style.space(160) : Math.min(contentHeight, Style.space(360))
             clip: true
             spacing: Style.space(4)
             model: root.historyData
@@ -70,7 +70,7 @@ Column {
                 required property var modelData
 
                 property var revision: modelData
-                property bool isCurrent: modelData.version === 1
+                property bool isCurrent: String(modelData.version) === "1"
 
                 Row {
                     id: row

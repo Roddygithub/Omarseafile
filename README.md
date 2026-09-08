@@ -6,9 +6,9 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 
 - Browse accessible Seafile libraries and folders with breadcrumbs.
 - Search across accessible non-encrypted libraries.
-- Download files to `~/Downloads` with progress, cancellation, retry, and no-overwrite collision protection.
+- Download files to the XDG user download directory (falling back to `~/Downloads`) with progress, cancellation, retry, and no-overwrite collision protection.
 - **Secure download target creation**: temporary files created with exclusive O_CREAT|O_EXCL|O_NOFOLLOW on a held directory FD, mode 0600, curl writes to held FD (no pathname reopen), producer-side byte ceiling (1 GiB default) and disk-space admission check (256 MiB safety margin), automatic cleanup on failure/cancellation, symlink and clobber protection.
-- **Open Local**: download to private XDG_RUNTIME_DIR cache, same secure creation, bounded cache (1 GiB default, LRU eviction on completion), cached file opened with xdg-open.
+- **Open Local**: download to private `XDG_CACHE_HOME` (or `~/.cache`) cache, same secure creation, bounded cache (1 GiB default, recovery/eviction before use), cached file opened with xdg-open.
 - Upload a local file by entering its path, with progress, cancellation, manual retry, and server-side conflict protection.
 - **Upload source hardening**: absolute path required, must be regular file (rejects symlinks, directories, devices, FIFOs, sockets), size precheck (1 GiB default).
 - Create folders, rename items, and delete files or folders.
@@ -29,6 +29,7 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 - `curl` for transfers.
 - `libsecret` for `secret-tool` and credential storage.
 - `wl-clipboard` for copying share links. Sharing still works without it, but copying the link does not.
+- Python 3, `coreutils` (`stat`, `realpath`), `util-linux` (`setsid`), and `xdg-user-dirs`/`xdg-utils` (`xdg-user-dir`, `xdg-open`), normally supplied by Omarchy/Arch desktop installations.
 
 On Arch/Omarchy:
 
