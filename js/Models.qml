@@ -72,4 +72,15 @@ QtObject {
         }
         return root.toFileUrl(parentPath)
     }
+
+    // Display-text bounding: convert to string, enforce a character ceiling,
+    // append "…" on truncation. null/undefined → "". Never interprets HTML;
+    // pair with textFormat: Text.PlainText at the sink.
+    function boundedDisplayText(value, maxChars) {
+        if (value === null || value === undefined) return ""
+        if (maxChars <= 0) return ""
+        var s = String(value)
+        if (s.length <= maxChars) return s
+        return s.substring(0, maxChars - 1) + "\u2026"
+    }
 }

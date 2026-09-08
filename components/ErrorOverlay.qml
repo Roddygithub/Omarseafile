@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../js"
 
 Item {
     id: root
@@ -23,19 +24,19 @@ Item {
         spacing: Style.space(16)
 
         Text {
-            text: root.message
+            text: Models.boundedDisplayText(root.message, 4096)
             color: Color.urgent
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.body
             wrapMode: Text.WordWrap
             width: Math.min(parent.width, Style.space(340))
             horizontalAlignment: Text.AlignHCenter
+            textFormat: Text.PlainText
         }
 
         Button {
             text: "Retry"
             onClicked: {
-                root.visible = false
                 if (root.onRetry) root.onRetry()
             }
         }

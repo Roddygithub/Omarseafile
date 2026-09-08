@@ -6,8 +6,11 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 
 - Browse accessible Seafile libraries and folders with breadcrumbs.
 - Search across accessible non-encrypted libraries.
-- Download files to `~/Downloads` with progress, cancellation, retry, and no-overwrite collision protection.
+- Download files to the XDG user download directory (falling back to `~/Downloads`) with progress, cancellation, retry, and no-overwrite collision protection.
+- **Secure download target creation**: temporary files created with exclusive O_CREAT|O_EXCL|O_NOFOLLOW on a held directory FD, mode 0600, curl writes to held FD (no pathname reopen), producer-side byte ceiling (1 GiB default) and disk-space admission check (256 MiB safety margin), automatic cleanup on failure/cancellation, symlink and clobber protection.
+- **Open Local**: download to private `XDG_CACHE_HOME` (or `~/.cache`) cache, same secure creation, bounded cache (1 GiB default, recovery/eviction before use), cached file opened with xdg-open.
 - Upload a local file by entering its path, with progress, cancellation, manual retry, and server-side conflict protection.
+- **Upload source hardening**: absolute path required, must be regular file (rejects symlinks, directories, devices, FIFOs, sockets), size precheck (1 GiB default).
 - Create folders, rename items, and delete files or folders.
 - Select multiple items with Ctrl+Click, Shift+Click, or Ctrl+A for batch actions.
 - Copy and move files and folders, including batch operations.
@@ -26,6 +29,7 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 - `curl` for transfers.
 - `libsecret` for `secret-tool` and credential storage.
 - `wl-clipboard` for copying share links. Sharing still works without it, but copying the link does not.
+- Python 3, `coreutils` (`stat`, `realpath`), `util-linux` (`setsid`), and `xdg-user-dirs`/`xdg-utils` (`xdg-user-dir`, `xdg-open`), normally supplied by Omarchy/Arch desktop installations.
 
 On Arch/Omarchy:
 
@@ -53,7 +57,7 @@ omarchy plugin update roddy.seafile
 2. Enter the server URL, email, and password.
 3. Select **Connect**.
 
-HTTPS is recommended. HTTP URLs are accepted with a warning. The URL is normalized and validated before authentication. Auto-login can be enabled or disabled in Settings.
+HTTPS is required for non-loopback servers. HTTP is accepted only for loopback addresses (localhost, 127.0.0.1). The URL is normalized and validated before authentication. Auto-login can be enabled or disabled in Settings.
 
 The session token, server URL, and account email are stored through the desktop Secret Service using `secret-tool`. The login password is not persisted.
 
@@ -114,7 +118,7 @@ Shortcuts are contextual and are not intercepted while a text field has focus. S
 - Copy and Move are limited to the current source library.
 - Seafile CE support depends on the server's enabled APIs. In the tested CE 12.0.x environment, trash restore and revision revert are unavailable; repo-scoped search returns all matching results without pagination.
 - Large uploads use a single request rather than chunked or resumable upload.
-- HTTPS is strongly recommended. Certificate verification uses the system trust store; TLS verification is not bypassed.
+- HTTPS is required for non-loopback servers. Certificate verification uses the system trust store; TLS verification is not bypassed.
 - The plugin assumes Omarchy's Quickshell runtime and Wayland desktop integration.
 
 ## Troubleshooting
@@ -122,7 +126,7 @@ Shortcuts are contextual and are not intercepted while a text field has focus. S
 | Problem | Action |
 | --- | --- |
 | Missing dependency | Install `curl`, `libsecret`, and optionally `wl-clipboard`. |
-| Invalid URL | Include an `http://` or `https://` scheme and check the server address. |
+| Invalid URL | Include an `https://` scheme and check the server address. HTTP is only allowed for loopback. |
 | Authentication failure | Check the credentials and try the Seafile web interface. |
 | TLS failure | Use a certificate trusted by the system; do not disable verification. |
 | Auto-login failure | Check that Secret Service is available and Auto-login is enabled in Settings. |
@@ -163,6 +167,18 @@ secret-tool clear service seafile key user-email
 ## Security
 
 See [SECURITY.md](SECURITY.md) for reporting and security boundaries. In brief, credentials use Secret Service, transfer authentication avoids argv/environment exposure, temporary authorization/configuration files are restricted and cleaned up, and the plugin makes no telemetry connection.
+
+**Transfer security (Finding 5 remediation):**
+- Download targets created exclusively via held directory FD (O_DIRECTORY|O_NOFOLLOW), verified ownership and permissions, unpredictable basename, O_CREAT|O_EXCL|O_NOFOLLOW, mode 0600
+- curl writes to held file descriptor (stdout), never a pathname target
+- Producer-side byte ceiling (default 1 GiB via curl --max-filesize) and disk-space admission check (fstatvfs on held dir_fd, default 256 MiB safety margin)
+- Download deadlines: --max-time 30 min, --connect-timeout 10s, stall protection (--speed-limit 1 --speed-time 30s)
+- Process group isolation via setsid; cancellation kills entire process tree (kill -TERM -pgid)
+- Open Local cache bounded (default 1 GiB), LRU eviction on successful completion, active/temp files protected
+- Upload source validation: absolute path, regular file only (rejects symlinks, directories, devices, FIFOs, sockets), size precheck (default 1 GiB)
+- Cross-origin transfer URLs never receive Authorization header (same-origin check)
+- Redirects disabled (--no-location)
+- Helper stdout/stderr bounded (64 KiB stderr cap)
 
 ## Project Documents
 

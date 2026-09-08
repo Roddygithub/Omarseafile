@@ -77,13 +77,14 @@ Item {
 
         Text {
             id: nameLabel
-            text: safeItem.name || ""
+            text: Models.boundedDisplayText(safeItem.name || "", 1024)
             color: root.isSelected ? Color.accent : (root.bar ? root.bar.foreground : Color.foreground)
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.body
             elide: Text.ElideRight
             width: parent ? parent.width - icon.width - sizeLabel.width - (dateLabel.visible ? dateLabel.width : 0) - transferWidth - Style.space(36) : 0
             anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
         }
 
         Item {
@@ -113,6 +114,7 @@ Item {
                     font.family: root.bar ? root.bar.fontFamily : Style.font.family
                     font.pixelSize: Style.font.caption
                     anchors.verticalCenter: parent.verticalCenter
+                    textFormat: Text.PlainText
                 }
             }
         }
@@ -127,6 +129,7 @@ Item {
             horizontalAlignment: Text.AlignRight
             anchors.verticalCenter: parent.verticalCenter
             visible: !root.isDownloading && !root.isUploading
+            textFormat: Text.PlainText
         }
 
         Text {
@@ -140,6 +143,7 @@ Item {
             elide: Text.ElideRight
             anchors.verticalCenter: parent.verticalCenter
             visible: !root.isDownloading && !root.isUploading
+            textFormat: Text.PlainText
         }
     }
 
@@ -159,6 +163,7 @@ MouseArea {
                 var pos = mapToItem(Overlay.overlay, mouse.x, mouse.y)
                 if (root.onContextMenuRequested) root.onContextMenuRequested(root.item, pos.x, pos.y)
             } else {
+                if (root.ListView.view) root.ListView.view.currentIndex = root.itemIndex
                 // Some keyboards/layouts send Meta (Super/Cmd) where Ctrl is
                 // intended — accept both for selection modifiers.
                 var accel = Qt.ControlModifier | Qt.MetaModifier
@@ -166,12 +171,15 @@ MouseArea {
                     if (root.onSelectionToggle) root.onSelectionToggle(root.item)
                 } else if (mouse.modifiers & Qt.ShiftModifier) {
                     if (root.onSelectionRange) root.onSelectionRange(root.item)
-                } else if (root.isDir) {
+                } else {
+                    if (root.onPositionClicked) root.onPositionClicked(root.item)
+                    if (root.isDir) {
                     // Plain click on a folder/library navigates into it.
                     if (root.onItemClicked) root.onItemClicked(root.item)
-                } else {
+                    } else {
                     // Plain click on a file opens it with the default application.
                     if (root.onOpenClicked) root.onOpenClicked(root.item)
+                    }
                 }
             }
         }

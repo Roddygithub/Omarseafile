@@ -13,6 +13,8 @@ QtObject {
     readonly property string keyServer: "server-url"
     readonly property string keyEmail: "user-email"
     property var _sessionMutationTail: null
+    readonly property string _wrapperPath: Qt.resolvedUrl("../scripts/secret_tool_wrapper.py").toString().replace(/^file:\/\//, "")
+    readonly property int _maxSecretBytes: 4096
 
     function _queueSessionMutation(mutation) {
         var previous = root._sessionMutationTail || Promise.resolve()
@@ -21,7 +23,7 @@ QtObject {
         return result
     }
 
-    // Factory: one short-lived Process per secret-tool invocation.
+    // Factory: one short-lived Process per secret-tool invocation with timeout.
     property Component procFactory: Component {
         Process {
             id: proc
@@ -50,17 +52,33 @@ QtObject {
 
     // Run one command, resolve(stdoutText) on success, reject(Error) on failure.
     // `lookupIsSoft`: exit code 1 means "not found" and resolves with "".
+    // secret-tool commands are routed through secret_tool_wrapper.py for
+    // process-group isolation and producer-side byte ceilings.
     function _run(cmd, input, lookupIsSoft) {
         return new Promise(function(resolve, reject) {
+            var wrappedCmd = cmd
+            if (cmd.length > 0 && cmd[0] === "secret-tool") {
+                wrappedCmd = ["python3", root._wrapperPath,
+                    root._maxSecretBytes, root._maxSecretBytes,
+                    "--"].concat(cmd)
+            }
+            var timer = Qt.createQmlObject('import QtQuick; Timer { property var targetProcess: null; interval: 30000; repeat: false; onTriggered: { if (targetProcess) targetProcess.running = false } }', root)
             var proc = root.procFactory.createObject(root, {
                 inputPayload: (input !== undefined && input !== null) ? input : "",
                 onDone: function(exitCode, text) {
+                    if (timer) {
+                        timer.stop()
+                        timer.destroy()
+                        timer = null
+                    }
                     if (exitCode === 0) { resolve(text); return }
                     if (lookupIsSoft && exitCode === 1) { resolve(""); return }
                     reject(new Error(cmd.join(" ") + " failed (exit " + exitCode + ")"))
                 }
             })
-            proc.command = cmd
+            timer.targetProcess = proc
+            timer.start()
+            proc.command = wrappedCmd
             proc.running = true
         })
     }

@@ -9,6 +9,7 @@ Popup {
     property var item: null
     property bool isDir: false
     property int selectionCount: 1
+    property bool libraryMode: false
     property QtObject bar: null
 
     signal openClicked(var item)
@@ -36,7 +37,7 @@ Popup {
         Button {
             width: parent.width
             text: "Open"
-            visible: !root.batchMode && !root.isDir
+            visible: !root.libraryMode && !root.batchMode && !root.isDir
             onClicked: {
                 root.openClicked(root.item)
                 root.close()
@@ -46,7 +47,7 @@ Popup {
         Button {
             width: parent.width
             text: "Open"
-            visible: !root.batchMode && root.isDir
+            visible: !root.batchMode && (root.libraryMode || root.isDir)
             onClicked: {
                 root.openClicked(root.item)
                 root.close()
@@ -56,7 +57,7 @@ Popup {
         Button {
             width: parent.width
             text: "Download"
-            visible: !root.batchMode && !root.isDir
+            visible: !root.libraryMode && !root.batchMode && !root.isDir
             onClicked: {
                 root.downloadClicked(root.item)
                 root.close()
@@ -66,7 +67,7 @@ Popup {
         Button {
             width: parent.width
             text: "Share"
-            visible: !root.batchMode
+            visible: !root.libraryMode && !root.batchMode
             onClicked: {
                 root.shareClicked(root.item)
                 root.close()
@@ -76,7 +77,7 @@ Popup {
         Button {
             width: parent.width
             text: "Rename"
-            visible: !root.batchMode
+            visible: !root.libraryMode && !root.batchMode
             onClicked: {
                 root.renameClicked(root.item)
                 root.close()
@@ -86,7 +87,7 @@ Popup {
         Button {
             width: parent.width
             text: root.batchMode ? "Move " + root.selectionCount + " items" : "Move"
-            visible: !root.batchMode
+            visible: !root.libraryMode
             onClicked: {
                 root.moveClicked(root.item)
                 root.close()
@@ -96,7 +97,7 @@ Popup {
         Button {
             width: parent.width
             text: root.batchMode ? "Copy " + root.selectionCount + " items" : "Copy"
-            visible: !root.batchMode
+            visible: !root.libraryMode
             onClicked: {
                 root.copyClicked(root.item)
                 root.close()
@@ -106,7 +107,7 @@ Popup {
         Button {
             width: parent.width
             text: "History"
-            visible: !root.batchMode && !root.isDir
+            visible: !root.libraryMode && !root.batchMode && !root.isDir
             onClicked: {
                 root.historyClicked(root.item)
                 root.close()
@@ -116,7 +117,7 @@ Popup {
         Button {
             width: parent.width
             text: "Delete"
-            visible: true
+            visible: !root.libraryMode
             onClicked: {
                 root.deleteClicked(root.item)
                 root.close()

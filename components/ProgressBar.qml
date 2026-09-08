@@ -7,7 +7,7 @@ Item {
     property int from: 0
     property int to: 1
     property real value: 0
-    property color foreground: root.bar ? root.bar.foreground : Color.foreground
+    property color foreground: Color.foreground
     property color background: Util.alpha(root.foreground, 0.15)
     property int radius: Style.space(3)
 

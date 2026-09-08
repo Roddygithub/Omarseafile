@@ -19,7 +19,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq shellcheck
 
-      - name: Run validation script (CI-capable checks)
+      - name: Run portable validation suite
         run: ./scripts/validate.sh
 
       - name: Validate basic manifest fields

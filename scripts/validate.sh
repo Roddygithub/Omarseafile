@@ -113,7 +113,7 @@ check "Obsolete FolderPickerDialog removed" test ! -e components/FolderPickerDia
 check "Destination rejects folder self and descendants" grep -q 'destPath === source.fullPath || destPath.indexOf(source.fullPath + "/")' Panel.qml
 check "Destination blocks context actions" grep -q 'if (!item || root.destinationMode) return' Panel.qml
 check "Auth mutations are serialized" grep -q 'function _queueSessionMutation' js/Auth.qml
-check "All curl processes disable user config" bash -c 'test "$(grep -c '"'"'"-q"'"'"' js/TransferService.qml)" -eq 3'
+check "All curl processes disable user config" bash -c 'test "$(grep -c '"'"'"-q"'"'"' js/TransferService.qml)" -eq 6'
 check "Transfers do not enable redirects" bash -c '! grep -Eq '"'"'"(-L|--location|--location-trusted)"'"'"' js/TransferService.qml'
 check "Transfers hide capability URLs in private config" grep -q "createCurlConfigFile" js/TransferService.qml
 check "Upload form literals are parser-safe" bash -c 'grep -q "curlFileForm" js/TransferService.qml && grep -q '"'"'"--form-string"'"'"' js/TransferService.qml'
@@ -214,6 +214,16 @@ if problems:
     sys.exit(1)
 sys.exit(0)
 PY
+
+# --- Security microfix tests ---
+echo ""
+echo "--- Security Microfix Tests ---"
+check "portable CI suite passes" python3 scripts/test_portable.py
+if command -v qs >/dev/null; then
+    check "Quickshell runtime remediation suite passes" python3 scripts/test_runtime_remediation.py
+else
+    echo "  Quickshell runtime remediation suite... SKIP (qs not installed)"
+fi
 
 # --- Dependency Reporting ---
 echo ""

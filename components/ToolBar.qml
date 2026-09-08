@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../js"
 
 Item {
     id: root
@@ -81,7 +82,7 @@ Item {
 
         Text {
             id: titleLabel
-            text: root.title
+            text: Models.boundedDisplayText(root.title, 1024)
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.title
@@ -90,6 +91,7 @@ Item {
             width: Math.max(Style.space(24), row.width - row._fixedButtons - Style.space(8) * Math.max(0, row._visibleCount - 1))
             anchors.verticalCenter: parent.verticalCenter
             visible: !root.searchActive && root.selectionCount === 0
+            textFormat: Text.PlainText
         }
 
         BatchActionBar {
@@ -227,6 +229,7 @@ Item {
                 anchors.topMargin: Style.space(2)
                 anchors.rightMargin: Style.space(2)
                 z: 1
+                textFormat: Text.PlainText
             }
 
             Rectangle {

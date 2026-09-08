@@ -55,35 +55,14 @@ Panel {
     property var historyFileName: ""
     property var historyFilePath: ""
     property var historyRepoId: ""
+    property int historyGeneration: 0
 
     // ===== SELECTION STATE =====
     property var selectedItems: []
     property var selectionAnchor: null
 
-    function selectionKey(item) {
-        if (!item) return ""
-        return (item.repoId || item.repoId) + ":" + (item.fullPath || item.path || item.name) + ":" + (item.type || (item.isDir ? "dir" : "file"))
-    }
-
-    function isSelected(item) {
-        if (!item) return false
-        var key = item.repoId + ":" + (item.fullPath || item.path || item.name) + ":" + (item.type || (item.isDir ? "dir" : "file"))
-        for (var i = 0; i < root.selectedItems.length; i++) {
-            var sel = root.selectedItems[i]
-            var selKey = sel.repoId + ":" + (sel.fullPath || sel.path || sel.name) + ":" + (sel.type || (sel.isDir ? "dir" : "file"))
-            if (sel.repoId === item.repoId && (sel.fullPath || sel.path || sel.name) === (item.fullPath || item.path || item.name)) {
-                return true
-            }
-        }
-        return false
-    }
-
     function selectionKeyForItem(item) {
-        if (!item) return ""
-        var repoId = item.repoId || ""
-        var path = item.fullPath || item.path || item.name || ""
-        var type = item.type || (item.isDir ? "dir" : "file")
-        return repoId + ":" + path + ":" + type
+        return SelectionHelper.makeKey(item)
     }
 
     function isItemSelected(item) {
@@ -108,12 +87,13 @@ Panel {
         root.selectionAnchor = item
     }
 
-    function selectRange(item) {
+    function selectRange(item, visibleItems) {
+        var items = visibleItems || root.currentItems
         var anchor = root.selectionAnchor
         if (!anchor) {
-            anchor = root.currentItems.length > 0 ? root.currentItems[0] : null
+            anchor = items.length > 0 ? items[0] : null
         }
-        root.selectedItems = SelectionHelper.rangeSelect(root.selectedItems, anchor, item, root.currentItems)
+        root.selectedItems = SelectionHelper.rangeSelect(root.selectedItems, anchor, item, items)
         root.selectionAnchor = item
     }
 
@@ -142,7 +122,7 @@ Panel {
     function handleBackClick() {
         if (root.destinationSubmitting) return
         if (root.showTransfers) { root.showTransfers = false }
-        else if (root.showHistory) { root.showHistory = false; historyLoader.sourceComponent = undefined }
+        else if (root.showHistory) { root.historyGeneration++; root.showHistory = false; historyLoader.sourceComponent = undefined }
         else if (root.showTrash) { root.showTrash = false; trashLoader.sourceComponent = undefined }
         else if (settingsLoader.sourceComponent) { root.closeSettings() }
         else { root.goBack() }
@@ -157,7 +137,7 @@ Panel {
         if (confirmLoader.item) { root.cancelDelete(); return true }
         if (renameLoader.item) { root.cancelRename(); return true }
         if (createFolderLoader.item) { root.cancelCreateFolder(); return true }
-        if (historyLoader.item) { root.showHistory = false; historyLoader.sourceComponent = undefined; return true }
+        if (historyLoader.item) { root.historyGeneration++; root.showHistory = false; historyLoader.sourceComponent = undefined; return true }
         if (trashLoader.item) { root.showTrash = false; trashLoader.sourceComponent = undefined; return true }
         if (settingsLoader.item) { root.closeSettings(); return true }
         return false
@@ -175,11 +155,11 @@ Panel {
         var validKeys = {}
         for (var i = 0; i < root.currentItems.length; i++) {
             var item = root.currentItems[i]
-            var key = item.repoId + ":" + (item.fullPath || item.path || item.name) + ":" + (item.type || (item.isDir ? "dir" : "file"))
+            var key = SelectionHelper.makeKey(item)
             validKeys[key] = true
         }
         root.selectedItems = root.selectedItems.filter(function(item) {
-            var key = item.repoId + ":" + (item.fullPath || item.path || item.name) + ":" + (item.type || (item.isDir ? "dir" : "file"))
+            var key = SelectionHelper.makeKey(item)
             return validKeys[key] === true
         })
     }
@@ -205,6 +185,9 @@ Panel {
             if (transfer.state === "completed" || transfer.state === "failed" || transfer.state === "cancelled" || transfer.state === "auth_failed") {
                 root.handleTransferCompletion(transfer)
             }
+        }
+        function onTransferError(message) {
+            root.showToast(message, "error")
         }
     }
 
@@ -266,35 +249,12 @@ Panel {
 
     function showItemContextMenu(item, x, y) {
         if (!item || root.destinationMode) return
-        if (!root.isItemSelected(item)) root.selectOnly(item)
+        if (!root.currentRepo) root.clearSelection()
+        else if (!root.isItemSelected(item)) root.selectOnly(item)
         contextMenu.item = item
         contextMenu.isDir = item.type === "dir"
+        contextMenu.libraryMode = root.currentRepo === null
         contextMenu.selectionCount = root.selectedItems.length > 0 ? root.selectedItems.length : 1
-        // Disconnect previous connections to avoid duplicates
-        try { contextMenu.openClicked.disconnect(root.openFile) } catch (e) {}
-        try { contextMenu.openClicked.disconnect(root.onItemClicked) } catch (e) {}
-        try { contextMenu.downloadClicked.disconnect(root.onDownloadClicked) } catch (e) {}
-        try { contextMenu.shareClicked.disconnect(root.pickShare) } catch (e) {}
-        try { contextMenu.renameClicked.disconnect(root.pickRename) } catch (e) {}
-        try { contextMenu.moveClicked.disconnect(root.moveItems) } catch (e) {}
-        try { contextMenu.copyClicked.disconnect(root.copyItems) } catch (e) {}
-        try { contextMenu.deleteClicked.disconnect(root.deleteItems) } catch (e) {}
-        try { contextMenu.historyClicked.disconnect(root.openHistory) } catch (e) {}
-        try { contextMenu.deleteClicked.disconnect(root.deleteItems) } catch (e) {}
-
-        // Connect signals
-        if (item.type === "dir") {
-            contextMenu.openClicked.connect(root.onItemClicked)
-        } else {
-            contextMenu.openClicked.connect(root.openFile)
-        }
-        contextMenu.downloadClicked.connect(root.onDownloadClicked)
-        contextMenu.shareClicked.connect(root.pickShare)
-        contextMenu.renameClicked.connect(root.pickRename)
-        contextMenu.moveClicked.connect(root.moveItems)
-        contextMenu.copyClicked.connect(root.copyItems)
-        contextMenu.deleteClicked.connect(root.deleteItems)
-        contextMenu.historyClicked.connect(root.openHistory)
         // Parent to the keyboard-panel window's overlay: never clipped by the
         // file list, and rendered in the window that owns pointer/keyboard.
         contextMenu.parent = keyCatcher.Overlay.overlay
@@ -389,16 +349,16 @@ Panel {
             ContextMenu {
                 id: contextMenu
                 bar: root.bar
-                onOpenClicked: function(item) { item.type === "dir" ? root.onItemClicked(item) : root.openFile(item) }
-                onDownloadClicked: root.downloadFile
-                onRenameClicked: root.pickRename
-                onMoveClicked: root.moveItems
-                onCopyClicked: root.copyItems
-                onShareClicked: root.pickShare
-                onHistoryClicked: root.openHistory
+                onOpenClicked: function(item) { if (item) item.type === "dir" ? root.onItemClicked(item) : root.openFile(item) }
+                onDownloadClicked: function(item) { root.downloadFile(item) }
+                onRenameClicked: function(item) { root.pickRename(item) }
+                onMoveClicked: function(item) { root.moveItems(item) }
+                onCopyClicked: function(item) { root.copyItems(item) }
+                onShareClicked: function(item) { root.pickShare(item) }
+                onHistoryClicked: function(item) { root.openHistory(item) }
                 onDeleteClicked: function(item) {
-                    if (item) root.pickDelete(item)
-                    else root.deleteItems()
+                    if (root.selectedItems.length > 1) root.deleteItems()
+                    else if (item) root.pickDelete(item)
                 }
             }
 
@@ -406,7 +366,6 @@ Panel {
                 id: content
                 width: parent.width
                 spacing: 0
-                focus: true
 
                 Toast {
                     id: toast
@@ -513,16 +472,18 @@ Panel {
                                 font.family: root.bar.fontFamily
                                 font.pixelSize: Style.font.caption
                                 horizontalAlignment: Text.AlignHCenter
+                                textFormat: Text.PlainText
                             }
                             Text {
                                 width: parent.width
-                                text: root.currentRepo ? root.currentRepo.name + (root.currentPath === "/" ? " /" : " / " + root.currentPath.substring(1)) : ""
+                                text: Models.boundedDisplayText(root.currentRepo ? root.currentRepo.name + (root.currentPath === "/" ? " /" : " / " + root.currentPath.substring(1)) : "", 4096)
                                 color: Qt.darker(root.bar.foreground, 1.3)
                                 font.family: root.bar.fontFamily
                                 font.pixelSize: Style.font.caption
                                 font.bold: true
                                 elide: Text.ElideMiddle
                                 horizontalAlignment: Text.AlignHCenter
+                                textFormat: Text.PlainText
                             }
                             Row {
                                 width: parent.width
@@ -608,6 +569,7 @@ Panel {
                             horizontalAlignment: Text.AlignHCenter
                             anchors.horizontalCenter: parent.horizontalCenter
                             topPadding: Style.space(4)
+                            textFormat: Text.PlainText
                         }
 
                         ErrorOverlay {
@@ -641,8 +603,8 @@ Panel {
                             visible: !root.loading && root.errorMessage === "" && !root.searchActive && !root.showTransfers
                             selectedItems: root.selectedItems
                             selectionAnchor: root.selectionAnchor
-                            onSelectionToggle: root.destinationMode ? function() {} : root.toggleSelection
-                            onSelectionRange: root.destinationMode ? function() {} : root.selectRange
+                            onSelectionToggle: root.destinationMode || !root.currentRepo ? function() {} : root.toggleSelection
+                            onSelectionRange: root.destinationMode || !root.currentRepo ? function() {} : root.selectRange
                             onSelectOnly: root.destinationMode ? function() {} : root.selectOnly
                             onPositionClicked: root.positionOn
                             onContextMenuRequested: root.showItemContextMenu
@@ -753,7 +715,7 @@ Panel {
             bar: root.bar
             // Canonical item-context shape: { items: [...], isDir }. The legacy
             // { item } field is honored only as a safety fallback.
-            message: {
+            message: Models.boundedDisplayText((function() {
                 var d = root.deleteItemData
                 if (!d) return "Are you sure?"
                 var list = d.items && d.items.length > 0 ? d.items : (d.item ? [d.item] : [])
@@ -761,7 +723,7 @@ Panel {
                 if (list.length > 1) return "Delete " + list.length + " item(s)?"
                 var it = list[0]
                 return "Delete " + (it.type === "dir" ? "folder" : "file") + " \"" + (it.name || "") + "\"?"
-            }
+            })(), 4096)
             onConfirm: function() { root.confirmDelete() }
             onCancel: function() { root.cancelDelete() }
         }
@@ -805,14 +767,17 @@ Panel {
                 var serverUrl = root.serverUrl
                 var token = Auth.getToken()
                 var session = root.sessionGeneration
+                var generation = root.historyGeneration
                 SeafileAPI.downloadRevision(repoId, filePath, revision.commitId, function(success, data, error) {
-                    if (session !== root.sessionGeneration) return
+                    if (session !== root.sessionGeneration || generation !== root.historyGeneration) return
                     if (success && typeof data === "string" && data !== "") {
-                        TransferService.startDownload(
-                            { name: fileName + " (rev " + revision.commitId.substring(0, 8) + ")", type: "file" },
-                            token, serverUrl, repoId,
-                            root.getDownloadsDir(), filePath, data
-                        )
+                        SafePath.getDownloadsDir(function(dir) {
+                            if (session !== root.sessionGeneration || generation !== root.historyGeneration || !dir) return
+                            TransferService.startDownload(
+                                { name: fileName + " (rev " + revision.commitId.substring(0, 8) + ")", type: "file" },
+                                token, serverUrl, repoId, dir, filePath, data
+                            )
+                        })
                         root.showHistory = false
                         historyLoader.sourceComponent = undefined
                         root.showToast("Downloading historical revision...")
@@ -821,7 +786,7 @@ Panel {
                     }
                 })
             }
-            onClose: function() { root.showHistory = false; historyLoader.sourceComponent = undefined }
+            onClose: function() { root.historyGeneration++; root.showHistory = false; historyLoader.sourceComponent = undefined }
             onError: function(message) { root.showToast(message, "error") }
         }
     }
@@ -860,11 +825,17 @@ Panel {
         var normalized = normalizeUrl(url)
         if (!normalized) {
             root.loading = false
-            root.errorMessage = "Invalid URL format. Use https://domain.com or http://ip:port"
+            root.errorMessage = "Invalid URL format. Use https://domain.com"
             return
         }
-        if (normalized.startsWith("http://")) {
-            root.showToast("Warning: Using HTTP — credentials sent in cleartext", "error")
+        var policy = UrlPolicy.validateForAuth(normalized)
+        if (!policy.valid) {
+            root.loading = false
+            root.errorMessage = policy.error
+            return
+        }
+        if (policy.warning) {
+            root.showToast(policy.warning, "warning")
         }
         root.loading = true
         root.errorMessage = ""
@@ -996,15 +967,6 @@ Panel {
                 root.pathHistory = [{ name: item.name, path: "/", repoId: item.id }]
                 root.loadFolder(item.id, "/")
             }
-        }
-    }
-
-    function onDownloadClicked(item) {
-        if (item.type === "file") {
-            var token = Auth.getToken()
-            if (!token) { root.errorMessage = "Not authenticated"; return }
-            var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
-            TransferService.startDownload(item, token, root.serverUrl, root.currentRepo.id, getDownloadsDir(), fullPath)
         }
     }
 
@@ -1276,13 +1238,6 @@ Panel {
         TransferService.startUpload(localFilePath, token, root.serverUrl, root.currentRepo.id, root.currentPath, fileName)
     }
 
-    function getDownloadsDir() { return Quickshell.env("HOME") + "/Downloads" }
-
-    function getCacheDir() {
-        var base = Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")
-        return base + "/omarseafile"
-    }
-
     function openFile(item) {
         if (!item || item.type !== "file") return
         if (!root.currentRepo) { root.errorMessage = "No library selected"; return }
@@ -1297,8 +1252,16 @@ Panel {
         if (!root.currentRepo) { root.errorMessage = "No library selected"; return }
         var token = Auth.getToken()
         if (!token) { root.errorMessage = "Not authenticated"; return }
+        var session = root.sessionGeneration
+        var serverUrl = root.serverUrl
+        var repoId = root.currentRepo.id
+        var file = { name: item.name, type: item.type }
         var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
-        TransferService.startDownload(item, token, root.serverUrl, root.currentRepo.id, getDownloadsDir(), fullPath)
+        SafePath.getDownloadsDir(function(dir) {
+            if (session !== root.sessionGeneration) return
+            if (!dir) { root.errorMessage = "No download directory available"; return }
+            TransferService.startDownload(file, token, serverUrl, repoId, dir, fullPath)
+        })
     }
 
     function handleTransferCompletion(transfer) {
@@ -1323,6 +1286,7 @@ Panel {
         root.navigationGeneration++
         root.searchGeneration++
         root.connectionTestGeneration++
+        root.historyGeneration++
         searchDebounceTimer.stop()
         TransferService.logoutCleanup()
         Auth.clearSession().catch(function(error) {
@@ -1374,13 +1338,26 @@ Panel {
 
     function clearCache() {
         Cache.clear()
-        root.showToast("Cache cleared")
+        SafePath.clearPersistentCache(function(result) {
+            if (result.complete) {
+                root.showToast("Cache cleared", "success")
+            } else if (result.protected) {
+                root.showToast("Memory cache cleared; active files remain", "warning")
+            } else {
+                root.showToast("Memory cache cleared; persistent cache cleanup could not complete", "warning")
+            }
+        })
     }
 
     function changeServerUrl(newUrl, apply) {
         var normalized = normalizeUrl(newUrl)
         if (!normalized) {
             root.showToast("Invalid URL format", "error")
+            return
+        }
+        var policy = UrlPolicy.validateForAuth(normalized)
+        if (!policy.valid) {
+            root.showToast(policy.error, "error")
             return
         }
         if (apply && normalized !== root.serverUrl) {
@@ -1464,8 +1441,8 @@ Panel {
     function cancelCreateFolder() { createFolderLoader.sourceComponent = undefined }
 
     function confirmCreateFolder(folderName) {
-        if (!folderName || folderName.trim() === "") { root.errorMessage = "Folder name cannot be empty"; return }
-        if (folderName !== folderName.trim()) { root.errorMessage = "Folder names cannot start or end with spaces"; return }
+        if (!folderName || folderName.trim() === "") { if (createFolderLoader.item) createFolderLoader.item.errorText._raw = "Folder name cannot be empty"; return }
+        if (folderName !== folderName.trim()) { if (createFolderLoader.item) createFolderLoader.item.errorText._raw = "Folder names cannot start or end with spaces"; return }
         createFolderLoader.sourceComponent = undefined
         var token = Auth.getToken()
         if (!token) { root.errorMessage = "Not authenticated"; return }
@@ -1492,7 +1469,7 @@ Panel {
     property var renameItemData: null
 
     function pickRename(item) {
-        if (!item) return
+        if (!item || !root.currentRepo) return
         root.renameItemData = { items: [item], isDir: item.type === "dir" }
         renameLoader.sourceComponent = renameComponent
     }
@@ -1500,11 +1477,11 @@ Panel {
     function cancelRename() { renameLoader.sourceComponent = undefined; root.renameItemData = null }
 
     function confirmRename(newName) {
-        if (!newName || newName.trim() === "") { root.errorMessage = "Name cannot be empty"; return }
-        if (newName !== newName.trim()) { root.errorMessage = "Names cannot start or end with spaces"; return }
+        if (!newName || newName.trim() === "") { if (renameLoader.item) renameLoader.item.errorText._raw = "Name cannot be empty"; return }
+        if (newName !== newName.trim()) { if (renameLoader.item) renameLoader.item.errorText._raw = "Names cannot start or end with spaces"; return }
         var d = root.renameItemData
         var item = d && d.items && d.items.length > 0 ? d.items[0] : null
-        if (!item) { cancelRename(); return }
+        if (!item || !root.currentRepo) { cancelRename(); return }
         if (newName === item.name) { cancelRename(); return }
         renameLoader.sourceComponent = undefined
         var token = Auth.getToken()
@@ -1764,6 +1741,7 @@ Panel {
     property var shareItemData: null
 
     function pickShare(item) {
+        if (!item || !root.currentRepo) return
         var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
         root.shareItemData = { item: item, isDir: item.type === "dir", fullPath: fullPath }
         shareLoader.sourceComponent = shareComponent
@@ -1773,6 +1751,7 @@ Panel {
 
     function openHistory(item) {
         if (!root.currentRepo || !item || item.type !== "file") return
+        root.historyGeneration++
         root.historyRepoId = root.currentRepo.id
         root.historyFileName = item.name
         root.historyFilePath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
@@ -1815,6 +1794,14 @@ Panel {
                 if (authenticated && !hasRequiredMissing) {
                     var token = Auth.getToken()
                     var serverUrl = Auth.getServerUrl()
+                    var policy = UrlPolicy.validateForAuth(serverUrl)
+                    if (!policy.valid) {
+                        root.errorMessage = "Stored server URL requires HTTPS. Update the server URL in Settings."
+                        Auth.cachedToken = ""
+                        Auth.cachedServerUrl = ""
+                        Auth.cachedEmail = ""
+                        return
+                    }
                     root.serverUrl = serverUrl
                     SeafileAPI.setBaseUrl(serverUrl)
                     SeafileAPI.setToken(token)

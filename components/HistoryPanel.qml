@@ -43,7 +43,7 @@ Column {
             spacing: Style.space(8)
 
             Text {
-                text: "History: " + root.fileName
+                text: Models.boundedDisplayText("History: " + root.fileName, 1024)
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.title
@@ -51,6 +51,7 @@ Column {
                 anchors.verticalCenter: parent.verticalCenter
                 elide: Text.ElideRight
                 width: parent.width - Style.space(24)
+                textFormat: Text.PlainText
             }
         }
 
@@ -58,7 +59,7 @@ Column {
         ListView {
             id: historyList
             width: parent.width
-            height: parent.height - Style.space(40)
+            height: root.historyData.length === 0 ? Style.space(160) : Math.min(contentHeight, Style.space(360))
             clip: true
             spacing: Style.space(4)
             model: root.historyData
@@ -69,7 +70,7 @@ Column {
                 required property var modelData
 
                 property var revision: modelData
-                property bool isCurrent: modelData.version === 1
+                property bool isCurrent: String(modelData.version) === "1"
 
                 Row {
                     id: row
@@ -107,17 +108,19 @@ Column {
                             font.bold: isCurrent
                             elide: Text.ElideRight
                             width: parent.width
+                            textFormat: Text.PlainText
                         }
 
                         Text {
                             id: descLabel
-                            text: revision.desc || ""
+                            text: Models.boundedDisplayText(revision.desc || "", 1024)
                             color: Qt.darker(root.bar.foreground, 1.4)
                             font.family: root.bar.fontFamily
                             font.pixelSize: Style.font.caption
                             elide: Text.ElideRight
                             width: parent.width
                             visible: revision.desc && revision.desc !== ""
+                            textFormat: Text.PlainText
                         }
 
                         Text {
@@ -127,6 +130,7 @@ Column {
                             font.family: root.bar.fontFamily
                             font.pixelSize: Style.font.caption
                             visible: revision.revFileSize
+                            textFormat: Text.PlainText
                         }
                     }
 
