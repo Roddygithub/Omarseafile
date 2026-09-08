@@ -62,20 +62,24 @@ QtObject {
                     root._maxSecretBytes, root._maxSecretBytes,
                     "--"].concat(cmd)
             }
+            var timer = Qt.createQmlObject('import QtQuick; Timer { property var targetProcess: null; interval: 30000; repeat: false; onTriggered: { if (targetProcess) targetProcess.running = false } }', root)
             var proc = root.procFactory.createObject(root, {
                 inputPayload: (input !== undefined && input !== null) ? input : "",
                 onDone: function(exitCode, text) {
-                    if (timer) timer.stop()
+                    if (timer) {
+                        timer.stop()
+                        timer.destroy()
+                        timer = null
+                    }
                     if (exitCode === 0) { resolve(text); return }
                     if (lookupIsSoft && exitCode === 1) { resolve(""); return }
                     reject(new Error(cmd.join(" ") + " failed (exit " + exitCode + ")"))
                 }
             })
-            proc.command = wrappedCmd
-            proc.running = true
-            var timer = Qt.createQmlObject('import QtQuick; Timer { interval: 30000; repeat: false; onTriggered: { if (targetProcess) targetProcess.kill() } }', root)
             timer.targetProcess = proc
             timer.start()
+            proc.command = wrappedCmd
+            proc.running = true
         })
     }
 

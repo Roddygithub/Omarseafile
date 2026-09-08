@@ -204,14 +204,23 @@ try:
         capture_output=True, timeout=10)
     check("hidden files never evicted", os.path.exists(hidden))
 
-    # dl_ files never evicted
+    # Abandoned dl_ files are evicted; a live PID marker protects active files.
     dlfile = os.path.join(tmpdir, "dl_active")
     with open(dlfile, "w") as f:
         f.write("active")
     subprocess.run(
         [sys.executable, CACHE_EVICT, tmpdir, "0"],
         capture_output=True, timeout=10)
-    check("dl_ files never evicted", os.path.exists(dlfile))
+    check("abandoned dl_ file evicted", not os.path.exists(dlfile))
+
+    with open(dlfile, "w") as f:
+        f.write("active")
+    with open(os.path.join(tmpdir, ".active_dl_active"), "w") as f:
+        f.write(str(os.getpid()))
+    subprocess.run(
+        [sys.executable, CACHE_EVICT, tmpdir, "0"],
+        capture_output=True, timeout=10)
+    check("live-marked dl_ file protected", os.path.exists(dlfile))
 
     # Symlinks never evicted (not regular files, fail-closed skip)
     symlink = os.path.join(tmpdir, "cache_symlink")
@@ -331,6 +340,8 @@ try:
     # Large reservation exceeding free space: rejects admission
     shutil.rmtree(tmpdir)
     tmpdir = tempfile.mkdtemp()
+    st = os.statvfs(tmpdir)
+    free = st.f_bavail * st.f_frsize
     rc2, _, _ = run_secure_output(
         tmpdir, "dl",
         ["sh", "-c", "printf 'nope'"],
@@ -395,14 +406,16 @@ try:
     check("final cache total <= max", total_after <= max_bytes)
     check("incoming file still present (newest)", "cache_incoming" in after)
 
-    # dl_ files never evicted
+    # Live-marked dl_ files are protected while an active transfer owns them.
     dl_active = os.path.join(tmpdir, "dl_active")
     with open(dl_active, "wb") as f:
         f.write(b"D" * 900)
+    with open(os.path.join(tmpdir, ".active_dl_active"), "w") as f:
+        f.write(str(os.getpid()))
     subprocess.run(
         [sys.executable, CACHE_EVICT, tmpdir, str(max_bytes)],
         capture_output=True, timeout=10)
-    check("dl_ file preserved after eviction", os.path.exists(dl_active))
+    check("live-marked dl_ file preserved after eviction", os.path.exists(dl_active))
 
     # Hidden files never evicted
     hidden = os.path.join(tmpdir, ".hidden_secret")
@@ -437,68 +450,28 @@ finally:
 # L. CONCURRENT RESERVATION ARITHMETIC
 # ======================================================================
 section("L. Concurrent reservation arithmetic")
-# Prove the admission equation: free - already_reserved >= max_transfer + safety_margin
-# by varying already_reserved and checking pass/reject.
-tmpdir = tempfile.mkdtemp()
+# Use a fixed fstatvfs result. The previous subprocess checks sampled global
+# filesystem free space, so unrelated concurrent disk activity made boundary
+# assertions flaky.
+import importlib.util
+spec = importlib.util.spec_from_file_location("secure_output_admission", SECURE_OUTPUT)
+_admission = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(_admission)
+
+class FixedVfs:
+    f_bavail = 10000
+    f_frsize = 1
+
+original_fstatvfs = _admission.os.fstatvfs
 try:
-    st = os.statvfs(tmpdir)
-    free = st.f_bavail * st.f_frsize
-
-    # Case 1: reserved=0 → full free available → should pass
-    rc1, _, _ = run_secure_output(
-        tmpdir, "dl",
-        ["sh", "-c", "printf 'ok'"],
-        max_transfer=1000, safety_margin=1000, already_reserved=0)
-    check("reserved=0 passes (full free)", rc1 == 0)
-
-    # Case 2: reserved exceeds free → available < 0 → should reject
-    shutil.rmtree(tmpdir)
-    tmpdir = tempfile.mkdtemp()
-    rc2, _, _ = run_secure_output(
-        tmpdir, "dl",
-        ["sh", "-c", "printf 'nope'"],
-        max_transfer=1000, safety_margin=0,
-        already_reserved=free + 1)
-    check("reserved > free rejects", rc2 != 0)
-
-    # Case 3: reserved = free - 1 → available = 1, required = 2000 → rejects
-    shutil.rmtree(tmpdir)
-    tmpdir = tempfile.mkdtemp()
-    rc3, _, _ = run_secure_output(
-        tmpdir, "dl",
-        ["sh", "-c", "printf 'nope'"],
-        max_transfer=1000, safety_margin=1000,
-        already_reserved=free - 1)
-    check("reserved near free rejects (1 < 2000 required)", rc3 != 0)
-
-    # Case 4: reserved = free - 2000 → available = 2000, required = 2000 → passes
-    shutil.rmtree(tmpdir)
-    tmpdir = tempfile.mkdtemp()
-    needed = 1000 + 1000  # max_transfer + safety_margin
-    reserved4 = free - needed
-    if reserved4 < 0:
-        reserved4 = 0
-    rc4, _, _ = run_secure_output(
-        tmpdir, "dl",
-        ["sh", "-c", "printf 'ok'"],
-        max_transfer=1000, safety_margin=1000,
-        already_reserved=reserved4)
-    check("reserved leaves exactly required passes", rc4 == 0)
-
-    # Case 5: reserved leaves 1 byte short of required → rejects
-    shutil.rmtree(tmpdir)
-    tmpdir = tempfile.mkdtemp()
-    reserved5 = free - needed + 1  # available = needed - 1 < needed
-    if reserved5 < 0:
-        reserved5 = 0
-    rc5, _, _ = run_secure_output(
-        tmpdir, "dl",
-        ["sh", "-c", "printf 'nope'"],
-        max_transfer=1000, safety_margin=1000,
-        already_reserved=reserved5)
-    check("reserved leaves 1 short rejects", rc5 != 0)
+    _admission.os.fstatvfs = lambda _: FixedVfs()
+    check("reserved=0 passes (full free)", _admission._check_disk_admission(0, 1000, 1000, 0)[0])
+    check("reserved > free rejects", not _admission._check_disk_admission(0, 1000, 0, 10001)[0])
+    check("reserved near free rejects (1 < 2000 required)", not _admission._check_disk_admission(0, 1000, 1000, 9999)[0])
+    check("reserved leaves exactly required passes", _admission._check_disk_admission(0, 1000, 1000, 8000)[0])
+    check("reserved leaves 1 short rejects", not _admission._check_disk_admission(0, 1000, 1000, 8001)[0])
 finally:
-    shutil.rmtree(tmpdir, ignore_errors=True)
+    _admission.os.fstatvfs = original_fstatvfs
 
 
 # ======================================================================

@@ -90,7 +90,7 @@ delegate: FileItem {
                             findTransfer: root.findTransfer
                             transferRevision: root.transferRevision
                             onSelectionToggle: root.onSelectionToggle
-                            onSelectionRange: root.onSelectionRange
+                            onSelectionRange: function(item) { root.onSelectionRange(item, root.sortedItems) }
                             onSelectOnly: root.onSelectOnly
                             onPositionClicked: root.onPositionClicked
                             onContextMenuRequested: root.onContextMenuRequested

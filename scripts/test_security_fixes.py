@@ -302,6 +302,41 @@ val_pos = ts_content.find("UrlPolicy.validateTransferUrl(downloadLink)")
 curl_pos = ts_content.find("root.executeCurlDownload(download)", val_pos)
 check("validation precedes executeCurlDownload", val_pos < curl_pos)
 
+# Runtime-directory ownership must be checked against the actual process UID,
+# never against the directory's own reported owner.
+safe_path = os.path.join(os.path.dirname(__file__), "..", "js", "SafePath.qml")
+with open(safe_path) as f:
+    safe_path_content = f.read()
+check("runtime owner comes from id -u", '["id", "-u"]' in safe_path_content)
+check("runtime owner check has no tautological fallback", "expectedUid = uid" not in safe_path_content)
+check("atomic writer always closes stdin", "atomicProc.write(writeContent)" in safe_path_content and "atomicProc.stdinEnabled = false" in safe_path_content)
+
+http_path = os.path.join(os.path.dirname(__file__), "..", "js", "HttpTransport.qml")
+with open(http_path) as f:
+    http_content = f.read()
+check("HTTP cleanup uses a Process factory", "_cleanupProcessFactory" in http_content)
+check("HTTP cleanup has no invalid dummy component", 'Qt.createComponent("dummy")' not in http_content)
+
+transfer_path = os.path.join(os.path.dirname(__file__), "..", "js", "TransferService.qml")
+with open(transfer_path) as f:
+    transfer_content = f.read()
+check("transfer cleanup uses a Process factory", "function runCleanup(command)" in transfer_content)
+check("transfer cleanup has no invalid dummy component", 'Qt.createComponent("dummy")' not in transfer_content)
+check("transfer cancellation uses the Process running property", ".kill()" not in transfer_content)
+check("Open Local uses a persistent secure cache", "function getCacheDir(callback)" in safe_path_content and "SafePath.getCacheDir(function(cacheResult)" in transfer_content)
+check("Open Local validates the source name before creating a bounded cache name",
+      "SafePath.secureJoin(cacheResult.path, download.fileName" in transfer_content and "var cacheName = \"open_\"" in transfer_content)
+
+auth_path = os.path.join(os.path.dirname(__file__), "..", "js", "Auth.qml")
+with open(auth_path) as f:
+    auth_content = f.read()
+check("auth watchdog declares its process target", "property var targetProcess: null" in auth_content)
+check("auth watchdog terminates through running", "targetProcess.running = false" in auth_content)
+
+check("transfer secure files use runtime subdir names", 'createSecureFile("secrets"' in transfer_content)
+check("transfer secure files unwrap validated paths", "callback(result.valid ? result.path : null)" in transfer_content)
+check("HTTP secure files use runtime subdir names", 'createSecureFile("http"' in http_content)
+
 section("DEFECT 2: Optional absent fields accept documented defaults")
 # When field is undefined/null, the documented default is used.
 # This is already tested above in the valid_cases for each type.

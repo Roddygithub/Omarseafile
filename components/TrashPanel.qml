@@ -56,7 +56,7 @@ Column {
         ListView {
             id: trashList
             width: parent.width
-            height: parent.height - Style.space(40) - Style.space(40)
+            height: root.trashData.length === 0 ? Style.space(160) : Math.min(contentHeight, Style.space(360))
             clip: true
             spacing: Style.space(4)
             model: root.trashData
@@ -109,7 +109,7 @@ Column {
                             text: Models.boundedDisplayText((function() {
                                 var parts = []
                                 if (trashItem.deletedTime) {
-                                    var date = new Date(trashItem.deletedTime * 1000)
+                                    var date = new Date(trashItem.deletedTime)
                                     parts.push(date.toLocaleDateString() + " " + date.toLocaleTimeString())
                                 }
                                 if (!isDir && trashItem.size) {

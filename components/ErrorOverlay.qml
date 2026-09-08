@@ -37,7 +37,6 @@ Item {
         Button {
             text: "Retry"
             onClicked: {
-                root.visible = false
                 if (root.onRetry) root.onRetry()
             }
         }

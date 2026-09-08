@@ -38,6 +38,7 @@ _cancelled = [False]
 _child_pid = [None]
 _basename = [None]
 _dir_fd = [None]
+_marker = [None]
 
 MAX_BASENAME_LEN = 128
 VALID_BASENAME_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-")
@@ -56,6 +57,13 @@ def _validate_basename(basename: str) -> bool:
     if "/" in basename or "\\" in basename:
         return False
     return True
+
+
+def _process_start_time(pid):
+    try:
+        return open(f"/proc/{pid}/stat", encoding="ascii").read().rsplit(") ", 1)[1].split()[19]
+    except (OSError, IndexError):
+        return None
 
 def _check_disk_admission(dir_fd, max_transfer_bytes, safety_margin, already_reserved):
     """Check disk-space admission using held directory FD.
@@ -96,6 +104,11 @@ def _signal_handler(signum, frame):
             os.unlink(_basename[0], dir_fd=_dir_fd[0])
         except OSError:
             pass
+    if _marker[0] is not None and _dir_fd[0] is not None:
+        try:
+            os.unlink(_marker[0], dir_fd=_dir_fd[0])
+        except OSError:
+            pass
 
 def main():
     # Parse optional --max-stderr-bytes, --max-transfer-bytes, --safety-margin before the -- separator
@@ -103,6 +116,7 @@ def main():
     max_transfer_bytes = DEFAULT_MAX_TRANSFER_BYTES
     safety_margin = DEFAULT_SAFETY_MARGIN
     already_reserved = 0
+    active_marker = False
     args = sys.argv[1:]
     dash_idx = args.index("--") if "--" in args else -1
     if dash_idx > 0:
@@ -135,6 +149,9 @@ def main():
                 except ValueError:
                     pass
                 i += 2
+            elif before[i] == "--active-marker":
+                active_marker = True
+                i += 1
             else:
                 kept.append(before[i])
                 i += 1
@@ -142,6 +159,9 @@ def main():
 
     if len(args) < 4 or args[2] != "--":
         sys.stderr.write("usage: secure_output.py <outdir> <prefix> [--max-stderr-bytes N] [--max-transfer-bytes N] [--safety-margin N] [--already-reserved-bytes N] -- <curl args...>\n")
+        return 2
+    if max_stderr_bytes is not None and max_stderr_bytes < 0 or max_transfer_bytes < 0 or safety_margin < 0 or already_reserved < 0:
+        sys.stderr.write("invalid negative byte limit or reservation\n")
         return 2
 
     outdir, prefix = args[0], args[1]
@@ -183,7 +203,8 @@ def main():
     signal.signal(signal.SIGTERM, _signal_handler)
     signal.signal(signal.SIGINT, _signal_handler)
 
-    # Create temp file exclusively relative to held directory FD with retry loop
+    # Reserve the marker before publishing a cache filename. An evictor either
+    # sees the marker or no file; it never sees a live unmarked download.
     basename = None
     fd = None
     for attempt in range(10):  # Retry up to 10 times with new random names
@@ -191,12 +212,29 @@ def main():
         if not _validate_basename(basename):
             continue
         try:
+            if active_marker:
+                marker = ".active_" + basename
+                marker_fd = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=dir_fd)
+                try:
+                    start_time = _process_start_time(os.getpid())
+                    if start_time is None:
+                        raise OSError("cannot determine process start time")
+                    os.write(marker_fd, f"{os.getpid()}:{start_time}".encode("ascii"))
+                    _marker[0] = marker
+                finally:
+                    os.close(marker_fd)
             flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
             fd = os.open(basename, flags, 0o600, dir_fd=dir_fd)
             _basename[0] = basename
             _dir_fd[0] = dir_fd
             break
         except OSError as e:
+            if _marker[0] is not None:
+                try:
+                    os.unlink(_marker[0], dir_fd=dir_fd)
+                except OSError:
+                    pass
+                _marker[0] = None
             if e.errno == errno.EEXIST:
                 continue  # Retry with new random name
             os.close(dir_fd)
@@ -278,6 +316,11 @@ def main():
                 os.unlink(basename, dir_fd=dir_fd)
             except OSError:
                 pass
+        if _marker[0] is not None:
+            try:
+                os.unlink(_marker[0], dir_fd=dir_fd)
+            except OSError:
+                pass
         if _cancelled[0]:
             os.close(dir_fd)
             return 128 + signal.SIGTERM
@@ -286,6 +329,17 @@ def main():
 
     # Success: print ONLY the basename (validated, no path components)
     if _validate_basename(basename):
+        if _marker[0] is not None:
+            try:
+                os.utime(_marker[0], None, dir_fd=dir_fd)
+            except OSError:
+                try:
+                    os.unlink(basename, dir_fd=dir_fd)
+                    os.unlink(_marker[0], dir_fd=dir_fd)
+                except OSError:
+                    pass
+                os.close(dir_fd)
+                return 1
         sys.stdout.write(basename)
         sys.stdout.flush()
         _basename[0] = None

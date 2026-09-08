@@ -8,8 +8,8 @@ QtObject {
 
     function makeKey(item) {
         if (!item) return ""
-        var repoId = item.repoId || item.parentRepoId || ""
-        var fullPath = item.fullPath || item.path || (item.name && item.parentPath ? item.parentPath + "/" + item.name : "")
+        var repoId = item.repoId || item.parentRepoId || item.id || ""
+        var fullPath = item.fullPath || item.path || (item.name && item.parentPath ? item.parentPath + "/" + item.name : "") || item.id || item.name || ""
         var type = item.type || (item.isDir ? "dir" : "file")
         return repoId + ":" + fullPath + ":" + type
     }

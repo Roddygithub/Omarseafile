@@ -37,7 +37,7 @@ ListView {
             Text {
                 id: icon
                 text: delegate.isDir ? "\uf07b" : "\uf15b"
-                color: delegate.bar.foreground
+                color: root.bar.foreground
                 font.family: "Noto Sans"
                 font.pixelSize: Style.font.title
                 width: Style.space(24)
@@ -53,8 +53,8 @@ ListView {
                 Text {
                     id: nameLabel
                     text: Models.boundedDisplayText(delegate.modelData.name, 1024)
-                    color: delegate.bar.foreground
-                    font.family: delegate.bar.fontFamily
+                    color: root.bar.foreground
+                    font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
                     elide: Text.ElideRight
                     width: parent.width
@@ -64,8 +64,8 @@ ListView {
                 Text {
                     id: pathLabel
                     text: Models.boundedDisplayText(delegate.repoName + " \u2022 " + delegate.modelData.parentPath, 4096)
-                    color: Qt.darker(delegate.bar.foreground, 1.4)
-                    font.family: delegate.bar.fontFamily
+                    color: Qt.darker(root.bar.foreground, 1.4)
+                    font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.caption
                     elide: Text.ElideRight
                     width: parent.width
@@ -77,8 +77,8 @@ ListView {
             Text {
                 id: sizeLabel
                 text: delegate.isDir ? "" : Models.formatSize(delegate.modelData.size)
-                color: Qt.darker(delegate.bar.foreground, 1.4)
-                font.family: delegate.bar.fontFamily
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
                 width: Style.space(80)
                 horizontalAlignment: Text.AlignRight
