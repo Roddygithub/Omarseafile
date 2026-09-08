@@ -98,6 +98,7 @@ def main():
     # Create temp file exclusively relative to held directory fd
     fd = None
     basename = None
+    cancel_signals = {signal.SIGTERM, signal.SIGINT}
     for attempt in range(10):
         # Generate unpredictable basename with safe prefix
         rand = secrets.token_urlsafe(16)
@@ -106,8 +107,14 @@ def main():
             continue
         try:
             flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
-            fd = os.open(basename, flags, 0o600, dir_fd=dir_fd)
-            _basename[0] = basename
+            # No signal may observe the newly-created file before its cleanup
+            # name is visible through the held directory fd.
+            signal.pthread_sigmask(signal.SIG_BLOCK, cancel_signals)
+            try:
+                fd = os.open(basename, flags, 0o600, dir_fd=dir_fd)
+                _basename[0] = basename
+            finally:
+                signal.pthread_sigmask(signal.SIG_UNBLOCK, cancel_signals)
             break
         except OSError as e:
             if e.errno == 17:  # EEXIST

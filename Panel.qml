@@ -1338,8 +1338,14 @@ Panel {
 
     function clearCache() {
         Cache.clear()
-        SafePath.clearPersistentCache(function(ok) {
-            root.showToast(ok ? "Cache cleared" : "Memory cache cleared; persistent cache cleanup could not complete", ok ? "success" : "warning")
+        SafePath.clearPersistentCache(function(result) {
+            if (result.complete) {
+                root.showToast("Cache cleared", "success")
+            } else if (result.protected) {
+                root.showToast("Memory cache cleared; active files remain", "warning")
+            } else {
+                root.showToast("Memory cache cleared; persistent cache cleanup could not complete", "warning")
+            }
         })
     }
 

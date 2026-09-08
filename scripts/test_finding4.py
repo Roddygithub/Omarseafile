@@ -126,6 +126,40 @@ def publication_failure_probe(stage):
         return result, os.listdir(tmpdir)
 
 
+def creation_signal_probe(signum):
+    """Interrupt after exclusive creation but before cleanup ownership publication."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        probe = textwrap.dedent("""
+            import importlib.util
+            import os
+            import signal
+            import sys
+
+            helper, target, signum = sys.argv[1:]
+            spec = importlib.util.spec_from_file_location("atomic_write", helper)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            original_open = module.os.open
+
+            def interrupt_after_create(path, flags, *args, **kwargs):
+                fd = original_open(path, flags, *args, **kwargs)
+                if isinstance(path, str) and path.startswith("race_") and flags & os.O_CREAT:
+                    os.kill(os.getpid(), int(signum))
+                return fd
+
+            module.os.open = interrupt_after_create
+            module.sys.argv = ["atomic_write.py", target, "race"]
+            module.main()
+        """)
+        result = subprocess.run(
+            [sys.executable, "-c", probe, ATOMIC_WRITE, tmpdir, str(signum)],
+            input=b"FAKE_SECRET_RACE",
+            capture_output=True,
+            timeout=5,
+        )
+        return result, os.listdir(tmpdir)
+
+
 # ======================================================================
 # A. NORMAL CREATION
 # ======================================================================
@@ -276,6 +310,12 @@ finally:
 # I. SIGTERM CLEANUP (deterministic)
 # ======================================================================
 print("--- H2. Post-close / pre-publication signal cleanup ---")
+result, remaining = creation_signal_probe(signal.SIGTERM)
+check("create-to-basename SIGTERM exits non-zero", result.returncode != 0)
+check("create-to-basename SIGTERM leaves no secret file", not remaining)
+result, remaining = creation_signal_probe(signal.SIGINT)
+check("create-to-basename SIGINT exits non-zero", result.returncode != 0)
+check("create-to-basename SIGINT leaves no secret file", not remaining)
 result, remaining = publication_signal_probe(signal.SIGTERM)
 check("post-close SIGTERM exits non-zero", result.returncode != 0)
 check("post-close SIGTERM leaves no secret file", not remaining)
