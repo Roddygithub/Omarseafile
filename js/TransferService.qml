@@ -417,8 +417,14 @@ QtObject {
     }
 
     function finishCancelled(transfer) {
+        root.releaseOpenCache(transfer)
         transfer.state = "cancelled"
         root.sanitizeForHistory(transfer)
+    }
+
+    function releaseOpenCache(transfer, callback) {
+        if (!transfer || !transfer.cacheName) { if (callback) callback(true); return }
+        SafePath.releaseCache(transfer.cacheName, callback)
     }
 
     function pruneHistory() {
@@ -1114,6 +1120,7 @@ QtObject {
                 }
                 t.state = "cancelled"
                 if (t.type === "download" && t.tempPath) deleteFile(t.tempPath)
+                root.releaseOpenCache(t)
                 cleanupTransferAuthFile(t)
                 root.sanitizeForHistory(t)
                 root.transferStateChanged(t)
@@ -1586,10 +1593,12 @@ QtObject {
                 if (t.state === "cancelling") {
                     root.finishCancelled(t)
                 } else if (t.state === "opening" && exitCode === 0) {
+                    root.releaseOpenCache(t)
                     t.state = "completed"
                     root.sanitizeForHistory(t)
                     root.pruneHistory()
                 } else if (t.state === "opening") {
+                    root.releaseOpenCache(t)
                     t.state = "failed"
                     t.error = "Cached file could not be opened by the default application"
                     root.sanitizeForHistory(t)
@@ -1603,8 +1612,10 @@ QtObject {
     }
 
     function openCachedFile(transfer) {
+        SafePath.protectCache(transfer.cacheName)
         var proc = openCachedFileComponent.createObject(root)
         if (!proc) {
+            root.releaseOpenCache(transfer)
             transfer.state = "failed"
             transfer.error = "Could not start the default application"
             root.sanitizeForHistory(transfer)
@@ -1623,6 +1634,7 @@ QtObject {
         if (download.cacheDir && download.tempName) {
             root.deleteFile(download.cacheDir + "/.active_" + download.tempName)
         }
+        root.releaseOpenCache(download)
         if (removeCache && download.cachePath) root.deleteFile(download.cachePath)
     }
 

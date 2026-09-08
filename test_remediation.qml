@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import "./js"
 
 ShellRoot {
@@ -16,6 +17,11 @@ ShellRoot {
     property bool xdgOpenReleased: false
     property bool xdgOpenSuccess: false
     property bool accountSwitchSafe: false
+    property bool openingCacheProtected: false
+    property bool protectionReleased: false
+    property bool successOpenComplete: false
+    property string runtimeCacheDir: ""
+    property var protectedProbe: null
 
     Panel {
         id: accountPanel
@@ -27,7 +33,7 @@ ShellRoot {
         interval: 1000
         repeat: false
         onTriggered: {
-            console.log("REMEDIATION reserved=" + root.reserved + " released=" + root.released + " deep=" + root.deepValid + " libraryKeys=" + root.libraryKeysUnique + " visualRange=" + root.visualRange + " freshCache=" + root.freshCache + " pendingOpenCancelled=" + root.pendingOpenCancelled + " xdgOpenFailed=" + root.xdgOpenFailed + " xdgOpenCancel=" + root.xdgOpenCancel + " xdgOpenLogout=" + root.xdgOpenLogout + " xdgOpenReleased=" + root.xdgOpenReleased + " xdgOpenSuccess=" + root.xdgOpenSuccess + " accountSwitchSafe=" + root.accountSwitchSafe)
+            console.log("REMEDIATION reserved=" + root.reserved + " released=" + root.released + " deep=" + root.deepValid + " libraryKeys=" + root.libraryKeysUnique + " visualRange=" + root.visualRange + " freshCache=" + root.freshCache + " pendingOpenCancelled=" + root.pendingOpenCancelled + " xdgOpenFailed=" + root.xdgOpenFailed + " xdgOpenCancel=" + root.xdgOpenCancel + " xdgOpenLogout=" + root.xdgOpenLogout + " xdgOpenReleased=" + root.xdgOpenReleased + " xdgOpenSuccess=" + root.xdgOpenSuccess + " accountSwitchSafe=" + root.accountSwitchSafe + " openingCacheProtected=" + root.openingCacheProtected + " protectionReleased=" + root.protectionReleased)
             Qt.quit()
         }
     }
@@ -58,7 +64,39 @@ ShellRoot {
     }
 
     function finishIfReady() {
-        if (root.freshCache && root.xdgOpenFailed && root.xdgOpenCancel && root.xdgOpenLogout && root.xdgOpenReleased && root.xdgOpenSuccess && root.accountSwitchSafe) completionTimer.start()
+        if (root.freshCache && root.xdgOpenFailed && root.xdgOpenCancel && root.xdgOpenLogout && root.xdgOpenReleased && root.xdgOpenSuccess && root.accountSwitchSafe && root.openingCacheProtected && root.protectionReleased) completionTimer.start()
+    }
+
+    property Component fileProbeComponent: Component {
+        Process {
+            property var onDone: null
+            onExited: function(exitCode) {
+                var cb = onDone
+                destroy()
+                if (cb) cb(exitCode === 0)
+            }
+        }
+    }
+
+    function fileExists(path, callback) {
+        var proc = fileProbeComponent.createObject(root, { onDone: callback })
+        proc.command = ["test", "-f", path]
+        proc.running = true
+    }
+
+    function startCacheProtectionProbe() {
+        if (!root.runtimeCacheDir || !root.successOpenComplete || root.protectedProbe) return
+        root.protectedProbe = root.openProbeTransfer("open-runtime-protected", root.runtimeCacheDir + "/open_runtime_protected")
+        root.protectedProbe.cacheDir = root.runtimeCacheDir
+        root.protectedProbe.cacheName = "open_runtime_protected"
+        TransferService.transfers = [root.protectedProbe]
+        TransferService.openCachedFile(root.protectedProbe)
+        SafePath.clearPersistentCache(function(ok) {
+            root.fileExists(root.protectedProbe.cachePath, function(exists) {
+                root.openingCacheProtected = ok && exists && root.protectedProbe.state === "opening"
+                TransferService.cancelTransfer(root.protectedProbe.id)
+            })
+        })
     }
 
     Timer {
@@ -88,7 +126,16 @@ ShellRoot {
     Connections {
         target: TransferService
         function onTransferStateChanged(transfer) {
-            if (transfer === root.openProbe && transfer.state === "failed") {
+            if (transfer === root.protectedProbe && transfer.state === "cancelled") {
+                SafePath.releaseCache(transfer.cacheName, function(markerRemoved) {
+                    SafePath.evictCache([], function(evicted) {
+                        root.fileExists(transfer.cachePath, function(exists) {
+                            root.protectionReleased = markerRemoved && evicted && !exists
+                            root.finishIfReady()
+                        })
+                    }, 0)
+                })
+            } else if (transfer === root.openProbe && transfer.state === "failed") {
                 root.xdgOpenFailed = true
                 root.cancelProbe = root.openProbeTransfer("open-cancel", "/probe-cancel")
                 root.startProbe(root.cancelProbe)
@@ -107,6 +154,8 @@ ShellRoot {
             } else if (transfer === root.successProbe && transfer.state === "completed") {
                 root.xdgOpenSuccess = true
                 root.xdgOpenReleased = root.xdgOpenReleased && TransferService._activeReservedBytes === 0 && !transfer._reserved
+                root.successOpenComplete = true
+                root.startCacheProtectionProbe()
                 root.finishIfReady()
             }
         }
@@ -153,6 +202,8 @@ ShellRoot {
         accountSwitchTimer.start()
         SafePath.getCacheDir(function(cacheResult) {
             root.freshCache = cacheResult.valid
+            if (cacheResult.valid) root.runtimeCacheDir = cacheResult.path
+            root.startCacheProtectionProbe()
             root.finishIfReady()
         })
     }

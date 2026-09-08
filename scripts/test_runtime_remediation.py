@@ -7,6 +7,7 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FINALIZE = os.path.join(ROOT, "scripts", "secure_finalize.py")
 qs = shutil.which("qs")
 if not qs:
     print("SKIP: qs is required for runtime remediation tests")
@@ -15,7 +16,7 @@ if not qs:
 with tempfile.TemporaryDirectory() as temp:
     package_dir = os.path.join(temp, "package")
     os.mkdir(package_dir)
-    for name in ("test_remediation.qml", "Panel.qml", "components", "js"):
+    for name in ("test_remediation.qml", "Panel.qml", "components", "js", "scripts"):
         os.symlink(os.path.join(ROOT, name), os.path.join(package_dir, name))
     os.symlink("/usr/share/omarchy/shell/Ui", os.path.join(package_dir, "Ui"))
     os.symlink("/usr/share/omarchy/shell/Commons", os.path.join(package_dir, "Commons"))
@@ -23,7 +24,7 @@ with tempfile.TemporaryDirectory() as temp:
     os.mkdir(bin_dir)
     xdg_open = os.path.join(bin_dir, "xdg-open")
     with open(xdg_open, "w", encoding="utf-8") as f:
-        f.write("#!/bin/sh\ncase \"$1\" in\n  /probe-failure) exit 1 ;;\n  /probe-cancel|/probe-logout) exec sleep 30 ;;\n  *) exit 0 ;;\nesac\n")
+        f.write("#!/bin/sh\ncase \"$1\" in\n  /probe-failure) exit 1 ;;\n  /probe-cancel|/probe-logout|*/open_runtime_protected) exec python3 -c 'import signal; signal.pause()' ;;\n  *) exit 0 ;;\nesac\n")
     os.chmod(xdg_open, 0o700)
     xdg_user_dir = os.path.join(bin_dir, "xdg-user-dir")
     with open(xdg_user_dir, "w", encoding="utf-8") as f:
@@ -32,6 +33,16 @@ with tempfile.TemporaryDirectory() as temp:
     env = os.environ.copy()
     env["XDG_CACHE_HOME"] = os.path.join(temp, "fresh-cache-root")
     env["PATH"] = bin_dir + os.pathsep + env["PATH"]
+    cache_dir = os.path.join(env["XDG_CACHE_HOME"], "omarseafile")
+    os.makedirs(cache_dir, mode=0o700)
+    source = os.path.join(cache_dir, "dl_runtime_source")
+    with open(source, "wb") as f:
+        f.write(b"payload")
+    os.chmod(source, 0o600)
+    finalized = subprocess.run([sys.executable, FINALIZE, cache_dir, "dl_runtime_source", "open_runtime_protected"], capture_output=True)
+    if finalized.returncode != 0:
+        print("FAIL: runtime cache probe finalization failed")
+        sys.exit(1)
     result = subprocess.run(["timeout", "7", qs, "--path", os.path.join(package_dir, "test_remediation.qml")], capture_output=True, timeout=10, env=env)
 output = (result.stdout + result.stderr).decode(errors="replace")
 checks = [
@@ -46,8 +57,10 @@ checks = [
     "xdgOpenCancel=true",
     "xdgOpenLogout=true",
     "xdgOpenReleased=true",
-    "xdgOpenSuccess=true",
-    "accountSwitchSafe=true",
+        "xdgOpenSuccess=true",
+        "accountSwitchSafe=true",
+        "openingCacheProtected=true",
+        "protectionReleased=true",
 ]
 failed = [check for check in checks if check not in output]
 if result.returncode != 0:

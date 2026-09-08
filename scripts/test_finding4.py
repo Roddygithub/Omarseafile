@@ -16,6 +16,8 @@ import stat
 import time
 import subprocess
 import shutil
+import signal
+import textwrap
 
 FAKE_PASSWORD = "FAKE_PASSWORD_FINDING4"
 FAKE_TOKEN = "FAKE_TOKEN_FINDING4"
@@ -59,6 +61,69 @@ def run_secure_output(tmpdir, prefix, curl_args):
         capture_output=True, timeout=10,
     )
     return result.returncode, result.stdout, result.stderr
+
+
+def publication_signal_probe(signum):
+    """Interrupt immediately before atomic_write publishes its result path."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        probe = textwrap.dedent("""
+            import importlib.util
+            import os
+            import signal
+            import sys
+
+            helper, target, signum = sys.argv[1:]
+            spec = importlib.util.spec_from_file_location("atomic_write", helper)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            original_write = module.sys.stdout.write
+
+            def interrupt_before_publication(value):
+                os.kill(os.getpid(), int(signum))
+                return original_write(value)
+
+            module.sys.stdout.write = interrupt_before_publication
+            module.sys.argv = ["atomic_write.py", target, "race"]
+            raise SystemExit(module.main())
+        """)
+        result = subprocess.run(
+            [sys.executable, "-c", probe, ATOMIC_WRITE, tmpdir, str(signum)],
+            input=b"FAKE_SECRET_RACE",
+            capture_output=True,
+            timeout=5,
+        )
+        return result, os.listdir(tmpdir)
+
+
+def publication_failure_probe(stage):
+    """Fail stdout publication after the file has closed but before ownership transfers."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        probe = textwrap.dedent("""
+            import importlib.util
+            import sys
+
+            helper, target, stage = sys.argv[1:]
+            spec = importlib.util.spec_from_file_location("atomic_write", helper)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            def fail(*args):
+                raise BrokenPipeError()
+
+            if stage == "write":
+                module.sys.stdout.write = fail
+            else:
+                module.sys.stdout.flush = fail
+            module.sys.argv = ["atomic_write.py", target, "race"]
+            raise SystemExit(module.main())
+        """)
+        result = subprocess.run(
+            [sys.executable, "-c", probe, ATOMIC_WRITE, tmpdir, stage],
+            input=b"FAKE_SECRET_RACE",
+            capture_output=True,
+            timeout=5,
+        )
+        return result, os.listdir(tmpdir)
 
 
 # ======================================================================
@@ -210,6 +275,20 @@ finally:
 # ======================================================================
 # I. SIGTERM CLEANUP (deterministic)
 # ======================================================================
+print("--- H2. Post-close / pre-publication signal cleanup ---")
+result, remaining = publication_signal_probe(signal.SIGTERM)
+check("post-close SIGTERM exits non-zero", result.returncode != 0)
+check("post-close SIGTERM leaves no secret file", not remaining)
+result, remaining = publication_signal_probe(signal.SIGINT)
+check("post-close SIGINT exits non-zero", result.returncode != 0)
+check("post-close SIGINT leaves no secret file", not remaining)
+result, remaining = publication_failure_probe("write")
+check("publication write failure exits non-zero", result.returncode != 0)
+check("publication write failure leaves no secret file", not remaining)
+result, remaining = publication_failure_probe("flush")
+check("publication flush failure exits non-zero", result.returncode != 0)
+check("publication flush failure leaves no secret file", not remaining)
+
 print("--- I. SIGTERM cleanup ---")
 tmpdir = tempfile.mkdtemp()
 try:

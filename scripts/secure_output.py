@@ -110,6 +110,27 @@ def _signal_handler(signum, frame):
         except OSError:
             pass
 
+
+def _spawn(curl_args, fd):
+    # Block cancellation until proc.pid is published, then explicitly unblock
+    # it for both wrapper and child so inherited masks cannot defeat cleanup.
+    cancel_signals = {signal.SIGTERM, signal.SIGINT}
+    signal.pthread_sigmask(signal.SIG_BLOCK, cancel_signals)
+    try:
+        proc = subprocess.Popen(
+            curl_args + ["--output", "-"],
+            stdout=fd,
+            stderr=subprocess.PIPE,
+            pass_fds=(fd,),
+            start_new_session=True,
+            preexec_fn=lambda: signal.pthread_sigmask(signal.SIG_UNBLOCK, cancel_signals),
+        )
+        _child_pid[0] = proc.pid
+        return proc
+    finally:
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, cancel_signals)
+
+
 def main():
     # Parse optional --max-stderr-bytes, --max-transfer-bytes, --safety-margin before the -- separator
     max_stderr_bytes = None
@@ -248,14 +269,7 @@ def main():
     stderr_truncated = False
     try:
         # Spawn curl child, streaming body into the held fd
-        proc = subprocess.Popen(
-            curl_args + ["--output", "-"],
-            stdout=fd,
-            stderr=subprocess.PIPE,
-            pass_fds=(fd,),
-            start_new_session=True,
-        )
-        _child_pid[0] = proc.pid
+        proc = _spawn(curl_args, fd)
 
         # Forward stderr in a thread so signal handlers can fire during reads
         stderr_fwd = [0]

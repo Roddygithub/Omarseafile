@@ -32,6 +32,25 @@ def _signal_handler(signum, frame):
     os._exit(128 + signum)
 
 
+def _spawn(cmd):
+    # Block cancellation until proc.pid is published, then explicitly unblock
+    # it for both wrapper and child so inherited masks cannot defeat cleanup.
+    cancel_signals = {signal.SIGTERM, signal.SIGINT}
+    signal.pthread_sigmask(signal.SIG_BLOCK, cancel_signals)
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+            preexec_fn=lambda: signal.pthread_sigmask(signal.SIG_UNBLOCK, cancel_signals),
+        )
+        _child_pid[0] = proc.pid
+        return proc
+    finally:
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, cancel_signals)
+
+
 def _drain(stream, max_bytes, output_fd, lock, result):
     total = 0
     truncated = False
@@ -75,13 +94,7 @@ def main():
     signal.signal(signal.SIGTERM, _signal_handler)
     signal.signal(signal.SIGINT, _signal_handler)
 
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        start_new_session=True,
-    )
-    _child_pid[0] = proc.pid
+    proc = _spawn(cmd)
 
     lock = threading.Lock()
     stderr_result = {}
