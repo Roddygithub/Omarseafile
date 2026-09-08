@@ -19,6 +19,8 @@ ShellRoot {
     property bool accountSwitchSafe: false
     property bool openingCacheProtected: false
     property bool protectionReleased: false
+    property bool protectedClearResult: false
+    property bool postReleaseClearResult: false
     property bool successOpenComplete: false
     property string runtimeCacheDir: ""
     property var protectedProbe: null
@@ -33,7 +35,7 @@ ShellRoot {
         interval: 1000
         repeat: false
         onTriggered: {
-            console.log("REMEDIATION reserved=" + root.reserved + " released=" + root.released + " deep=" + root.deepValid + " libraryKeys=" + root.libraryKeysUnique + " visualRange=" + root.visualRange + " freshCache=" + root.freshCache + " pendingOpenCancelled=" + root.pendingOpenCancelled + " xdgOpenFailed=" + root.xdgOpenFailed + " xdgOpenCancel=" + root.xdgOpenCancel + " xdgOpenLogout=" + root.xdgOpenLogout + " xdgOpenReleased=" + root.xdgOpenReleased + " xdgOpenSuccess=" + root.xdgOpenSuccess + " accountSwitchSafe=" + root.accountSwitchSafe + " openingCacheProtected=" + root.openingCacheProtected + " protectionReleased=" + root.protectionReleased)
+            console.log("REMEDIATION reserved=" + root.reserved + " released=" + root.released + " deep=" + root.deepValid + " libraryKeys=" + root.libraryKeysUnique + " visualRange=" + root.visualRange + " freshCache=" + root.freshCache + " pendingOpenCancelled=" + root.pendingOpenCancelled + " xdgOpenFailed=" + root.xdgOpenFailed + " xdgOpenCancel=" + root.xdgOpenCancel + " xdgOpenLogout=" + root.xdgOpenLogout + " xdgOpenReleased=" + root.xdgOpenReleased + " xdgOpenSuccess=" + root.xdgOpenSuccess + " accountSwitchSafe=" + root.accountSwitchSafe + " openingCacheProtected=" + root.openingCacheProtected + " protectionReleased=" + root.protectionReleased + " protectedClearResult=" + root.protectedClearResult + " postReleaseClearResult=" + root.postReleaseClearResult)
             Qt.quit()
         }
     }
@@ -64,7 +66,7 @@ ShellRoot {
     }
 
     function finishIfReady() {
-        if (root.freshCache && root.xdgOpenFailed && root.xdgOpenCancel && root.xdgOpenLogout && root.xdgOpenReleased && root.xdgOpenSuccess && root.accountSwitchSafe && root.openingCacheProtected && root.protectionReleased) completionTimer.start()
+        if (root.freshCache && root.xdgOpenFailed && root.xdgOpenCancel && root.xdgOpenLogout && root.xdgOpenReleased && root.xdgOpenSuccess && root.accountSwitchSafe && root.openingCacheProtected && root.protectionReleased && root.protectedClearResult && root.postReleaseClearResult) completionTimer.start()
     }
 
     property Component fileProbeComponent: Component {
@@ -91,12 +93,36 @@ ShellRoot {
         root.protectedProbe.cacheName = "open_runtime_protected"
         TransferService.transfers = [root.protectedProbe]
         TransferService.openCachedFile(root.protectedProbe)
-        SafePath.clearPersistentCache(function(ok) {
+        SafePath.clearPersistentCache(function(result) {
             root.fileExists(root.protectedProbe.cachePath, function(exists) {
-                root.openingCacheProtected = ok && exists && root.protectedProbe.state === "opening"
+                root.protectedClearResult = !result.complete && result.protected
+                root.openingCacheProtected = root.protectedClearResult && exists && root.protectedProbe.state === "opening"
                 TransferService.cancelTransfer(root.protectedProbe.id)
             })
         })
+    }
+
+    function checkProductionRelease() {
+        root.fileExists(root.protectedProbe.cacheDir + "/.active_" + root.protectedProbe.cacheName, function(markerExists) {
+            if (markerExists) {
+                markerReleaseTimer.start()
+                return
+            }
+            SafePath.clearPersistentCache(function(result) {
+                root.fileExists(root.protectedProbe.cachePath, function(exists) {
+                    root.postReleaseClearResult = result.complete && !result.protected && !exists
+                    root.protectionReleased = root.postReleaseClearResult
+                    root.finishIfReady()
+                })
+            })
+        })
+    }
+
+    Timer {
+        id: markerReleaseTimer
+        interval: 10
+        repeat: false
+        onTriggered: root.checkProductionRelease()
     }
 
     Timer {
@@ -127,14 +153,7 @@ ShellRoot {
         target: TransferService
         function onTransferStateChanged(transfer) {
             if (transfer === root.protectedProbe && transfer.state === "cancelled") {
-                SafePath.releaseCache(transfer.cacheName, function(markerRemoved) {
-                    SafePath.evictCache([], function(evicted) {
-                        root.fileExists(transfer.cachePath, function(exists) {
-                            root.protectionReleased = markerRemoved && evicted && !exists
-                            root.finishIfReady()
-                        })
-                    }, 0)
-                })
+                root.checkProductionRelease()
             } else if (transfer === root.openProbe && transfer.state === "failed") {
                 root.xdgOpenFailed = true
                 root.cancelProbe = root.openProbeTransfer("open-cancel", "/probe-cancel")

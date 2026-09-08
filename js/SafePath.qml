@@ -352,7 +352,8 @@ QtObject {
     // Clear only safe, non-active files in Omarseafile's private cache.
     function clearPersistentCache(callback) {
         root.evictCache([], function(ok) {
-            if (callback) callback(ok || root._protectedCacheNames.length > 0)
+            var protectedFiles = root._protectedCacheNames.length > 0
+            if (callback) callback({ complete: ok && !protectedFiles, protected: protectedFiles })
         }, 0)
     }
 

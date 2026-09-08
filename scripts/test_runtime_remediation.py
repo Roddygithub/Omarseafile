@@ -61,6 +61,8 @@ checks = [
         "accountSwitchSafe=true",
         "openingCacheProtected=true",
         "protectionReleased=true",
+        "protectedClearResult=true",
+        "postReleaseClearResult=true",
 ]
 failed = [check for check in checks if check not in output]
 if result.returncode != 0:
