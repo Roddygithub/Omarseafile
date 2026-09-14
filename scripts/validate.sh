@@ -88,7 +88,7 @@ if command -v shellcheck >/dev/null; then
 else
     echo "  deploy.sh shellcheck... SKIP (shellcheck not installed)"
 fi
-check "deploy.sh --check detects parity and drift" bash -c 'tmp=$(mktemp -d); trap '\''rm -rf "$tmp"'\'' EXIT; OMARCHY_PLUGIN_DIR="$tmp/plugin" ./deploy.sh >/dev/null; OMARCHY_PLUGIN_DIR="$tmp/plugin" ./deploy.sh --check >/dev/null; touch "$tmp/plugin/parity-drift"; ! OMARCHY_PLUGIN_DIR="$tmp/plugin" ./deploy.sh --check >/dev/null 2>&1'
+check "deploy.sh --check detects content drift, not directory mtimes" bash -c 'tmp=$(mktemp -d); trap '\''rm -rf "$tmp"'\'' EXIT; OMARCHY_PLUGIN_DIR="$tmp/plugin" ./deploy.sh >/dev/null; touch "$tmp/plugin"; OMARCHY_PLUGIN_DIR="$tmp/plugin" ./deploy.sh --check >/dev/null; touch "$tmp/plugin/parity-drift"; ! OMARCHY_PLUGIN_DIR="$tmp/plugin" ./deploy.sh --check >/dev/null 2>&1'
 
 # --- CI_CAPABLE: Documentation Content ---
 echo ""
@@ -219,7 +219,9 @@ PY
 echo ""
 echo "--- Security Microfix Tests ---"
 check "portable CI suite passes" python3 scripts/test_portable.py
+check "deployment scope suite passes" python3 scripts/test_deploy_scope.py
 if command -v qs >/dev/null; then
+    check "Open Local lifecycle suite passes" python3 scripts/test_open_lifecycle.py
     check "Quickshell runtime remediation suite passes" python3 scripts/test_runtime_remediation.py
 else
     echo "  Quickshell runtime remediation suite... SKIP (qs not installed)"

@@ -22,6 +22,9 @@ QtObject {
     property int totalTimeoutMs: 30 * 60 * 1000
     property int stallSpeedBytes: 1
     property int stallTimeMs: 30000
+    // xdg-open may stay alive with terminal handlers; only its initial
+    // launch window is part of the Open Local transfer contract.
+    readonly property int openHandoffTimeoutMs: 1000
     readonly property int maxTransferStderrBytes: 65536
     readonly property double safetyMarginBytes: 268435456  // 256 MiB
     // QML int is signed 32-bit: reservation totals must remain IEEE-754 numbers.
@@ -792,6 +795,16 @@ QtObject {
 
     // ===== UPLOAD =====
 
+    function parseUploadStat(out) {
+        if (typeof out !== "string") return null
+        var parts = out.trim().split(":")
+        if (parts.length !== 2 || !/^[0-9a-fA-F]+$/.test(parts[0]) || !/^[0-9]+$/.test(parts[1])) return null
+        return {
+            regular: (parseInt(parts[0], 16) & 0xF000) === 0x8000,
+            size: Number(parts[1])
+        }
+    }
+
     function startUpload(localFilePath, token, baseUrl, repoId, destPath, fileName) {
         // Validate upload source: absolute path, regular file, not symlink, size limit
         if (!localFilePath || typeof localFilePath !== "string" || !localFilePath.startsWith("/")) {
@@ -806,15 +819,17 @@ QtObject {
                     root.reportError("Invalid upload source: " + errTransfer.error)
                     return
                 }
-                var parts = out.split(" ")
-                var ftype = parts[0]
-                var size = parseInt(parts[1], 10)
-                if (ftype !== "regular file") {
+                var statResult = root.parseUploadStat(out)
+                if (!statResult) {
+                    root.reportError("Invalid upload source: file metadata could not be validated")
+                    return
+                }
+                if (!statResult.regular) {
                     var errTransfer = { error: "Upload source must be a regular file (not symlink, directory, device, FIFO, or socket)", state: "failed" }
                     root.reportError("Invalid upload source: " + errTransfer.error)
                     return
                 }
-                if (size > root.maxUploadBodyBytes) {
+                if (statResult.size > root.maxUploadBodyBytes) {
                     var errTransfer = { error: "Upload source exceeds maximum size of " + root.maxUploadBodyBytes + " bytes", state: "failed" }
                     root.reportError("Upload too large: " + errTransfer.error)
                     return
@@ -856,7 +871,7 @@ QtObject {
                 return upload
             }
         })
-        statProc.command = ["stat", "-c", "%F %s", "--", localFilePath]
+        statProc.command = ["stat", "-c", "%f:%s", "--", localFilePath]
         statProc.running = true
     }
 
@@ -1585,30 +1600,65 @@ QtObject {
     property Component openCachedFileComponent: Component {
         Process {
             property var transferRef: null
+            property var handoffTimer: null
+            property var pgid: 0
+            onStarted: {
+                pgid = processId
+                var proc = this
+                handoffTimer = root._retryTimerFactory.createObject(root, {
+                    interval: root.openHandoffTimeoutMs,
+                    callback: function() {
+                        proc.handoffTimer = null
+                        root.completeOpenHandoff(proc.transferRef, proc)
+                    }
+                })
+                if (handoffTimer) handoffTimer.start()
+            }
             onExited: function(exitCode) {
                 var t = transferRef
-                destroy()
-                if (!t) return
-                t.process = null
-                if (t.state === "cancelling") {
-                    root.finishCancelled(t)
-                } else if (t.state === "opening" && exitCode === 0) {
-                    root.releaseOpenCache(t)
-                    t.state = "completed"
-                    root.sanitizeForHistory(t)
-                    root.pruneHistory()
-                } else if (t.state === "opening") {
-                    root.releaseOpenCache(t)
-                    t.state = "failed"
-                    t.error = "Cached file could not be opened by the default application"
-                    root.sanitizeForHistory(t)
-                } else {
-                    return
+                var proc = this
+                if (handoffTimer) {
+                    handoffTimer.stop()
+                    handoffTimer.destroy()
+                    handoffTimer = null
                 }
-                root.transferStateChanged(t)
-                root.transfersChanged()
+                destroy()
+                root.handleOpenCachedFileExited(exitCode, t, proc)
             }
         }
+    }
+
+    function completeOpenHandoff(transfer, process) {
+        if (!transfer || transfer.state !== "opening" || transfer.process !== process) return
+        transfer.process = null
+        root.releaseOpenCache(transfer)
+        transfer.state = "completed"
+        root.sanitizeForHistory(transfer)
+        root.pruneHistory()
+        root.transferStateChanged(transfer)
+        root.transfersChanged()
+    }
+
+    function handleOpenCachedFileExited(exitCode, transfer, process) {
+        if (!transfer) return
+        if (transfer.process === process) transfer.process = null
+        if (transfer.state === "cancelling") {
+            root.finishCancelled(transfer)
+        } else if (transfer.state === "opening" && exitCode === 0) {
+            root.releaseOpenCache(transfer)
+            transfer.state = "completed"
+            root.sanitizeForHistory(transfer)
+            root.pruneHistory()
+        } else if (transfer.state === "opening") {
+            root.releaseOpenCache(transfer)
+            transfer.state = "failed"
+            transfer.error = "Cached file could not be opened by the default application"
+            root.sanitizeForHistory(transfer)
+        } else {
+            return
+        }
+        root.transferStateChanged(transfer)
+        root.transfersChanged()
     }
 
     function openCachedFile(transfer) {
@@ -1623,7 +1673,12 @@ QtObject {
             root.transfersChanged()
             return
         }
-        proc.command = ["xdg-open", transfer.cachePath]
+        // Resolve the user's MIME handler, then let UWSM honor its desktop
+        // entry semantics (including Terminal=true) through the configured
+        // default terminal. Keep the path as an argv value throughout.
+        proc.command = ["setsid", "bash", "-c",
+            "mime=$(xdg-mime query filetype \"$1\") && desktop=$(xdg-mime query default \"$mime\") && exec uwsm-app -- \"$desktop\" \"$1\"",
+            "omarseafile-open", transfer.cachePath]
         proc.transferRef = transfer
         transfer.process = proc
         proc.running = true

@@ -90,6 +90,7 @@ Column {
             height: Style.space(28)
 
             Text {
+                id: completedLabel
                 text: "Completed (" + root.completedCount + ")"
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
@@ -99,7 +100,7 @@ Column {
                 textFormat: Text.PlainText
             }
 
-            Item { width: parent.width - clearCompletedBtn.width - Style.space(20); height: 1 }
+            Item { width: parent.width - completedLabel.width - clearCompletedBtn.width - Style.space(8); height: 1 }
 
             Text {
                 id: clearCompletedBtn
@@ -141,6 +142,7 @@ Column {
             height: Style.space(28)
 
             Text {
+                id: failedLabel
                 text: "Failed (" + root.failedCount + ")"
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
@@ -150,7 +152,7 @@ Column {
                 textFormat: Text.PlainText
             }
 
-            Item { width: parent.width - clearFailedBtn.width - Style.space(20); height: 1 }
+            Item { width: parent.width - failedLabel.width - clearFailedBtn.width - Style.space(8); height: 1 }
 
             Text {
                 id: clearFailedBtn
