@@ -28,8 +28,10 @@ echo "Target:  $PLUGIN_DIR"
 if $DRY_RUN; then
   echo "Mode:    DRY RUN (no changes)"
   echo ""
-  CHANGES="$(rsync -ainc --delete \
+  CHANGES="$(rsync -ainc --delete --omit-dir-times \
     --exclude='.git/' \
+    --exclude='.agents/' \
+    --exclude='.codex/' \
     --exclude='docs/' \
     --exclude='README.md' \
     --exclude='deploy.sh' \
@@ -48,6 +50,8 @@ else
   mkdir -p "$PLUGIN_DIR"
   rsync -av --delete \
     --exclude='.git/' \
+    --exclude='.agents/' \
+    --exclude='.codex/' \
     --exclude='docs/' \
     --exclude='README.md' \
     --exclude='deploy.sh' \

@@ -22,10 +22,14 @@ with tempfile.TemporaryDirectory() as temp:
     os.symlink("/usr/share/omarchy/shell/Commons", os.path.join(package_dir, "Commons"))
     bin_dir = os.path.join(temp, "bin")
     os.mkdir(bin_dir)
-    xdg_open = os.path.join(bin_dir, "xdg-open")
-    with open(xdg_open, "w", encoding="utf-8") as f:
-        f.write("#!/bin/sh\ncase \"$1\" in\n  /probe-failure) exit 1 ;;\n  /probe-cancel|/probe-logout|*/open_runtime_protected) exec python3 -c 'import signal; signal.pause()' ;;\n  *) exit 0 ;;\nesac\n")
-    os.chmod(xdg_open, 0o700)
+    xdg_mime = os.path.join(bin_dir, "xdg-mime")
+    with open(xdg_mime, "w", encoding="utf-8") as f:
+        f.write("#!/bin/sh\ncase \"$1 $2\" in\n  'query filetype') printf 'text/plain\\n' ;;\n  'query default') printf 'probe-handler.desktop\\n' ;;\n  *) exit 1 ;;\nesac\n")
+    os.chmod(xdg_mime, 0o700)
+    uwsm_app = os.path.join(bin_dir, "uwsm-app")
+    with open(uwsm_app, "w", encoding="utf-8") as f:
+        f.write("#!/bin/sh\ncase \"$3\" in\n  /probe-failure) exit 1 ;;\n  /probe-cancel|/probe-logout|*/open_runtime_protected) exec python3 -c 'import signal; signal.pause()' ;;\n  *) exit 0 ;;\nesac\n")
+    os.chmod(uwsm_app, 0o700)
     xdg_user_dir = os.path.join(bin_dir, "xdg-user-dir")
     with open(xdg_user_dir, "w", encoding="utf-8") as f:
         f.write("#!/bin/sh\nsleep 1\nprintf '%s\\n' \"$HOME/Downloads\"\n")
@@ -63,6 +67,7 @@ checks = [
         "protectionReleased=true",
         "protectedClearResult=true",
         "postReleaseClearResult=true",
+        "uploadStatSafe=true",
 ]
 failed = [check for check in checks if check not in output]
 if result.returncode != 0:

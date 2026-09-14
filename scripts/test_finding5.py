@@ -237,48 +237,47 @@ finally:
 
 
 # ======================================================================
-# F. UPLOAD SOURCE VALIDATION (stat -c "%F %s")
+# F. UPLOAD SOURCE VALIDATION (locale-independent numeric mode)
 # ======================================================================
 section("F. Upload source validation")
 tmpdir = tempfile.mkdtemp()
 try:
-    # Regular file: stat (no -L) reports "regular file"
+    # GNU stat numeric mode is stable across locales; 0100000 means regular.
     reg_file = os.path.join(tmpdir, "regular.txt")
     with open(reg_file, "w") as f:
         f.write("test")
     result = subprocess.run(
-        ["stat", "-c", "%F %s", "--", reg_file],
+        ["stat", "-c", "%f:%s", "--", reg_file],
         capture_output=True, text=True)
-    check("regular file detected",
-          "regular file" in result.stdout and "4" in result.stdout)
+    mode, size = result.stdout.strip().split(":")
+    check("regular file detected", int(mode, 16) & 0xF000 == 0x8000 and size == "4")
 
-    # Directory: stat reports "directory"
+    # Directory mode must not pass the regular-file mask.
     subdir = os.path.join(tmpdir, "subdir")
     os.mkdir(subdir)
     result = subprocess.run(
-        ["stat", "-c", "%F %s", "--", subdir],
+        ["stat", "-c", "%f:%s", "--", subdir],
         capture_output=True, text=True)
-    check("directory detected", "directory" in result.stdout)
+    mode, _ = result.stdout.strip().split(":")
+    check("directory detected", int(mode, 16) & 0xF000 != 0x8000)
 
-    # Symlink: stat (no -L) shows "symbolic link", not the target.
-    # The QML uses `stat -c "%F %s"` (no -L), so symlinks are correctly
-    # rejected because their type is "symbolic link", not "regular file".
+    # stat without -L reports the symlink mode, not its target mode.
     link = os.path.join(tmpdir, "link.txt")
     os.symlink(reg_file, link)
     result = subprocess.run(
-        ["stat", "-c", "%F %s", "--", link],
+        ["stat", "-c", "%f:%s", "--", link],
         capture_output=True, text=True)
-    check("symlink detected as 'symbolic link' (not followed)",
-          "symbolic link" in result.stdout)
+    mode, _ = result.stdout.strip().split(":")
+    check("symlink detected (not followed)", int(mode, 16) & 0xF000 != 0x8000)
 
     # FIFO
     fifo = os.path.join(tmpdir, "fifo")
     os.mkfifo(fifo)
     result = subprocess.run(
-        ["stat", "-c", "%F %s", "--", fifo],
+        ["stat", "-c", "%f:%s", "--", fifo],
         capture_output=True, text=True)
-    check("fifo detected",
-          "fifo" in result.stdout.lower() or "named pipe" in result.stdout.lower())
+    mode, _ = result.stdout.strip().split(":")
+    check("fifo detected", int(mode, 16) & 0xF000 != 0x8000)
 finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
 

@@ -22,6 +22,7 @@ ShellRoot {
     property bool protectedClearResult: false
     property bool postReleaseClearResult: false
     property bool successOpenComplete: false
+    property bool uploadStatSafe: false
     property string runtimeCacheDir: ""
     property var protectedProbe: null
 
@@ -35,7 +36,7 @@ ShellRoot {
         interval: 1000
         repeat: false
         onTriggered: {
-            console.log("REMEDIATION reserved=" + root.reserved + " released=" + root.released + " deep=" + root.deepValid + " libraryKeys=" + root.libraryKeysUnique + " visualRange=" + root.visualRange + " freshCache=" + root.freshCache + " pendingOpenCancelled=" + root.pendingOpenCancelled + " xdgOpenFailed=" + root.xdgOpenFailed + " xdgOpenCancel=" + root.xdgOpenCancel + " xdgOpenLogout=" + root.xdgOpenLogout + " xdgOpenReleased=" + root.xdgOpenReleased + " xdgOpenSuccess=" + root.xdgOpenSuccess + " accountSwitchSafe=" + root.accountSwitchSafe + " openingCacheProtected=" + root.openingCacheProtected + " protectionReleased=" + root.protectionReleased + " protectedClearResult=" + root.protectedClearResult + " postReleaseClearResult=" + root.postReleaseClearResult)
+            console.log("REMEDIATION reserved=" + root.reserved + " released=" + root.released + " deep=" + root.deepValid + " libraryKeys=" + root.libraryKeysUnique + " visualRange=" + root.visualRange + " freshCache=" + root.freshCache + " pendingOpenCancelled=" + root.pendingOpenCancelled + " xdgOpenFailed=" + root.xdgOpenFailed + " xdgOpenCancel=" + root.xdgOpenCancel + " xdgOpenLogout=" + root.xdgOpenLogout + " xdgOpenReleased=" + root.xdgOpenReleased + " xdgOpenSuccess=" + root.xdgOpenSuccess + " accountSwitchSafe=" + root.accountSwitchSafe + " openingCacheProtected=" + root.openingCacheProtected + " protectionReleased=" + root.protectionReleased + " protectedClearResult=" + root.protectedClearResult + " postReleaseClearResult=" + root.postReleaseClearResult + " uploadStatSafe=" + root.uploadStatSafe)
             Qt.quit()
         }
     }
@@ -204,6 +205,13 @@ ShellRoot {
             { repoId: "r", fullPath: "/a", type: "file" }
         ]
         root.visualRange = SelectionHelper.rangeSelect([], visual[0], visual[2], visual).length
+        var regularStat = TransferService.parseUploadStat("81a4:71")
+        var directoryStat = TransferService.parseUploadStat("41ed:71")
+        var symlinkStat = TransferService.parseUploadStat("a1ff:71")
+        root.uploadStatSafe = regularStat && regularStat.regular && regularStat.size === 71
+            && directoryStat && !directoryStat.regular
+            && symlinkStat && !symlinkStat.regular
+            && TransferService.parseUploadStat("regular file 71") === null
         var pendingOpen = TransferService.startOpen({ name: "pending.txt", type: "file" }, "FAKE", "https://example.invalid", "repo", "/pending.txt")
         TransferService.logoutCleanup()
         root.pendingOpenCancelled = pendingOpen.state === "cancelled" && TransferService.transfers.length === 0
