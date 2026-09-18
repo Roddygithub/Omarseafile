@@ -238,17 +238,12 @@ Item {
         visible: root.overflowOpen
         focus: root.overflowOpen
 
-        // Style the menu to match Omarseafile theme
+        // Style the menu background only (safe)
         background: Rectangle {
             color: Qt.darker(root.bar.background, 1.1)
             border.color: Qt.darker(root.bar.background, 1.3)
             border.width: Style.spacing.hairline
             radius: Style.cornerRadius
-        }
-
-        contentItem: ListView {
-            clip: true
-            spacing: Style.space(2)
         }
 
         MenuItem {
@@ -258,13 +253,6 @@ Item {
             onTriggered: {
                 if (root.onCreateFolderClicked) root.onCreateFolderClicked()
                 root.overflowOpen = false
-            }
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.body
-            padding: Style.space(4)
-            background: Rectangle {
-                color: "transparent"
-                radius: Style.cornerRadius
             }
         }
 
@@ -276,13 +264,6 @@ Item {
                 if (root.onRefreshClicked) root.onRefreshClicked()
                 root.overflowOpen = false
             }
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.body
-            padding: Style.space(4)
-            background: Rectangle {
-                color: "transparent"
-                radius: Style.cornerRadius
-            }
         }
 
         MenuItem {
@@ -292,13 +273,6 @@ Item {
             onTriggered: {
                 if (root.onTransfersClicked) root.onTransfersClicked()
                 root.overflowOpen = false
-            }
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.body
-            padding: Style.space(4)
-            background: Rectangle {
-                color: "transparent"
-                radius: Style.cornerRadius
             }
         }
 
@@ -310,23 +284,9 @@ Item {
                 if (root.onTrashClicked) root.onTrashClicked()
                 root.overflowOpen = false
             }
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.body
-            padding: Style.space(4)
-            background: Rectangle {
-                color: "transparent"
-                radius: Style.cornerRadius
-            }
         }
 
-        MenuSeparator {
-            background: Rectangle {
-                color: Qt.darker(root.bar.background, 1.3)
-                height: Style.spacing.hairline
-                anchors.leftMargin: Style.space(8)
-                anchors.rightMargin: Style.space(8)
-            }
-        }
+        MenuSeparator { }
 
         MenuItem {
             text: "Settings"
@@ -335,13 +295,6 @@ Item {
             onTriggered: {
                 if (root.onSettingsClicked) root.onSettingsClicked()
                 root.overflowOpen = false
-            }
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.body
-            padding: Style.space(4)
-            background: Rectangle {
-                color: "transparent"
-                radius: Style.cornerRadius
             }
         }
 
@@ -352,13 +305,6 @@ Item {
             onTriggered: {
                 if (root.onLogoutClicked) root.onLogoutClicked()
                 root.overflowOpen = false
-            }
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.body
-            padding: Style.space(4)
-            background: Rectangle {
-                color: "transparent"
-                radius: Style.cornerRadius
             }
         }
     }
