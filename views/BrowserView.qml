@@ -4,7 +4,6 @@ import qs.Commons
 import qs.Ui
 import "../js"
 import "../components"
-import "../js/ConnectionService.qml"
 
 Item {
     id: root

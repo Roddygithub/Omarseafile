@@ -36,6 +36,7 @@ if $DRY_RUN; then
     --exclude='README.md' \
     --exclude='deploy.sh' \
     --exclude='.gitignore' \
+    --exclude='PANEL_AUDIT.md' \
     --exclude='__pycache__/' \
     "$REPO_DIR/" "$PLUGIN_DIR/")"
   if [[ -n "$CHANGES" ]]; then
@@ -56,6 +57,7 @@ else
     --exclude='README.md' \
     --exclude='deploy.sh' \
     --exclude='.gitignore' \
+    --exclude='PANEL_AUDIT.md' \
     --exclude='__pycache__/' \
     "$REPO_DIR/" "$PLUGIN_DIR/"
   echo ""
