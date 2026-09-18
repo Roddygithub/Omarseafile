@@ -238,14 +238,6 @@ Item {
         visible: root.overflowOpen
         focus: root.overflowOpen
 
-        // Style the menu background only (safe)
-        background: Rectangle {
-            color: Qt.darker(root.bar.background, 1.1)
-            border.color: Qt.darker(root.bar.background, 1.3)
-            border.width: Style.spacing.hairline
-            radius: Style.cornerRadius
-        }
-
         MenuItem {
             text: "New folder"
             visible: root.showCreateFolder && !root.searchActive && root.selectionCount === 0
