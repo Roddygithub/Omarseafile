@@ -44,6 +44,21 @@ QtObject {
         root.transferError(message)
     }
 
+    // Send desktop notification using notify-send
+    function notify(title, message, urgency) {
+        if (!setting("notifyEnabled", true)) return
+        var proc = _notifyFactory.createObject(root)
+        if (!proc) return
+        proc.command = ["notify-send", "-u", urgency || "normal", "-a", "Omarseafile", title, message]
+        proc.running = true
+    }
+
+    property Component _notifyFactory: Component {
+        Process {
+            onExited: destroy()
+        }
+    }
+
     // ===== PROCESS FACTORY =====
 
     property Component downloadProcessComponent: Component {
@@ -783,11 +798,13 @@ QtObject {
             download.speed = ""
             root.sanitizeForHistory(download)
             root.pruneHistory()
+            root.notify("Download completed", download.fileName, "low")
         } else {
             download.state = "failed"
             download.error = "Download target already exists or could not be finalized"
             deleteFile(download.tempPath)
             root.sanitizeForHistory(download)
+            root.notify("Download failed", download.fileName, "critical")
         }
         root.transferStateChanged(download)
         root.transfersChanged()
@@ -1105,6 +1122,10 @@ QtObject {
             upload.state = "failed"
             upload.error = "Upload outcome is unknown after curl failed (exit code: " + exitCode + "); verify the server before retrying"
             root.sanitizeForHistory(upload)
+            root.notify("Upload failed", upload.fileName, "critical")
+        }
+        if (upload.state === "completed") {
+            root.notify("Upload completed", upload.fileName, "low")
         }
         root.transferStateChanged(upload)
         root.transfersChanged()

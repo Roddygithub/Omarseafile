@@ -10,13 +10,26 @@ ListView {
     required property var onResultClicked
     required property var onResultRightClicked
     required property QtObject bar
+    property string filterType: "all"  // "all", "file", "folder"
+    property string filterLibrary: ""  // empty = all libraries
 
     width: parent.width
     height: parent.height
     clip: true
     spacing: Style.space(2)
 
-    model: root.results
+    property var filteredResults: {
+        var out = []
+        for (var i = 0; i < root.results.length; i++) {
+            var r = root.results[i]
+            if (root.filterType !== "all" && r.type !== root.filterType) continue
+            if (root.filterLibrary !== "" && r.repoName !== root.filterLibrary) continue
+            out.push(r)
+        }
+        return out
+    }
+
+    model: root.filteredResults
 
     delegate: Item {
         id: delegate
@@ -102,16 +115,88 @@ ListView {
         }
     }
 
+    // Filter bar
+    Column {
+        id: filterBar
+        width: parent.width
+        visible: root.results.length > 0
+        spacing: Style.space(4)
+
+        Row {
+            width: parent.width
+            spacing: Style.space(8)
+
+            Text {
+                text: "Filter:"
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            ComboBox {
+                id: typeFilter
+                width: Style.space(100)
+                model: ["All", "Files", "Folders"]
+                currentIndex: root.filterType === "all" ? 0 : (root.filterType === "file" ? 1 : 2)
+                onActivated: {
+                    root.filterType = ["all", "file", "folder"][index]
+                }
+            }
+
+            ComboBox {
+                id: libraryFilter
+                width: Style.space(140)
+                model: ["All libraries"] + (function() {
+                    var libs = []
+                    for (var i = 0; i < root.results.length; i++) {
+                        if (libs.indexOf(root.results[i].repoName) === -1) {
+                            libs.push(root.results[i].repoName)
+                        }
+                    }
+                    return libs
+                })()
+                currentIndex: root.filterLibrary === "" ? 0 : (function() {
+                    var libs = []
+                    for (var i = 0; i < root.results.length; i++) {
+                        if (libs.indexOf(root.results[i].repoName) === -1) {
+                            libs.push(root.results[i].repoName)
+                        }
+                    }
+                    return libs.indexOf(root.filterLibrary) + 1
+                })()
+                onActivated: {
+                    var libs = [""]
+                    for (var i = 0; i < root.results.length; i++) {
+                        if (libs.indexOf(root.results[i].repoName) === -1) {
+                            libs.push(root.results[i].repoName)
+                        }
+                    }
+                    root.filterLibrary = libs[index]
+                }
+            }
+
+            Button {
+                text: "Clear"
+                width: Style.space(50)
+                onClicked: {
+                    root.filterType = "all"
+                    root.filterLibrary = ""
+                }
+            }
+        }
+    }
+
     EmptyState {
         id: emptyState
         bar: root.bar
         icon: "\uf002"
-        title: "No results"
-        subtitle: "Try different search terms"
+        title: root.results.length === 0 ? "No results" : "No matching results"
+        subtitle: root.results.length === 0 ? "Try different search terms" : "Adjust filters or search terms"
         width: parent.width
         height: parent.height
         anchors.centerIn: parent
-        visible: root.results.length === 0
+        visible: root.filteredResults.length === 0
     }
 
     ScrollBar.vertical: ScrollBar {

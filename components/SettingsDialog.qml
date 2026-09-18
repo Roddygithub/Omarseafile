@@ -13,6 +13,10 @@ Item {
     property var onChangeServer: null
     property var onTestConnection: null
     property var onAutoLoginToggled: null
+    property var onSingleClickOpenToggled: null
+    property var onSortColumnChange: null
+    property var onSortAscendingChange: null
+    property var onNotifyToggled: null
 
     Component.onCompleted: {
         var email = Auth.getEmail()
@@ -32,6 +36,10 @@ Item {
     property string accountEmail: ""
     property string pluginVersion: "1.0.0"
     property bool autoLogin: true
+    property bool singleClickOpen: false
+    property string sortColumn: "name"
+    property bool sortAscending: true
+    property bool notifyEnabled: true
     property bool connectionTestRunning: false
     property bool connectionTestSuccess: false
     property string connectionTestMessage: ""
@@ -211,6 +219,111 @@ Item {
                     checked: root.autoLogin
                     onToggled: {
                         if (root.onAutoLoginToggled) root.onAutoLoginToggled(checked)
+                    }
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            Row {
+                width: parent.width
+                spacing: Style.space(8)
+                Text {
+                    text: "Single-click to open"
+                    color: root.bar.foreground
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.body
+                    width: parent.width - singleClickOpenSwitch.width - Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Switch {
+                    id: singleClickOpenSwitch
+                    checked: root.singleClickOpen
+                    onToggled: {
+                        if (root.onSingleClickOpenToggled) root.onSingleClickOpenToggled(checked)
+                    }
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            Row {
+                width: parent.width
+                spacing: Style.space(8)
+                Text {
+                    text: "Default sort"
+                    color: root.bar.foreground
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.body
+                    width: parent.width - sortColumnCombo.width - Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                ComboBox {
+                    id: sortColumnCombo
+                    width: Style.space(120)
+                    model: ["Name", "Size", "Modified", "Type"]
+                    currentIndex: ["name", "size", "date", "type"].indexOf(root.sortColumn)
+                    onActivated: {
+                        if (root.onSortColumnChange) root.onSortColumnChange(["name", "size", "date", "type"][index])
+                    }
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            Row {
+                width: parent.width
+                spacing: Style.space(8)
+                Text {
+                    text: "Folders first"
+                    color: root.bar.foreground
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.body
+                    width: parent.width - foldersFirstSwitch.width - Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Switch {
+                    id: foldersFirstSwitch
+                    checked: true  // Always enabled in current implementation
+                    enabled: false
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            Row {
+                width: parent.width
+                spacing: Style.space(8)
+                Text {
+                    text: "Ascending"
+                    color: root.bar.foreground
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.body
+                    width: parent.width - sortAscendingSwitch.width - Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Switch {
+                    id: sortAscendingSwitch
+                    checked: root.sortAscending
+                    onToggled: {
+                        if (root.onSortAscendingChange) root.onSortAscendingChange(checked)
+                    }
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            Row {
+                width: parent.width
+                spacing: Style.space(8)
+                Text {
+                    text: "Transfer notifications"
+                    color: root.bar.foreground
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.body
+                    width: parent.width - notifySwitch.width - Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Switch {
+                    id: notifySwitch
+                    checked: root.notifyEnabled
+                    onToggled: {
+                        if (root.onNotifyToggled) root.onNotifyToggled(checked)
                     }
                     anchors.verticalCenter: parent.verticalCenter
                 }

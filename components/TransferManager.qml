@@ -10,6 +10,9 @@ Column {
     property var onRetry: null
     property var onClearCompleted: null
     property var onClearFailed: null
+    property var onRetryAllFailed: null
+    property var onClearAllCompleted: null
+    property var onClearAllFailed: null
     property var onOpen: null
     property var onShowInFolder: null
     property int activeCount: 0
@@ -43,6 +46,37 @@ Column {
     Connections {
         target: TransferService
         function onTransfersChanged() { root.refresh() }
+    }
+
+    // Header with summary
+    Item {
+        width: parent.width
+        height: Style.space(32)
+        visible: root.activeCount > 0 || root.completedCount > 0 || root.failedCount > 0
+
+        Row {
+            anchors.fill: parent
+            anchors.leftMargin: Style.space(8)
+            anchors.rightMargin: Style.space(8)
+            spacing: Style.space(8)
+
+            Text {
+                text: "Transfers"
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Text {
+                text: "(" + (root.activeCount + root.completedCount + root.failedCount) + ")"
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
     }
 
     // Active section
@@ -178,6 +212,51 @@ Column {
                 transfer: modelData
                 onRetry: root.onRetry
                 onClear: root.onClearFailed
+            }
+        }
+    }
+
+    // Batch actions bar (visible when there are failed or completed transfers)
+    Column {
+        width: parent.width
+        visible: root.completedCount > 0 || root.failedCount > 0
+        spacing: Style.space(4)
+
+        Row {
+            width: parent.width
+            anchors.leftMargin: Style.space(8)
+            anchors.rightMargin: Style.space(8)
+            spacing: Style.space(8)
+
+            Button {
+                text: "Retry All Failed"
+                width: parent.width / 3 - Style.space(5)
+                height: Style.space(28)
+                visible: root.failedCount > 0
+                onClicked: {
+                    if (root.onRetryAllFailed) root.onRetryAllFailed()
+                }
+            }
+
+            Button {
+                text: "Clear All Done"
+                width: parent.width / 3 - Style.space(5)
+                height: Style.space(28)
+                visible: root.completedCount > 0
+                onClicked: {
+                    if (root.onClearAllCompleted) root.onClearAllCompleted()
+                }
+            }
+
+            Button {
+                text: "Clear All Failed"
+                width: parent.width / 3 - Style.space(5)
+                height: Style.space(28)
+                color: Color.urgent
+                visible: root.failedCount > 0
+                onClicked: {
+                    if (root.onClearAllFailed) root.onClearAllFailed()
+                }
             }
         }
     }

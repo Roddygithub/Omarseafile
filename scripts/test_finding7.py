@@ -169,7 +169,8 @@ REQUIRED_PLAINTEXT = {
     "TransferManager.qml": 3,    # active count, completed count, failed count
 }
 # Also check Panel.qml in repo root
-REQUIRED_PLAINTEXT["Panel.qml"] = 3  # dest count text, dest path text, searchStatusText
+REQUIRED_PLAINTEXT["Panel.qml"] = 2  # dest count text, dest path text
+REQUIRED_PLAINTEXT["BrowserView.qml"] = 1  # searchStatusText
 
 total_required = sum(REQUIRED_PLAINTEXT.values())
 total_found = 0
@@ -178,6 +179,8 @@ missing_files = []
 for fname, expected_count in sorted(REQUIRED_PLAINTEXT.items()):
     if fname == "Panel.qml":
         qml_path = os.path.join(REPO_ROOT, fname)
+    elif fname == "BrowserView.qml":
+        qml_path = os.path.join(REPO_ROOT, "views", fname)
     else:
         qml_path = os.path.join(REPO_ROOT, "components", fname)
 

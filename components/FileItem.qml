@@ -25,6 +25,7 @@ Item {
     required property bool selected
     property int itemIndex: -1
     property QtObject bar: null
+    property bool singleClickOpen: false
 
     readonly property var safeItem: item || {}
     property bool isDir: safeItem.type === "dir"
@@ -37,10 +38,10 @@ Item {
 
     onTransferRevisionChanged: root.activeTransfer = root.findTransfer(root.item)
 
-
     implicitHeight: row.implicitHeight
     width: parent.width
 
+    // Keyboard cursor highlight
     Rectangle {
         anchors.fill: parent
         color: root.ListView.isCurrentItem ? Color.accent : "transparent"
@@ -54,6 +55,15 @@ Item {
         color: root.isSelected ? Color.accent : "transparent"
         opacity: root.isSelected && !root.ListView.isCurrentItem ? 0.10 : 0
         visible: root.isSelected
+    }
+
+    // Hover highlight
+    Rectangle {
+        anchors.fill: parent
+        color: root.bar ? root.bar.foreground : Color.foreground
+        opacity: mouseArea.hovered ? 0.04 : 0
+        visible: mouseArea.hovered
+        Behavior on opacity { NumberAnimation { duration: 100 } }
     }
 
     Row {
@@ -149,38 +159,43 @@ Item {
 
     readonly property int transferWidth: (root.isDownloading || root.isUploading) ? Style.space(130) : 0
 
-MouseArea {
+    MouseArea {
+        id: mouseArea
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        // Accept every button: some touchpads deliver a right-click as
-        // middle (or another button). Left = primary action, anything
-        // else = context menu.
         acceptedButtons: Qt.AllButtons
         onClicked: function(mouse) {
             if (mouse.button !== Qt.LeftButton) {
                 // Right/middle/other buttons open the context menu.
                 var pos = mapToItem(Overlay.overlay, mouse.x, mouse.y)
                 if (root.onContextMenuRequested) root.onContextMenuRequested(root.item, pos.x, pos.y)
+                return
+            }
+
+            // Ensure keyboard focus follows click
+            if (root.ListView.view) root.ListView.view.currentIndex = root.itemIndex
+
+            var accel = Qt.ControlModifier | Qt.MetaModifier
+            if (mouse.modifiers & accel) {
+                // Ctrl/Cmd + click = toggle selection
+                if (root.onSelectionToggle) root.onSelectionToggle(root.item)
+            } else if (mouse.modifiers & Qt.ShiftModifier) {
+                // Shift + click = range selection
+                if (root.onSelectionRange) root.onSelectionRange(root.item)
             } else {
-                if (root.ListView.view) root.ListView.view.currentIndex = root.itemIndex
-                // Some keyboards/layouts send Meta (Super/Cmd) where Ctrl is
-                // intended — accept both for selection modifiers.
-                var accel = Qt.ControlModifier | Qt.MetaModifier
-                if (mouse.modifiers & accel) {
-                    if (root.onSelectionToggle) root.onSelectionToggle(root.item)
-                } else if (mouse.modifiers & Qt.ShiftModifier) {
-                    if (root.onSelectionRange) root.onSelectionRange(root.item)
-                } else {
-                    if (root.onPositionClicked) root.onPositionClicked(root.item)
+                // Plain click = focus/select (positionOn)
+                if (root.onPositionClicked) root.onPositionClicked(root.item)
+
+                // Single-click-open mode: activate immediately
+                if (root.singleClickOpen) {
                     if (root.isDir) {
-                    // Plain click on a folder/library navigates into it.
-                    if (root.onItemClicked) root.onItemClicked(root.item)
+                        if (root.onItemClicked) root.onItemClicked(root.item)
                     } else {
-                    // Plain click on a file opens it with the default application.
-                    if (root.onOpenClicked) root.onOpenClicked(root.item)
+                        if (root.onOpenClicked) root.onOpenClicked(root.item)
                     }
                 }
+                // Otherwise double-click handles activation (see onDoubleClicked)
             }
         }
         onDoubleClicked: function(mouse) {

@@ -1,0 +1,3 @@
+module roddy.seafile.views
+BrowserView 1.0 BrowserView.qml
+HomeView 1.0 HomeView.qml

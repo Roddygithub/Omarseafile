@@ -2,23 +2,28 @@
 
 Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing and managing a self-hosted [Seafile](https://www.seafile.com/) account from a Quickshell panel.
 
-## Features
+## Features (v1.1)
 
+- **Home / Quick Access**: Pin libraries and folders for instant access. See active transfers at a glance.
 - Browse accessible Seafile libraries and folders with breadcrumbs.
-- Search across accessible non-encrypted libraries.
+- Search across accessible non-encrypted libraries with type and library filters.
 - Download files to the XDG user download directory (falling back to `~/Downloads`) with progress, cancellation, retry, and no-overwrite collision protection.
 - **Secure download target creation**: temporary files created with exclusive O_CREAT|O_EXCL|O_NOFOLLOW on a held directory FD, mode 0600, curl writes to held FD (no pathname reopen), producer-side byte ceiling (1 GiB default) and disk-space admission check (256 MiB safety margin), automatic cleanup on failure/cancellation, symlink and clobber protection.
 - **Open Local**: download to private `XDG_CACHE_HOME` (or `~/.cache`) cache, same secure creation, bounded cache (1 GiB default, recovery/eviction before use), cached file opened with xdg-open.
-- Upload a local file by entering its path, with progress, cancellation, manual retry, and server-side conflict protection.
+- **Graphical file picker** for uploads (uses xdg-desktop-portal via Qt FileDialog) with multi-file selection; manual path entry remains as fallback.
 - **Upload source hardening**: absolute path required, must be regular file (rejects symlinks, directories, devices, FIFOs, sockets), size precheck (1 GiB default).
-- Create folders, rename items, and delete files or folders.
+- Create folders, rename items (F2), and delete files or folders (Delete).
 - Select multiple items with Ctrl+Click, Shift+Click, or Ctrl+A for batch actions.
 - Copy and move files and folders, including batch operations.
 - Choose Copy/Move destinations in the existing Seafile browser and see the effective destination path.
 - Create, list, copy, and revoke password-protected or expiring share links.
 - Browse file history and download historical revisions.
 - Browse library trash; restore is explicitly unavailable because the tested CE API does not provide a confirmable restore operation.
-- Monitor active, completed, and failed transfers.
+- **Configurable sorting**: by Name, Size, Modified date, Type; ascending/descending; folders first.
+- **Details panel**: shows metadata and quick actions for selected item(s).
+- **Transfer Manager**: retry all failed, clear completed/failed, speed/ETA display.
+- **Desktop notifications** for transfer completion/failure (configurable, uses notify-send).
+- **Single-click or double-click to open** preference.
 - Show offline status, loading states, errors, empty states, and toasts.
 - Open completed downloads or reveal them in the file manager.
 
@@ -63,17 +68,23 @@ The session token, server URL, and account email are stored through the desktop 
 
 ## Usage
 
+### Home / Quick Access
+
+On first open, the Home view shows:
+- **Quick Access**: Pinned libraries and folders. Right-click any item in the browser → "Add to Quick Access".
+- **Active Transfers**: Current downloads/uploads with progress.
+
 ### Browsing and transfers
 
 - Select a library, then select folders to navigate.
-- Double-click a file, press Enter with it focused, or use its context menu to download it.
-- Choose **Upload**, then enter the local path of the file to upload.
+- Double-click a file (or single-click if enabled in Settings), press Enter with it focused, or use its context menu to download it.
+- Choose **Upload**, then use the graphical file picker ("Browse...") or enter the local path manually.
 - Right-click an item for available actions.
 - Use the Transfer Manager to cancel active transfers, retry failed transfers, or clear terminal history.
 
 ### File operations
 
-- **New Folder** creates a folder in the current location.
+- **New Folder** creates a folder in the current location (overflow menu → New folder).
 - **Rename** is available from the context menu or F2.
 - **Delete** is available from the context menu or Delete.
 - Use Ctrl+Click, Shift+Click, or Ctrl+A to select items for batch Move, Copy, or Delete.
@@ -86,7 +97,7 @@ Copy and Move are same-library operations in v1. A source folder cannot be moved
 
 ### Search
 
-Search is available from the toolbar. It is debounced and searches each accessible non-encrypted library through Seafile's repo-scoped search API. Results include the library, path, type, and size where available. Seafile CE's global search endpoint is not used.
+Search is available from the toolbar. It is debounced and searches each accessible non-encrypted library through Seafile's repo-scoped search API. Results include the library, path, type, and size where available. Filter by type (file/folder) and library. Seafile CE's global search endpoint is not used.
 
 ### Sharing, history, and trash
 
@@ -94,32 +105,52 @@ Search is available from the toolbar. It is debounced and searches each accessib
 - Choose **History** on a file to inspect revisions and download an older revision.
 - Use the toolbar's Trash view to inspect deleted items. Restore is not offered in v1 because the tested CE 12.0.x endpoint did not perform or confirm restoration.
 
-## Upload Limitation
+### Settings
 
-The current Omarchy/Quickshell environment does not provide a reliable native graphical local-file picker for this plugin. Uploads therefore use the supported manual-path workflow: choose **Upload** and enter the local file path. A reliable graphical picker is post-v1 work.
+- **Connection**: Server URL, Test Connection, Auto-login.
+- **Account**: Shows signed-in email.
+- **Preferences**: Single-click to open, Default sort (Name/Size/Modified/Type), Ascending/Descending, Transfer notifications.
+- **Data**: Clear Cache, Logout.
+- **About**: Version and issue tracker link.
 
 ## Keyboard Controls
 
-| Shortcut | Action |
-| --- | --- |
-| F2 | Rename the current or selected item |
-| Delete | Delete the current or selected item |
-| Enter / Space | Navigate into a folder or activate a file |
-| Arrow Up/Down / j k | Move the file-list cursor |
-| h / l | Back / open the focused folder |
-| Escape | Close the active dialog/view, clear search, or close the panel |
-| Ctrl+A | Select all visible items |
+| Shortcut | Action | Conditions |
+| --- | --- | --- |
+| F2 | Rename the current or selected item | Browse mode, no dialog/search/destination mode |
+| Delete | Delete the current or selected item | Browse mode, no dialog/search/destination mode |
+| Enter | Open a folder or activate a file | Browse mode; destination mode opens a destination folder |
+| Space | Open a folder or activate a file | Browse mode and file-list focus |
+| Arrow Up/Down | Move the current list item | Browse mode and file-list focus |
+| Arrow Left/Right / h l | Back / open the focused folder | Browse mode and file-list focus |
+| Ctrl+A | Select all visible items | Browse mode, no dialog/search/destination mode |
+| Ctrl+Click | Toggle item selection | Browse mode |
+| Shift+Click | Range selection | Browse mode |
+| Escape | Close the active dialog/view, clear search, or close the panel | Context-dependent |
+| Ctrl+N | New folder | Overflow menu |
+| F5 | Refresh | Overflow menu |
+| Ctrl+T | Open Transfers | Overflow menu |
+| Ctrl+Shift+T | Open Trash | Overflow menu |
+| , (comma) | Open Settings | Overflow menu |
 
 Shortcuts are contextual and are not intercepted while a text field has focus. See [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md).
 
+## Text Input
+
+When a search, login, settings, upload, share, rename, or create-folder field has focus, panel-level shortcuts are blocked so typing, Delete, Ctrl+A, and Escape work in the field or dialog.
+
+## Destination Mode
+
+In Move or Copy destination mode, Enter and pointer activation navigate folders in the source library. File-list selection and destructive shortcuts are disabled. Escape or Cancel exits destination mode; the confirmation buttons perform the selected operation.
+
 ## Known Limitations
 
-- Native graphical local-file selection is unavailable in the current Quickshell environment; uploads require a manually entered path.
 - Copy and Move are limited to the current source library.
 - Seafile CE support depends on the server's enabled APIs. In the tested CE 12.0.x environment, trash restore and revision revert are unavailable; repo-scoped search returns all matching results without pagination.
 - Large uploads use a single request rather than chunked or resumable upload.
 - HTTPS is required for non-loopback servers. Certificate verification uses the system trust store; TLS verification is not bypassed.
 - The plugin assumes Omarchy's Quickshell runtime and Wayland desktop integration.
+- Desktop notifications require `notify-send` (provided by `libnotify`).
 
 ## Troubleshooting
 
@@ -132,6 +163,7 @@ Shortcuts are contextual and are not intercepted while a text field has focus. S
 | Auto-login failure | Check that Secret Service is available and Auto-login is enabled in Settings. |
 | Share link will not copy | Install `wl-clipboard`; the link can still be viewed. |
 | Plugin missing from the bar | Check `omarchy plugin list`, then inspect Omarchy shell logs. |
+| File picker doesn't appear | Ensure `xdg-desktop-portal-hyprland` (or appropriate backend) is running. |
 
 ## Development
 

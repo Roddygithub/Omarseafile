@@ -1,4 +1,6 @@
 import QtQuick
+import QtQuick.Controls
+import QtQuick.Dialogs
 import qs.Commons
 import qs.Ui
 import "../js"
@@ -12,6 +14,7 @@ Item {
     property alias errorText: errorText
     property var onUpload: null
     property var onCancel: null
+    property var onFilesSelected: null
 
     width: parent.width
     implicitHeight: column.implicitHeight
@@ -22,6 +25,20 @@ Item {
     readonly property bool editing: pathField.activeFocus
 
     Component.onCompleted: pathField.forceActiveFocus()
+
+    // File dialog for graphical file selection (uses xdg-desktop-portal when available)
+    FileDialog {
+        id: fileDialog
+        title: "Choose files to upload"
+        currentFolder: "/home"
+                        nameFilters: ["All files (*)"]
+        onAccepted: {
+            if (root.onFilesSelected) root.onFilesSelected(fileUrls)
+        }
+        onRejected: {
+            // User cancelled - keep manual path entry available
+        }
+    }
 
     Column {
         id: column
@@ -38,7 +55,7 @@ Item {
         }
 
         Text {
-            text: "Enter the local file path to upload"
+            text: "Choose files to upload"
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
@@ -46,16 +63,30 @@ Item {
             width: parent.width
         }
 
-        TextField {
-            id: pathField
+        Row {
             width: parent.width
-            placeholderText: "/home/user/file.txt"
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.body
-            // Escape closes this dialog only — never the whole panel.
-            Keys.onEscapePressed: function(event) {
-                event.accepted = true
-                if (root.onCancel) root.onCancel()
+            spacing: Style.space(8)
+
+            TextField {
+                id: pathField
+                width: parent.width - Style.space(8) - browseButton.width
+                placeholderText: "/home/user/file.txt"
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.body
+                // Escape closes this dialog only — never the whole panel.
+                Keys.onEscapePressed: function(event) {
+                    event.accepted = true
+                    if (root.onCancel) root.onCancel()
+                }
+            }
+
+            Button {
+                id: browseButton
+                width: Style.space(80)
+                height: Style.space(32)
+                text: "Browse..."
+                tooltipText: "Open graphical file picker"
+                onClicked: fileDialog.open()
             }
         }
 

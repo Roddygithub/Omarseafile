@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Ui
 import "./js"
 import "./components"
+import "./views"
 
 Panel {
     id: root
@@ -48,6 +49,16 @@ Panel {
     property int transferRevision: 0
     property bool showTransfers: false
 
+    // ===== SEARCH STATE =====
+    property string searchQuery: ""
+    property string searchState: "idle"
+    property var searchResults: []
+    property string searchErrorMessage: ""
+    property int searchGeneration: 0
+    property bool searchActive: false
+    property int searchPendingCount: 0
+    property bool searchTruncated: false
+
     // ===== HISTORY / TRASH STATE =====
     property bool showHistory: false
     property bool showTrash: false
@@ -60,6 +71,9 @@ Panel {
     // ===== SELECTION STATE =====
     property var selectedItems: []
     property var selectionAnchor: null
+
+    // ===== UX PREFERENCES =====
+    property bool singleClickOpen: setting("singleClickOpen", false)
 
     function selectionKeyForItem(item) {
         return SelectionHelper.makeKey(item)
@@ -117,6 +131,28 @@ Panel {
     function clearSelection() {
         root.selectedItems = []
         root.selectionAnchor = null
+    }
+
+    function addToFavorites(item) {
+        if (!item || !root.currentRepo) return
+        var isDir = item.type === "dir"
+        var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
+        if (isDir) {
+            Favorites.addFolder(root.currentRepo.id, root.currentRepo.name, root.currentPath, item.name)
+        } else {
+            Favorites.addLibrary(root.currentRepo.id, root.currentRepo.name)
+        }
+    }
+
+    function removeFromFavorites(item) {
+        if (!item || !root.currentRepo) return
+        var isDir = item.type === "dir"
+        var path = isDir ? (root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name) : ""
+        if (isDir) {
+            Favorites.removeById(root.currentRepo.id, path)
+        } else {
+            Favorites.removeById(root.currentRepo.id, "")
+        }
     }
 
     function handleBackClick() {
@@ -190,15 +226,6 @@ Panel {
             root.showToast(message, "error")
         }
     }
-
-    // Search state
-    property string searchQuery: ""
-    property string searchState: "idle"
-    property var searchResults: []
-    property string searchErrorMessage: ""
-    property int searchGeneration: 0
-    property bool searchActive: false
-    property int searchPendingCount: 0
 
     Timer {
         id: searchDebounceTimer
@@ -418,7 +445,7 @@ Panel {
 
                 Loader {
                     id: stateLoader
-                    sourceComponent: root.state === "login" ? loginComponent : browseComponent
+                    sourceComponent: root.state === "login" ? loginComponent : (root.currentRepo ? browserComponent : homeComponent)
                     width: parent.width
                     visible: !root.dialogOpen
                     height: visible ? implicitHeight : 0
@@ -511,144 +538,83 @@ Panel {
                 }
 
                 Component {
-                    id: browseComponent
-                    Column {
+                    id: homeComponent
+                    HomeView {
+                        id: homeView
                         width: parent.width
-                        spacing: 0
+                        bar: root.bar
+                        libraries: root.libraries
+                        currentRepo: root.currentRepo
+                        currentPath: root.currentPath
+                        pathHistory: root.pathHistory
+                        loading: root.loading
+                        errorMessage: root.errorMessage
+                        selectedItems: root.selectedItems
+                        selectionAnchor: root.selectionAnchor
+                        onItemClicked: function(item) { root.onItemClicked(item) }
+                        onNavigateToPath: function(index) { root.navigateToPath(index) }
+                        onRefresh: function() { root.refresh() }
+                        onToggleSelection: root.destinationMode || !root.currentRepo ? function() {} : root.toggleSelection
+                        onSelectRange: root.destinationMode || !root.currentRepo ? function() {} : root.selectRange
+                        onSelectOnly: root.destinationMode ? function() {} : root.selectOnly
+                        onPositionClicked: root.positionOn
+                        onContextMenuRequested: root.showItemContextMenu
+                        onDownloadClicked: function(item) { root.destinationMode ? null : root.downloadFile(item) }
+                        onOpenClicked: function(item) { root.destinationMode ? null : root.openFile(item) }
+                        onRenameClicked: function(item) { root.destinationMode ? null : root.pickRename(item) }
+                        onMoveClicked: function(item) { root.destinationMode ? null : root.beginDestinationMode("move", [item]) }
+                        onDeleteClicked: function(item) { root.destinationMode ? null : root.pickDelete(item) }
+                        onShareClicked: function(item) { root.destinationMode ? null : root.pickShare(item) }
+                        onHistoryClicked: root.openHistory
+                        onAddToFavorites: function(item) { root.addToFavorites(item) }
+                        onRemoveFromFavorites: function(item) { root.removeFromFavorites(item) }
+                    }
+                }
 
-                        Breadcrumbs {
-                            id: breadcrumbs
-                            width: parent.width
-                            height: visible ? implicitHeight : 0
-                            path: root.pathHistory
-                            bar: root.bar
-                            visible: !root.searchActive
-                            onSegmentClicked: function(index) { root.navigateToPath(index) }
-                        }
-
-                        LoadingIndicator {
-                            id: loadingIndicator
-                            width: parent.width
-                            visible: root.loading
-                            message: root.searchActive ? "Searching..." : "Loading..."
-                            bar: root.bar
-                        }
-
-                        ErrorOverlay {
-                            id: errorOverlay
-                            width: parent.width
-                            showError: root.errorMessage !== "" && !root.searchActive
-                            message: root.errorMessage
-                            bar: root.bar
-                            onRetry: function() { root.refresh() }
-                        }
-
-                        OfflineBanner {
-                            id: offlineBanner
-                            width: parent.width
-                            visible: !connectionService.online
-                            message: "Offline - " + root.serverUrl + " unreachable"
-                            bar: root.bar
-                        }
-
-                        Text {
-                            id: searchStatusText
-                            width: parent.width
-                            height: visible ? contentHeight + topPadding : 0
-                            visible: root.searchActive && (root.searchState === "loading" || root.searchState === "results" || root.searchState === "empty")
-                            text: root.searchState === "loading"
-                                ? ("Searching " + (root.libraries.length - root.searchPendingCount) + " of " + root.libraries.length + " libraries...")
-                                : (root.searchState === "results"
-                                    ? (root.searchTruncated
-                                        ? "Showing first " + root.maxSearchResults + " results. Refine your search."
-                                        : root.searchResults.length + " result(s) found")
-                                    : "No results found")
-                            color: Qt.darker(root.bar.foreground, 1.4)
-                            font.family: root.bar.fontFamily
-                            font.pixelSize: Style.font.caption
-                            horizontalAlignment: Text.AlignHCenter
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            topPadding: Style.space(4)
-                            textFormat: Text.PlainText
-                        }
-
-                        ErrorOverlay {
-                            id: searchErrorOverlay
-                            width: parent.width
-                            showError: root.searchActive && root.searchState === "error"
-                            message: root.searchErrorMessage
-                            bar: root.bar
-                            onRetry: function() { root.executeSearch() }
-                        }
-
-                        FileList {
-                            id: fileList
-                            width: parent.width
-                            bar: root.bar
-                            Component.onCompleted: root.fileListRef = fileList
-                            Component.onDestruction: if (root.fileListRef === fileList) root.fileListRef = null
-                            height: fileList.contentHeight > 0 ? Math.min(fileList.contentHeight, Style.space(420)) : Style.space(120)
-                            items: root.currentItems
-                            focus: true
-                            findTransfer: TransferService.findTransfer
-                            transferRevision: root.transferRevision
-                            onItemClicked: function(item) { root.onItemClicked(item) }
-                            onDownloadClicked: function(item) { root.destinationMode ? null : root.downloadFile(item) }
-                            onOpenClicked: function(item) { root.destinationMode ? null : root.openFile(item) }
-                            onRenameClicked: function(item) { root.destinationMode ? null : root.pickRename(item) }
-                            onMoveClicked: function(item) { root.destinationMode ? null : root.beginDestinationMode("move", [item]) }
-                            onDeleteClicked: function(item) { root.destinationMode ? null : root.pickDelete(item) }
-                            onShareClicked: function(item) { root.destinationMode ? null : root.pickShare(item) }
-                            onHistoryClicked: root.openHistory
-                            visible: !root.loading && root.errorMessage === "" && !root.searchActive && !root.showTransfers
-                            selectedItems: root.selectedItems
-                            selectionAnchor: root.selectionAnchor
-                            onSelectionToggle: root.destinationMode || !root.currentRepo ? function() {} : root.toggleSelection
-                            onSelectionRange: root.destinationMode || !root.currentRepo ? function() {} : root.selectRange
-                            onSelectOnly: root.destinationMode ? function() {} : root.selectOnly
-                            onPositionClicked: root.positionOn
-                            onContextMenuRequested: root.showItemContextMenu
-                        }
-
-                        SearchResults {
-                            id: searchResultsList
-                            width: parent.width
-                            height: visible ? (contentHeight > 0 ? Math.min(contentHeight, Style.space(420)) : Style.space(120)) : 0
-                            results: root.searchResults
-                            bar: root.bar
-                            visible: root.searchActive && root.searchState !== "loading"
-                            onResultClicked: function(result) { root.onSearchResultClicked(result) }
-                            onResultRightClicked: function(result, mouse) { root.onSearchResultClicked(result) }
-                        }
-
-                        TransferManager {
-                            id: transferManager
-                            width: parent.width
-                            height: visible ? Style.space(360) : 0
-                            bar: root.bar
-                            visible: root.showTransfers && !root.searchActive
-                            transferRevision: root.transferRevision
-                            onCancel: function(transfer) { TransferService.cancelTransfer(transfer.id) }
-                            onRetry: function(transfer) {
-                                var token = Auth.getToken()
-                                var baseUrl = Auth.getServerUrl()
-                                TransferService.retryTransfer(transfer.id, token, baseUrl)
-                            }
-                            onClearCompleted: function() { TransferService.clearCompleted() }
-                            onClearFailed: function() { TransferService.clearFailed() }
-                            onOpen: function(transfer) {
-                                var url = Models.toFileUrl(transfer.destPath)
-                                var success = Qt.openUrlExternally(url)
-                                if (!success) root.showToast("Could not open file", "error")
-                                root.showTransfers = false
-                            }
-                            onShowInFolder: function(transfer) {
-                                var url = Models.toParentFileUrl(transfer.destPath)
-                                var success = Qt.openUrlExternally(url)
-                                if (!success) root.showToast("Could not open folder", "error")
-                                root.showTransfers = false
-                            }
-                        }
+                Component {
+                    id: browserComponent
+                    BrowserView {
+                        id: browserView
+                        width: parent.width
+                        bar: root.bar
+                        currentItems: root.currentItems
+                        pathHistory: root.pathHistory
+                        libraries: root.libraries
+                        loading: root.loading
+                        errorMessage: root.errorMessage
+                        searchActive: root.searchActive
+                        searchState: root.searchState
+                        searchResults: root.searchResults
+                        searchErrorMessage: root.searchErrorMessage
+                        searchTruncated: root.searchTruncated
+                        maxSearchResults: root.maxSearchResults
+                        showTransfers: root.showTransfers
+                        transferRevision: root.transferRevision
+                        selectedItems: root.selectedItems
+                        selectionAnchor: root.selectionAnchor
+                        currentRepo: root.currentRepo
+                        currentPath: root.currentPath
+                        destinationMode: root.destinationMode
+                        connectionService: connectionService
+                        searchPendingCount: root.searchPendingCount
+                        onItemClicked: function(item) { root.onItemClicked(item) }
+                        onDownloadClicked: function(item) { root.destinationMode ? null : root.downloadFile(item) }
+                        onOpenClicked: function(item) { root.destinationMode ? null : root.openFile(item) }
+                        onRenameClicked: function(item) { root.destinationMode ? null : root.pickRename(item) }
+                        onMoveClicked: function(item) { root.destinationMode ? null : root.beginDestinationMode("move", [item]) }
+                        onDeleteClicked: function(item) { root.destinationMode ? null : root.pickDelete(item) }
+                        onShareClicked: function(item) { root.destinationMode ? null : root.pickShare(item) }
+                        onHistoryClicked: root.openHistory
+                        onSearchResultClicked: function(result) { root.onSearchResultClicked(result) }
+                        onNavigateToPath: function(index) { root.navigateToPath(index) }
+                        onRefresh: function() { root.refresh() }
+                        onToggleSelection: root.destinationMode || !root.currentRepo ? function() {} : root.toggleSelection
+                        onSelectRange: root.destinationMode || !root.currentRepo ? function() {} : root.selectRange
+                        onSelectOnly: root.destinationMode ? function() {} : root.selectOnly
+                        onPositionClicked: root.positionOn
+                        onContextMenuRequested: root.showItemContextMenu
+                        onSearchRetry: function() { root.executeSearch() }
+                        singleClickOpen: root.singleClickOpen
                     }
                 }
             }
@@ -750,6 +716,20 @@ Panel {
             bar: root.bar
             onUpload: function() { root.confirmUpload(pathField.text) }
             onCancel: function() { root.cancelFilePicker() }
+            onFilesSelected: function(urls) {
+                if (!urls || urls.length === 0) return
+                // Convert file:// URLs to local paths and upload each
+                for (var i = 0; i < urls.length; i++) {
+                    var url = urls[i]
+                    if (url.startsWith("file://")) {
+                        var path = url.substring(7)
+                        // Decode URL-encoded characters
+                        path = decodeURIComponent(path)
+                        root.startUpload(path)
+                    }
+                }
+                root.cancelFilePicker()
+            }
         }
     }
 
@@ -808,12 +788,20 @@ Panel {
             serverUrl: root.serverUrl
             pluginVersion: "1.0.0"
             autoLogin: setting("autoLogin", true)
+            singleClickOpen: setting("singleClickOpen", false)
+            sortColumn: setting("sortColumn", "name")
+            sortAscending: setting("sortAscending", true)
+            notifyEnabled: setting("notifyEnabled", true)
             onClose: function() { root.closeSettings() }
             onLogout: function() { root.doLogout() }
             onClearCache: function() { root.clearCache() }
             onChangeServer: root.changeServerUrl
             onTestConnection: root.testConnection
             onAutoLoginToggled: function(enabled) { setting("autoLogin", enabled) }
+            onSingleClickOpenToggled: function(enabled) { setting("singleClickOpen", enabled) }
+            onSortColumnChange: function(col) { setting("sortColumn", col) }
+            onSortAscendingChange: function(asc) { setting("sortAscending", asc) }
+            onNotifyToggled: function(enabled) { setting("notifyEnabled", enabled) }
         }
     }
 
@@ -1068,8 +1056,6 @@ Panel {
             root.clearSelection()
         }
     }
-
-    property bool searchTruncated: false
 
     readonly property int maxSearchResults: 100
 

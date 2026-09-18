@@ -25,10 +25,11 @@ ListView {
     required property var onContextMenuRequested
     required property var selectedItems
     required property var selectionAnchor
+    required property bool singleClickOpen
     property var onSortChanged: null
 
-    property string sortColumn: "name"
-    property bool sortAscending: true
+    property string sortColumn: setting("sortColumn", "name")
+    property bool sortAscending: setting("sortAscending", true)
 
     width: parent.width
     height: parent.height
@@ -36,6 +37,9 @@ ListView {
     spacing: Style.space(2)
     keyNavigationEnabled: true
     highlightFollowsCurrentItem: true
+
+    onSortColumnChanged: setting("sortColumn", sortColumn)
+    onSortAscendingChanged: setting("sortAscending", sortAscending)
 
     // Sorted model for display
     property var sortedItems: {
@@ -94,6 +98,7 @@ delegate: FileItem {
                             onSelectOnly: root.onSelectOnly
                             onPositionClicked: root.onPositionClicked
                             onContextMenuRequested: root.onContextMenuRequested
+                            singleClickOpen: root.singleClickOpen
         selected: {
             for (var i = 0; i < root.selectedItems.length; i++) {
                 if (SelectionHelper.makeKey(root.selectedItems[i]) === SelectionHelper.makeKey(modelData)) {
@@ -108,9 +113,13 @@ delegate: FileItem {
         id: sortHeader
         visible: root.items.length > 0
         width: root.width
-        height: visible ? Style.space(24) : 0
+        height: visible ? Style.space(24) + Style.spacing.hairline : 0
 
-        Row {
+        Column {
+            width: parent.width
+            spacing: 0
+
+            Row {
             anchors.fill: parent
             anchors.leftMargin: Style.space(12)
             anchors.rightMargin: Style.space(12)
@@ -190,7 +199,16 @@ delegate: FileItem {
                 }
             }
         }
-    }
+        
+        // Separator line
+        Rectangle {
+            width: parent.width
+            height: Style.spacing.hairline
+            color: root.bar.foreground
+            opacity: 0.12
+        }
+    }  // closes Column
+    }  // closes header Item
 
     ScrollBar.vertical: ScrollBar {
         policy: ScrollBar.AsNeeded

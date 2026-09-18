@@ -16,7 +16,7 @@ if not qs:
 with tempfile.TemporaryDirectory() as temp:
     package_dir = os.path.join(temp, "package")
     os.mkdir(package_dir)
-    for name in ("test_remediation.qml", "Panel.qml", "components", "js", "scripts"):
+    for name in ("test_remediation.qml", "Panel.qml", "components", "js", "scripts", "views"):
         os.symlink(os.path.join(ROOT, name), os.path.join(package_dir, name))
     os.symlink("/usr/share/omarchy/shell/Ui", os.path.join(package_dir, "Ui"))
     os.symlink("/usr/share/omarchy/shell/Commons", os.path.join(package_dir, "Commons"))
