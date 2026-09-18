@@ -35,12 +35,14 @@ QtObject {
     }
 
     function addFolder(repoId, repoName, path, name) {
+        // Normalize path: ensure empty string for root, otherwise use parent path
+        var normPath = (path === "/" || path === "") ? "" : path
         // Check if already exists
         for (var i = 0; i < root.favorites.length; i++) {
             var fav = root.favorites[i]
-            if (fav.type === "folder" && fav.repoId === repoId && fav.path === path) return false
+            if (fav.type === "folder" && fav.repoId === repoId && (fav.path || "") === normPath) return false
         }
-        root.favorites.push({ type: "folder", repoId: repoId, repoName: repoName, path: path, name: name })
+        root.favorites.push({ type: "folder", repoId: repoId, repoName: repoName, path: normPath, name: name })
         root.save()
         return true
     }
@@ -55,9 +57,10 @@ QtObject {
     }
 
     function removeById(repoId, path) {
+        var normPath = (path === "/" || path === "") ? "" : path
         for (var i = 0; i < root.favorites.length; i++) {
             var fav = root.favorites[i]
-            if (fav.repoId === repoId && (fav.path || "") === (path || "")) {
+            if (fav.repoId === repoId && (fav.path || "") === normPath) {
                 root.favorites.splice(i, 1)
                 root.save()
                 return true
@@ -67,9 +70,10 @@ QtObject {
     }
 
     function isFavorite(repoId, path) {
+        var normPath = (path === "/" || path === "") ? "" : path
         for (var i = 0; i < root.favorites.length; i++) {
             var fav = root.favorites[i]
-            if (fav.repoId === repoId && (fav.path || "") === (path || "")) return true
+            if (fav.repoId === repoId && (fav.path || "") === normPath) return true
         }
         return false
     }

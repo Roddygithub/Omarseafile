@@ -17,6 +17,7 @@ Item {
     required property var onRename
     required property var onMove
     required property var onDelete
+    required property var onItemClicked
 
     width: parent.width
     implicitHeight: detailsContainer.implicitHeight

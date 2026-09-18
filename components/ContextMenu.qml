@@ -10,6 +10,7 @@ Popup {
     property bool isDir: false
     property int selectionCount: 1
     property bool libraryMode: false
+    property bool isFavorite: false
     property QtObject bar: null
 
     signal openClicked(var item)
@@ -20,6 +21,8 @@ Popup {
     signal deleteClicked(var item)
     signal shareClicked(var item)
     signal historyClicked(var item)
+    signal addToFavoritesClicked(var item)
+    signal removeFromFavoritesClicked(var item)
 
     readonly property bool batchMode: selectionCount > 1
 
@@ -110,6 +113,20 @@ Popup {
             visible: !root.libraryMode && !root.batchMode && !root.isDir
             onClicked: {
                 root.historyClicked(root.item)
+                root.close()
+            }
+        }
+
+        Button {
+            width: parent.width
+            text: root.isFavorite ? "Remove from Quick Access" : "Add to Quick Access"
+            visible: !root.libraryMode && !root.batchMode
+            onClicked: {
+                if (root.isFavorite) {
+                    root.removeFromFavoritesClicked(root.item)
+                } else {
+                    root.addToFavoritesClicked(root.item)
+                }
                 root.close()
             }
         }

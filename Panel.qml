@@ -136,8 +136,8 @@ Panel {
     function addToFavorites(item) {
         if (!item || !root.currentRepo) return
         var isDir = item.type === "dir"
-        var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
         if (isDir) {
+            // Pass parent path (currentPath), Favorites.addFolder normalizes root to ""
             Favorites.addFolder(root.currentRepo.id, root.currentRepo.name, root.currentPath, item.name)
         } else {
             Favorites.addLibrary(root.currentRepo.id, root.currentRepo.name)
@@ -147,9 +147,9 @@ Panel {
     function removeFromFavorites(item) {
         if (!item || !root.currentRepo) return
         var isDir = item.type === "dir"
-        var path = isDir ? (root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name) : ""
         if (isDir) {
-            Favorites.removeById(root.currentRepo.id, path)
+            // Pass parent path (currentPath), Favorites.removeById normalizes root to ""
+            Favorites.removeById(root.currentRepo.id, root.currentPath)
         } else {
             Favorites.removeById(root.currentRepo.id, "")
         }
@@ -282,6 +282,13 @@ Panel {
         contextMenu.isDir = item.type === "dir"
         contextMenu.libraryMode = root.currentRepo === null
         contextMenu.selectionCount = root.selectedItems.length > 0 ? root.selectedItems.length : 1
+        if (root.currentRepo) {
+            var isDir = item.type === "dir"
+            var path = isDir ? root.currentPath : ""
+            contextMenu.isFavorite = Favorites.isFavorite(root.currentRepo.id, path)
+        } else {
+            contextMenu.isFavorite = false
+        }
         // Parent to the keyboard-panel window's overlay: never clipped by the
         // file list, and rendered in the window that owns pointer/keyboard.
         contextMenu.parent = keyCatcher.Overlay.overlay
@@ -387,6 +394,8 @@ Panel {
                     if (root.selectedItems.length > 1) root.deleteItems()
                     else if (item) root.pickDelete(item)
                 }
+                onAddToFavoritesClicked: function(item) { root.addToFavorites(item) }
+                onRemoveFromFavoritesClicked: function(item) { root.removeFromFavorites(item) }
             }
 
             Column {

@@ -211,6 +211,7 @@ Item {
             onRename: function(item) { root.onRenameClicked(item) }
             onMove: function(item) { root.onMoveClicked(item) }
             onDelete: function(item) { root.onDeleteClicked(item) }
+            onItemClicked: function(item) { root.onItemClicked(item) }
         }
     }
 
