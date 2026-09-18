@@ -1403,6 +1403,8 @@ Panel {
                 if (xhr.status >= 200 && xhr.status < 300) {
                     dialog.connectionTestSuccess = true
                     dialog.connectionTestMessage = "Connection successful"
+                    // Clear offline state - successful connection means we're online
+                    connectionService.forceCheck()
                 } else if (xhr.status === 0) {
                     dialog.connectionTestSuccess = false
                     dialog.connectionTestMessage = "Connection failed: Network error"

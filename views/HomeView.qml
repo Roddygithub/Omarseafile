@@ -322,24 +322,12 @@ Item {
         }
 
         // Libraries Section (shown when at root level with no currentRepo)
+        // No section header needed - toolbar title shows "Libraries"
         Column {
             id: librariesSection
             width: parent.width
             visible: root.libraries && root.libraries.length > 0 && !root.currentRepo
             spacing: Style.space(4)
-
-            Row {
-                height: Style.space(24)
-                Text {
-                    text: "LIBRARIES"
-                    color: Qt.darker(root.bar.foreground, 1.3)
-                    font.family: root.bar.fontFamily
-                    font.pixelSize: Style.font.caption
-                    font.bold: true
-                    font.letterSpacing: 1
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-            }
 
             FileList {
                 id: librariesFileList
