@@ -16,6 +16,7 @@ Item {
     required property string errorMessage
     required property var selectedItems
     required property var selectionAnchor
+    required property string destinationMode
 
     required property var onItemClicked
     required property var onNavigateToPath
@@ -320,7 +321,56 @@ Item {
             }
         }
 
-        // Empty state when no favorites
+        // Libraries Section (shown when at root level with no currentRepo)
+        Column {
+            id: librariesSection
+            width: parent.width
+            visible: root.libraries && root.libraries.length > 0 && !root.currentRepo
+            spacing: Style.space(4)
+
+            Row {
+                height: Style.space(24)
+                Text {
+                    text: "LIBRARIES"
+                    color: Qt.darker(root.bar.foreground, 1.3)
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                    font.letterSpacing: 1
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            FileList {
+                id: librariesFileList
+                width: parent.width
+                bar: root.bar
+                height: librariesFileList.contentHeight > 0 ? Math.min(librariesFileList.contentHeight, Style.space(420)) : Style.space(120)
+                items: root.libraries
+                focus: true
+                findTransfer: TransferService.findTransfer
+                transferRevision: 0
+                onItemClicked: root.onItemClicked
+                onDownloadClicked: function(item) { root.destinationMode ? null : root.onDownloadClicked(item) }
+                onOpenClicked: function(item) { root.destinationMode ? null : root.onOpenClicked(item) }
+                onRenameClicked: root.onRenameClicked
+                onMoveClicked: root.onMoveClicked
+                onDeleteClicked: root.onDeleteClicked
+                onShareClicked: root.onShareClicked
+                onHistoryClicked: root.onHistoryClicked
+                visible: !root.loading && root.errorMessage === ""
+                selectedItems: root.selectedItems
+                selectionAnchor: root.selectionAnchor
+                onSelectionToggle: root.destinationMode || !root.currentRepo ? root.onToggleSelection : function() {}
+                onSelectionRange: root.destinationMode || !root.currentRepo ? root.onSelectRange : function() {}
+                onSelectOnly: root.destinationMode ? function() {} : root.onSelectOnly
+                onPositionClicked: root.onPositionClicked
+                onContextMenuRequested: root.onContextMenuRequested
+                singleClickOpen: false
+            }
+        }
+
+        // Empty state when no favorites and no libraries
         EmptyState {
             id: emptyState
             bar: root.bar
@@ -328,7 +378,7 @@ Item {
             title: "Quick Access"
             subtitle: "Pin libraries and folders for quick access\nRight-click an item in the browser and select \"Add to Quick Access\""
             width: parent.width
-            visible: Favorites.getLibraries().length === 0 && Favorites.getFolders().length === 0 && TransferService.getActiveCount() === 0
+            visible: Favorites.getLibraries().length === 0 && Favorites.getFolders().length === 0 && TransferService.getActiveCount() === 0 && !(root.libraries && root.libraries.length > 0)
             anchors.fill: parent
         }
     }

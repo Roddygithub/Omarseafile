@@ -562,6 +562,7 @@ Panel {
                         errorMessage: root.errorMessage
                         selectedItems: root.selectedItems
                         selectionAnchor: root.selectionAnchor
+                        destinationMode: root.destinationMode
                         onItemClicked: function(item) { root.onItemClicked(item) }
                         onNavigateToPath: function(index) { root.navigateToPath(index) }
                         onRefresh: function() { root.refresh() }
