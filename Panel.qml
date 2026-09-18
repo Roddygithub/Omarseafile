@@ -142,6 +142,7 @@ Panel {
         } else {
             Favorites.addLibrary(root.currentRepo.id, root.currentRepo.name)
         }
+        setting("favorites", Favorites.saveToSettings())
     }
 
     function removeFromFavorites(item) {
@@ -153,6 +154,7 @@ Panel {
         } else {
             Favorites.removeById(root.currentRepo.id, "")
         }
+        setting("favorites", Favorites.saveToSettings())
     }
 
     function handleBackClick() {
@@ -1766,6 +1768,9 @@ Panel {
     // ===== INIT =====
 
     Component.onCompleted: {
+        // Load favorites from settings
+        Favorites.loadFromSettings(setting("favorites", "[]"))
+
         var startupLoginGeneration = root.loginGeneration
         Auth.checkDependencies().then(function(missing) {
                         var hasRequiredMissing = false
