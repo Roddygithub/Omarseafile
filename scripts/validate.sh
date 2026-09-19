@@ -121,6 +121,7 @@ check "Download finalization treats destination as a file" grep -q 'mv -nT' js/T
 check "Text-entry dialogs autofocus fields" bash -c 'grep -q "nameField.forceActiveFocus" components/RenameDialog.qml && grep -q "nameField.forceActiveFocus" components/CreateFolderDialog.qml && grep -q "pathField.forceActiveFocus" components/UploadDialog.qml && grep -q "serverUrlField.forceActiveFocus" components/SettingsDialog.qml && grep -q "serverField.forceActiveFocus" components/LoginDialog.qml'
 check "Revision downloads accept capability URLs" grep -q 'typeof data !== "string"' js/SeafileAPI.qml
 check "Unsupported trash restore sends no mutation" bash -c '! grep -q "function restoreFolder" js/SeafileAPI.qml && grep -q "Restore unavailable" components/TrashPanel.qml'
+check "Offline banner uses null-safe binding (connectionService guard)" bash -c 'grep -q "offlineBannerVisible" views/BrowserView.qml && grep -q "root.connectionService &&" views/BrowserView.qml && ! grep -q "visible: !root.connectionService.online" views/BrowserView.qml'
 
 # --- LOCAL_RUNTIME: Requires Omarchy/Quickshell ---
 echo ""

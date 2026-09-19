@@ -84,9 +84,10 @@ Item {
         OfflineBanner {
             id: offlineBanner
             width: parent.width
-            visible: !root.connectionService.online
+            visible: offlineBannerVisible
             message: "Offline - unreachable"
             bar: root.bar
+            readonly property bool offlineBannerVisible: root.connectionService && !root.connectionService.online
         }
 
         Text {
