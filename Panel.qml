@@ -240,6 +240,10 @@ Panel {
         // Refresh connectivity state immediately so a stale "Offline" banner
         // clears as soon as the panel is shown (server reachable).
         connectionService.forceCheck()
+        // Load libraries if empty (e.g., panel was recreated after being closed).
+        if (!root.libraries || root.libraries.length === 0) {
+            root.loadLibraries()
+        }
         panelController.show()
     }
     function close() { panelController.hide() }
