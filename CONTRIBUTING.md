@@ -43,6 +43,18 @@ source change
 
 Use disposable server data for Move, Copy, Delete, and upload tests. Do not modify a user's existing files. Verify both the UI result and the server-side path for file mutations. Never put tokens, passwords, private server addresses, or test artifacts into commits or logs.
 
+## High-Risk Domains
+
+Changes touching these areas require extra review rigor:
+
+- Security and trust boundaries (credentials, transfer URLs, cross-origin token isolation, secret-file creation, process lifecycle).
+- Omarchy / Quickshell host integration.
+- Seafile external API integration.
+
+## Change Scope
+
+Prefer the smallest change that satisfies the requirement. Avoid redesigning working architecture during a scoped fix, duplicating state authorities, creating speculative infrastructure, or refactoring unrelated code.
+
 ## Pull Requests
 
 - Keep changes focused and explain user-visible behavior.
