@@ -95,7 +95,7 @@ Item {
 
                     Text {
                         id: valueText
-                        text: Models.boundedDisplayText(root.item.name, 1024)
+                        text: root.item ? Models.boundedDisplayText(root.item.name, 1024) : ""
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -129,7 +129,7 @@ Item {
 
                     Text {
                         id: valueText2
-                        text: root.item.type === "dir" ? "Folder" : "File"
+                        text: root.item ? (root.item.type === "dir" ? "Folder" : "File") : ""
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -152,7 +152,7 @@ Item {
 
                     Text {
                         id: labelText3
-                        text: root.item.type === "dir" ? "Items:" : "Size:"
+                        text: root.item ? (root.item.type === "dir" ? "Items:" : "Size:") : ""
                         color: Qt.darker(root.bar.foreground, 1.4)
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -163,7 +163,7 @@ Item {
 
                     Text {
                         id: valueText3
-                        text: root.item.type === "dir" ? (root.item.sizeFormatted || "—") : Models.formatSize(root.item.size || 0)
+                        text: root.item ? (root.item.type === "dir" ? (root.item.sizeFormatted || "—") : Models.formatSize(root.item.size || 0)) : ""
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -197,7 +197,7 @@ Item {
 
                     Text {
                         id: valueText4
-                        text: root.item.mtime ? Models.formatDate(root.item.mtime) : "—"
+                        text: root.item && root.item.mtime ? Models.formatDate(root.item.mtime) : "—"
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -265,7 +265,7 @@ Item {
 
                     Text {
                         id: valueText6
-                        text: root.currentPath === "/" ? "/" + root.item.name : root.currentPath + "/" + root.item.name
+                        text: root.item ? (root.currentPath === "/" ? "/" + root.item.name : root.currentPath + "/" + root.item.name) : ""
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption

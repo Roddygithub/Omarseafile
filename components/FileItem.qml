@@ -46,7 +46,7 @@ Item {
         anchors.fill: parent
         color: root.ListView.isCurrentItem ? Color.accent : "transparent"
         opacity: root.ListView.isCurrentItem ? 0.18 : 0
-        visible: root.ListView.isCurrentItem
+        visible: (root.ListView && root.ListView.isCurrentItem) || false
     }
 
     // Batch-selection row highlight — distinct from the keyboard cursor.
@@ -60,7 +60,7 @@ Item {
     // Hover highlight
     Rectangle {
         anchors.fill: parent
-        color: root.bar ? root.bar.foreground : Color.foreground
+        color: root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground
         opacity: mouseArea.hovered ? 0.04 : 0
         visible: mouseArea.hovered
         Behavior on opacity { NumberAnimation { duration: 100 } }
@@ -77,7 +77,7 @@ Item {
         Text {
             id: icon
             text: root.isDir ? "\uf07b" : "\uf15b"
-            color: root.isSelected ? Color.accent : (root.bar ? root.bar.foreground : Color.foreground)
+            color: root.isSelected ? Color.accent : (root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground)
             font.family: "Noto Sans"
             font.pixelSize: Style.font.title
             width: Style.space(24)
@@ -88,7 +88,7 @@ Item {
         Text {
             id: nameLabel
             text: Models.boundedDisplayText(safeItem.name || "", 1024)
-            color: root.isSelected ? Color.accent : (root.bar ? root.bar.foreground : Color.foreground)
+            color: root.isSelected ? Color.accent : (root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground)
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.body
             elide: Text.ElideRight
@@ -120,7 +120,7 @@ Item {
                 Text {
                     id: speedLabel
                     text: root.transferSpeed
-                    color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.4)
+                    color: Qt.darker(root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground, 1.4)
                     font.family: root.bar ? root.bar.fontFamily : Style.font.family
                     font.pixelSize: Style.font.caption
                     anchors.verticalCenter: parent.verticalCenter
@@ -132,7 +132,7 @@ Item {
         Text {
             id: sizeLabel
             text: (root.isDownloading || root.isUploading) ? "" : (safeItem.type === "dir" ? (safeItem.sizeFormatted || "") : Models.formatSize(safeItem.size))
-            color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.4)
+            color: Qt.darker(root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground, 1.4)
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.caption
             width: Style.space(80)
@@ -145,7 +145,7 @@ Item {
         Text {
             id: dateLabel
             text: (root.isDownloading || root.isUploading || !safeItem.mtime) ? "" : Models.formatDate(safeItem.mtime)
-            color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.4)
+            color: Qt.darker(root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground, 1.4)
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.caption
             width: visible ? Style.space(150) : 0
@@ -174,7 +174,7 @@ Item {
             }
 
             // Ensure keyboard focus follows click
-            if (root.ListView.view) root.ListView.view.currentIndex = root.itemIndex
+            if ((root.ListView && root.ListView.view)) (root.ListView && root.ListView.view).currentIndex = root.itemIndex
 
             var accel = Qt.ControlModifier | Qt.MetaModifier
             if (mouse.modifiers & accel) {

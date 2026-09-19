@@ -120,7 +120,8 @@ delegate: FileItem {
             spacing: 0
 
             Row {
-            anchors.fill: parent
+            width: parent.width
+            height: implicitHeight
             anchors.leftMargin: Style.space(12)
             anchors.rightMargin: Style.space(12)
             spacing: Style.space(12)
