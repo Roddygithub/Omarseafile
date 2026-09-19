@@ -7,6 +7,7 @@ import "../js"
 Item {
     id: root
     required property var bar
+    property var overlay: null
     property string title: ""
     property bool showBack: false
     property bool showRefresh: false
@@ -230,89 +231,37 @@ Item {
 
     }
 
-    // Overflow Menu
-    Menu {
+    // Custom Omarseafile-styled overflow menu (Popup, not native Menu)
+    OverflowMenu {
         id: overflowMenu
-        x: overflowButton.x + overflowButton.width - width
-        y: row.y + row.height
-        visible: root.overflowOpen
-        focus: root.overflowOpen
-
-        MenuItem {
-            text: "New folder"
-            visible: root.showCreateFolder && !root.searchActive && root.selectionCount === 0
-            enabled: root.onCreateFolderClicked !== null
-            onTriggered: {
-                if (root.onCreateFolderClicked) root.onCreateFolderClicked()
-                root.overflowOpen = false
-            }
+        bar: root.bar
+        showCreateFolder: root.showCreateFolder
+        showRefresh: root.showRefresh
+        showTransfers: root.showTransfers
+        showTrash: root.showTrash
+        showSettings: root.showSettings
+        showLogout: root.showLogout
+        selectionCount: root.selectionCount
+        searchActive: root.searchActive
+        onCreateFolderClicked: root.onCreateFolderClicked
+        onRefreshClicked: root.onRefreshClicked
+        onTransfersClicked: root.onTransfersClicked
+        onTrashClicked: root.onTrashClicked
+        onSettingsClicked: root.onSettingsClicked
+        onLogoutClicked: root.onLogoutClicked
+        onAboutToShow: {
+            // Reparent to the overlay and anchor to the overflow button.
+            overflowMenu.parent = root.overlay
+            var pt = overflowButton.mapToItem(root.overlay, 0, 0)
+            overflowMenu.x = pt.x + overflowButton.width - overflowMenu.width
+            overflowMenu.y = pt.y + overflowButton.height + Style.space(2)
         }
-
-        MenuItem {
-            text: "Refresh"
-            visible: root.showRefresh && !root.searchActive && root.selectionCount === 0
-            enabled: root.onRefreshClicked !== null
-            onTriggered: {
-                if (root.onRefreshClicked) root.onRefreshClicked()
-                root.overflowOpen = false
-            }
-        }
-
-        MenuItem {
-            text: "Transfers"
-            visible: root.showTransfers && root.selectionCount === 0
-            enabled: root.onTransfersClicked !== null
-            onTriggered: {
-                if (root.onTransfersClicked) root.onTransfersClicked()
-                root.overflowOpen = false
-            }
-        }
-
-        MenuItem {
-            text: "Trash"
-            visible: root.showTrash && root.selectionCount === 0
-            enabled: root.onTrashClicked !== null
-            onTriggered: {
-                if (root.onTrashClicked) root.onTrashClicked()
-                root.overflowOpen = false
-            }
-        }
-
-        MenuSeparator { }
-
-        MenuItem {
-            text: "Settings"
-            visible: root.showSettings && root.selectionCount === 0
-            enabled: root.onSettingsClicked !== null
-            onTriggered: {
-                if (root.onSettingsClicked) root.onSettingsClicked()
-                root.overflowOpen = false
-            }
-        }
-
-        MenuItem {
-            text: "Logout"
-            visible: root.showLogout && root.selectionCount === 0
-            enabled: root.onLogoutClicked !== null
-            onTriggered: {
-                if (root.onLogoutClicked) root.onLogoutClicked()
-                root.overflowOpen = false
-            }
-        }
+        onOpened: root.overflowOpen = true
+        onClosed: root.overflowOpen = false
     }
 
-    // Close overflow menu when clicking outside
-    MouseArea {
-        anchors.fill: parent
-        visible: root.overflowOpen
-        onClicked: root.overflowOpen = false
-    }
-
-    // Close overflow on Escape
-    Keys.onEscapePressed: {
-        if (root.overflowOpen) {
-            root.overflowOpen = false
-            event.accepted = true
-        }
+    onOverflowOpenChanged: {
+        if (root.overflowOpen) overflowMenu.open()
+        else overflowMenu.close()
     }
 }
