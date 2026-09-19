@@ -76,6 +76,17 @@ QtObject {
         root.checkConnectivity()
     }
 
+    // Called by successful Seafile API requests to record connectivity success
+    function recordSuccess() {
+        if (root.consecutiveFailures > 0 || !root.online) {
+            root.consecutiveFailures = 0
+            if (!root.online) {
+                root.online = true
+                onlineChanged()
+            }
+        }
+    }
+
     function isOnline() {
         return root.online
     }

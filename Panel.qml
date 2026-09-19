@@ -304,6 +304,10 @@ Panel {
         serverUrl: root.serverUrl
     }
 
+    function updateConnectionServiceUrl() {
+        connectionService.setServerUrl(root.serverUrl)
+    }
+
     KeyboardPanel {
         id: panel
         anchorItem: root.anchorItem
@@ -415,6 +419,7 @@ Panel {
                     id: toolBar
                     width: parent.width
                     bar: root.bar
+                    overlay: keyCatcher.Overlay.overlay
                     title: root.state === "login" ? "Seafile" : (root.settingsOpen ? "Settings" : (root.searchActive ? "Search" : (root.currentRepo ? root.currentRepo.name : "Libraries")))
                     showBack: root.state === "browse" && !root.searchActive && (!root.dialogOpen || root.settingsOpen) && (root.pathHistory.length > 0 || root.settingsOpen)
                     showRefresh: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.destinationMode
@@ -1771,6 +1776,9 @@ Panel {
     // ===== INIT =====
 
     Component.onCompleted: {
+        SeafileAPI.setConnectionService(connectionService)
+        updateConnectionServiceUrl()
+
         // Load favorites from settings
         Favorites.loadFromSettings(setting("favorites", "[]"))
 

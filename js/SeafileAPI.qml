@@ -2,6 +2,11 @@ pragma Singleton
 import QtQuick
 
 QtObject {
+    property var _connectionService: null
+
+    function setConnectionService(service) {
+        _connectionService = service
+    }
     id: root
 
     property string baseUrl: ""
@@ -78,6 +83,13 @@ QtObject {
         return false
     }
 
+    // Record successful connection to ConnectionService
+    function _recordConnectionSuccess() {
+        if (_connectionService) {
+            _connectionService.recordSuccess()
+        }
+    }
+
     function auth(username, password, callback) {
         var policy = _authUrlPolicy()
         if (!policy.valid) {
@@ -89,6 +101,7 @@ QtObject {
             "username=" + encodeURIComponent(username) + "&password=" + encodeURIComponent(password),
             function(success, data, error) {
                 if (success) {
+            _recordConnectionSuccess()
                     if (!data || typeof data.token !== "string" || data.token === "") {
                         callback(false, null, "Invalid server response")
                         return
@@ -112,6 +125,7 @@ QtObject {
     function listLibraries(callback) {
         request("GET", "/api2/repos/", null, function(success, data, error) {
             if (success) {
+            _recordConnectionSuccess()
                 var arrResult = _safeArray(data)
                 if (!arrResult.valid) { callback(false, null, arrResult.error); return }
                 var libraries = []
@@ -157,6 +171,7 @@ QtObject {
         }
         request("GET", url, null, function(success, data, error) {
             if (success) {
+            _recordConnectionSuccess()
                 var arrResult = _safeArray(data)
                 if (!arrResult.valid) { callback(false, null, arrResult.error); return }
                 var items = []
@@ -205,6 +220,7 @@ QtObject {
         if (reuse) url += "&reuse=1"
         request("GET", url, null, function(success, data, error) {
             if (success) {
+            _recordConnectionSuccess()
                 var vUrl = UrlPolicy.validateTransferUrl(data)
                 if (!vUrl.valid) { callback(false, null, "Invalid download URL: " + vUrl.error); return }
                 callback(true, data, null)
@@ -224,6 +240,7 @@ QtObject {
             "operation=mkdir",
             function(success, data, error) {
                 if (success) {
+            _recordConnectionSuccess()
                     if (parentPath === "/") {
                         callback(true, null)
                     } else {
@@ -319,6 +336,7 @@ QtObject {
         HttpTransport.post(url, { "Authorization": "Token " + token, "Content-Type": "application/json" }, body,
             function(success, data, error) {
                 if (success) {
+            _recordConnectionSuccess()
                     if (confirmedMutation({ responseText: JSON.stringify(data) })) callback(true, null)
                     else callback(false, "Server did not confirm move")
                 } else {
@@ -372,6 +390,7 @@ QtObject {
         }
         request("GET", url, null, function(success, data, error) {
             if (success) {
+            _recordConnectionSuccess()
                 var arrResult = _safeArray(data)
                 if (!arrResult.valid) { callback(false, null, arrResult.error); return }
                 var links = []
@@ -451,6 +470,7 @@ QtObject {
             JSON.stringify(body),
             function(success, data, error) {
                 if (success) {
+            _recordConnectionSuccess()
                     if (!data || typeof data !== "object") { callback(false, null, "Invalid server response"); return }
                     var vToken = _boundedString(data.token, _maxToken)
                     if (!vToken.valid) { callback(false, null, "Share link token: " + vToken.error); return }
@@ -512,6 +532,7 @@ QtObject {
             { "Authorization": "Token " + token },
             function(success, data, error) {
                 if (success) {
+            _recordConnectionSuccess()
                     if (confirmedMutation(data)) callback(true, null)
                     else callback(false, "Server did not confirm share-link revocation")
                 } else {
@@ -550,6 +571,7 @@ QtObject {
         HttpTransport.post(url, { "Authorization": "Token " + token, "Content-Type": "application/json" }, body,
             function(success, data, error) {
                 if (success) {
+            _recordConnectionSuccess()
                     if (confirmedMutation(data)) callback(true, null)
                     else callback(false, "Server did not confirm copy")
                 } else {
@@ -600,6 +622,7 @@ QtObject {
                 JSON.stringify(group),
                 function(success, data, error) {
                     if (success) {
+            _recordConnectionSuccess()
                         if (!confirmedMutation(data)) hasError = true
                     } else {
                         hasError = true
@@ -652,6 +675,7 @@ QtObject {
                 JSON.stringify(group),
                 function(success, data, error) {
                     if (success) {
+            _recordConnectionSuccess()
                         if (!confirmedMutation(data)) hasError = true
                     } else {
                         hasError = true
@@ -682,6 +706,7 @@ QtObject {
             if (item.type === "dir") {
                 deleteFolder(item.repoId, item.fullPath, token, function(success, error) {
                     if (success) {
+            _recordConnectionSuccess()
                         results.success.push(item)
                     } else {
                         results.failed.push({ item: item, error: error })
@@ -692,6 +717,7 @@ QtObject {
             } else {
                 deleteFile(item.repoId, item.fullPath, token, function(success, error) {
                     if (success) {
+            _recordConnectionSuccess()
                         results.success.push(item)
                     } else {
                         results.failed.push({ item: item, error: error })
@@ -712,6 +738,7 @@ QtObject {
         HttpTransport.get(baseUrl + url, { "Authorization": "Token " + token, "Accept": "application/json" },
             function(success, data, error) {
                 if (success) {
+            _recordConnectionSuccess()
                     try {
                         if (!data || typeof data !== "object") throw new Error("missing data")
                         var arrResult = _safeArray(data.data)
@@ -759,6 +786,7 @@ QtObject {
         var url = "/api2/repos/" + repoId + "/file/history/?p=" + encodeURIComponent(path)
         request("GET", url, null, function(success, data, error) {
             if (success) {
+            _recordConnectionSuccess()
                 if (!data || typeof data !== "object") { callback(false, null, "Invalid server response"); return }
                 var arrResult = _safeArray(data.commits)
                 if (!arrResult.valid) { callback(false, null, "commits: " + arrResult.error); return }
@@ -818,6 +846,7 @@ QtObject {
         var url = "/api2/repos/" + repoId + "/file/revision/?p=" + encodeURIComponent(path) + "&commit_id=" + encodeURIComponent(commitId)
         request("GET", url, null, function(success, data, error) {
             if (success) {
+            _recordConnectionSuccess()
                 if (typeof data !== "string" || data === "") { callback(false, null, "Invalid server response"); return }
                 var vUrl = UrlPolicy.validateTransferUrl(data)
                 if (!vUrl.valid) { callback(false, null, "Invalid revision URL: " + vUrl.error); return }
@@ -834,6 +863,7 @@ QtObject {
         var url = "/api/v2.1/repos/" + repoId + "/trash/"
         request("GET", url, null, function(success, data, error) {
             if (success) {
+            _recordConnectionSuccess()
                 if (!data || typeof data !== "object") { callback(false, null, "Invalid server response"); return }
                 var arrResult = _safeArray(data.data)
                 if (!arrResult.valid) { callback(false, null, "data: " + arrResult.error); return }
