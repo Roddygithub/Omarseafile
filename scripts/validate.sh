@@ -125,6 +125,7 @@ check "Offline banner uses null-safe binding (connectionService guard)" bash -c 
 check "Upload picker uses out-of-process zenity (no QtQuick.Dialogs FileDialog)" bash -c '! grep -q "QtQuick.Dialogs" components/UploadDialog.qml && grep -q "zenity" components/UploadDialog.qml'
 check "Upload picker supports multi-file selection" grep -q '"--multiple"' components/UploadDialog.qml
 check "Upload picker runs in isolated Process (not in Quickshell)" bash -c 'grep -q "Process {" components/UploadDialog.qml && grep -q "pickerProcess" components/UploadDialog.qml'
+check "Upload picker zenity filter uses NAME | PATTERN format" grep -q '"--file-filter=All files | \*"' components/UploadDialog.qml
 
 # --- LOCAL_RUNTIME: Requires Omarchy/Quickshell ---
 echo ""

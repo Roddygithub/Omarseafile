@@ -29,7 +29,7 @@ Item {
     function openPicker() {
         if (pickerProcess.running) return
         pickerProcess.command = ["zenity", "--file-selection", "--multiple",
-            "--separator=\n", "--file-filter=All files (*)"]
+            "--separator=\n", "--file-filter=All files | *"]
         pickerProcess.running = true
     }
 
