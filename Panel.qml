@@ -236,7 +236,12 @@ Panel {
         onTriggered: root.executeSearch()
     }
 
-    function open() { panelController.show() }
+    function open() {
+        // Refresh connectivity state immediately so a stale "Offline" banner
+        // clears as soon as the panel is shown (server reachable).
+        connectionService.forceCheck()
+        panelController.show()
+    }
     function close() { panelController.hide() }
     function toggle() { panelController.open ? close() : open() }
     function closeForPopoutSwitch() { if (panelController.open) panelController.hide() }
