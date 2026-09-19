@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Dialogs
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "../js"
@@ -26,17 +26,31 @@ Item {
 
     Component.onCompleted: pathField.forceActiveFocus()
 
-    // File dialog for graphical file selection (uses xdg-desktop-portal when available)
-    FileDialog {
-        id: fileDialog
-        title: "Choose files to upload"
-        currentFolder: "/home"
-                        nameFilters: ["All files (*)"]
-        onAccepted: {
-            if (root.onFilesSelected) root.onFilesSelected(fileUrls)
-        }
-        onRejected: {
-            // User cancelled - keep manual path entry available
+    function openPicker() {
+        if (pickerProcess.running) return
+        pickerProcess.command = ["zenity", "--file-selection", "--multiple",
+            "--separator=\n", "--file-filter=All files (*)"]
+        pickerProcess.running = true
+    }
+
+    Process {
+        id: pickerProcess
+        stdout: StdioCollector {}
+
+        onExited: function(exitCode) {
+            if (exitCode === 0) {
+                var text = pickerProcess.stdout.text.trim()
+                if (text === "") return
+                var lines = text.split("\n")
+                var urls = []
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i].trim()
+                    if (line !== "") {
+                        urls.push("file://" + line)
+                    }
+                }
+                if (urls.length > 0 && root.onFilesSelected) root.onFilesSelected(urls)
+            }
         }
     }
 
@@ -86,7 +100,7 @@ Item {
                 height: Style.space(32)
                 text: "Browse..."
                 tooltipText: "Open graphical file picker"
-                onClicked: fileDialog.open()
+                onClicked: root.openPicker()
             }
         }
 

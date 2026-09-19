@@ -122,6 +122,9 @@ check "Text-entry dialogs autofocus fields" bash -c 'grep -q "nameField.forceAct
 check "Revision downloads accept capability URLs" grep -q 'typeof data !== "string"' js/SeafileAPI.qml
 check "Unsupported trash restore sends no mutation" bash -c '! grep -q "function restoreFolder" js/SeafileAPI.qml && grep -q "Restore unavailable" components/TrashPanel.qml'
 check "Offline banner uses null-safe binding (connectionService guard)" bash -c 'grep -q "offlineBannerVisible" views/BrowserView.qml && grep -q "root.connectionService &&" views/BrowserView.qml && ! grep -q "visible: !root.connectionService.online" views/BrowserView.qml'
+check "Upload picker uses out-of-process zenity (no QtQuick.Dialogs FileDialog)" bash -c '! grep -q "QtQuick.Dialogs" components/UploadDialog.qml && grep -q "zenity" components/UploadDialog.qml'
+check "Upload picker supports multi-file selection" grep -q '"--multiple"' components/UploadDialog.qml
+check "Upload picker runs in isolated Process (not in Quickshell)" bash -c 'grep -q "Process {" components/UploadDialog.qml && grep -q "pickerProcess" components/UploadDialog.qml'
 
 # --- LOCAL_RUNTIME: Requires Omarchy/Quickshell ---
 echo ""
