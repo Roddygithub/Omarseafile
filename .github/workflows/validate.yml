@@ -19,6 +19,30 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq shellcheck
 
+      # Every suite named here is invoked by validate.sh via scripts/test_portable.py;
+      # they are listed separately so a regression is attributable in the log.
+      - name: Security regression suites
+        run: |
+          python3 scripts/test_secure_output.py
+          python3 scripts/test_finding2.py
+          python3 scripts/test_finding4.py
+          python3 scripts/test_finding5.py
+          python3 scripts/test_finding6.py
+          python3 scripts/test_finding7.py
+          python3 scripts/test_security_fixes.py
+          python3 scripts/test_remediation.py
+
+      - name: QML structural and runtime-warning suites
+        run: |
+          python3 scripts/test_qml_warnings.py
+          python3 scripts/test_panel_reopen_libraries.py
+
+      - name: v1.1 remediation regression suite
+        run: python3 scripts/test_v11_remediation.py
+
+      - name: Positioner anchor scan
+        run: python3 scripts/check_positioner_anchors.py
+
       - name: Run portable validation suite
         run: ./scripts/validate.sh
 
@@ -30,6 +54,11 @@ jobs:
           jq -e '.kinds | index("bar-widget")' manifest.json
           jq -e '.entryPoints.barWidget' manifest.json
           jq -e '.barWidget.schema[] | select(.key == "autoLogin")' manifest.json
+          jq -e '.barWidget.schema[] | select(.key == "foldersFirst")' manifest.json
+          # Version must stay in sync with the value shown in Settings > About.
+          test "$(jq -r .version manifest.json)" = \
+            "$(grep -o 'pluginVersion: "[0-9.]*"' Panel.qml | grep -o '[0-9.]*')"
+          grep -q "\[$(jq -r .version manifest.json)\]" CHANGELOG.md
           echo "Manifest validation passed"
 
       - name: Check for forbidden patterns

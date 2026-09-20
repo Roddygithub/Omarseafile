@@ -28,6 +28,18 @@ Item {
     required property var onContextMenuRequested
     required property var onAddToFavorites
     required property var onRemoveFromFavorites
+    // Explicit APIs consumed by the delegates below. Declaring a
+    // `required property` inside a delegate for something the Repeater never
+    // supplies is a load-time failure, so delegates call these instead.
+    required property var onFavoriteClicked
+    required property var onRemoveFavorite
+    required property var onTransferCancel
+    // Panel already recomputes these on TransferService.transfersChanged, so
+    // binding them in makes this section reactive. Calling
+    // TransferService.getActiveTransfers() directly inside a binding is not -
+    // the service exposes no notifyable property to depend on.
+    required property var activeTransfers
+    required property int activeCount
     required property var onDownloadClicked
     required property var onOpenClicked
     required property var onRenameClicked
@@ -38,6 +50,10 @@ Item {
 
     width: parent.width
     implicitHeight: content.implicitHeight
+
+    // The FileList Panel drives with the keyboard. Exposed through the view
+    // API so Panel never needs a lexical id from inside this component.
+    readonly property var activeFileList: librariesSection.visible ? librariesFileList : null
 
     Column {
         id: content
@@ -60,41 +76,38 @@ Item {
                     font.pixelSize: Style.font.caption
                     font.bold: true
                     font.letterSpacing: 1
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
                 }
             }
 
             Repeater {
                 model: Favorites.getLibraries()
                 delegate: Item {
+                    // Only modelData is a real model role here; everything else
+                    // comes from HomeView's root callbacks.
                     required property var modelData
                     width: parent.width
-                    required property QtObject bar
-                    required property var onClicked
-                    required property var onRemoveFromFavorites
 
-                    property bool isLibrary: modelData.type === "library"
-                    property string displayName: isLibrary ? modelData.repoName : (modelData.name || modelData.path)
+                    property string displayName: modelData.repoName || modelData.name || ""
 
                     implicitHeight: row.implicitHeight
 
                     Row {
                         id: row
-                        anchors.fill: parent
-                        anchors.leftMargin: Style.space(12)
-                        anchors.rightMargin: Style.space(12)
                         spacing: Style.space(12)
                         height: Math.max(icon.implicitHeight, nameLabel.implicitHeight) + Style.space(6)
 
                         Text {
                             id: icon
-                            text: "\uf02d"
+                            text: Icons.book
                             color: root.bar.foreground
-                            font.family: "Noto Sans"
+                            font.family: Icons.family
                             font.pixelSize: Style.font.title
                             width: Style.space(24)
                             horizontalAlignment: Text.AlignHCenter
-                            anchors.verticalCenter: parent.verticalCenter
+                            height: parent.height
+                            verticalAlignment: Text.AlignVCenter
                         }
 
                         Text {
@@ -105,18 +118,21 @@ Item {
                             font.pixelSize: Style.font.body
                             elide: Text.ElideRight
                             width: parent ? parent.width - icon.width - removeBtn.width - Style.space(36) : 0
-                            anchors.verticalCenter: parent.verticalCenter
+                            height: parent.height
+                            verticalAlignment: Text.AlignVCenter
                             textFormat: Text.PlainText
                         }
 
                         Button {
                             id: removeBtn
-                            text: "\uf00d"
+                            text: Icons.times
                             width: Style.space(24)
                             height: Style.space(24)
-                                                        tooltipText: "Remove from Quick Access"
+                            tooltipText: "Remove from Quick Access"
+                            // Sits above the row MouseArea, so removing an entry
+                            // never also navigates.
                             onClicked: {
-                                if (root.onRemoveFromFavorites) root.onRemoveFromFavorites(modelData)
+                                if (root.onRemoveFavorite) root.onRemoveFavorite(modelData)
                             }
                         }
                     }
@@ -125,8 +141,11 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        // The remove button is a later sibling stacked on top and
+                        // accepts its own presses, so the row only sees clicks
+                        // that miss it.
                         onClicked: {
-                            if (root.onClicked) root.onClicked()
+                            if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
                         }
                     }
                 }
@@ -137,32 +156,26 @@ Item {
                 delegate: Item {
                     required property var modelData
                     width: parent.width
-                    required property QtObject bar
-                    required property var onClicked
-                    required property var onRemoveFromFavorites
 
-                    property bool isLibrary: modelData.type === "library"
-                    property string displayName: isLibrary ? modelData.repoName : (modelData.name || modelData.path)
+                    property string displayName: modelData.name || modelData.path || ""
 
                     implicitHeight: row.implicitHeight
 
                     Row {
                         id: row
-                        anchors.fill: parent
-                        anchors.leftMargin: Style.space(12)
-                        anchors.rightMargin: Style.space(12)
                         spacing: Style.space(12)
                         height: Math.max(icon.implicitHeight, nameLabel.implicitHeight) + Style.space(6)
 
                         Text {
                             id: icon
-                            text: "\uf02d"
+                            text: Icons.book
                             color: root.bar.foreground
-                            font.family: "Noto Sans"
+                            font.family: Icons.family
                             font.pixelSize: Style.font.title
                             width: Style.space(24)
                             horizontalAlignment: Text.AlignHCenter
-                            anchors.verticalCenter: parent.verticalCenter
+                            height: parent.height
+                            verticalAlignment: Text.AlignVCenter
                         }
 
                         Text {
@@ -173,18 +186,19 @@ Item {
                             font.pixelSize: Style.font.body
                             elide: Text.ElideRight
                             width: parent ? parent.width - icon.width - removeBtn.width - Style.space(36) : 0
-                            anchors.verticalCenter: parent.verticalCenter
+                            height: parent.height
+                            verticalAlignment: Text.AlignVCenter
                             textFormat: Text.PlainText
                         }
 
                         Button {
                             id: removeBtn
-                            text: "\uf00d"
+                            text: Icons.times
                             width: Style.space(24)
                             height: Style.space(24)
-                                                        tooltipText: "Remove from Quick Access"
+                            tooltipText: "Remove from Quick Access"
                             onClicked: {
-                                if (root.onRemoveFromFavorites) root.onRemoveFromFavorites(modelData)
+                                if (root.onRemoveFavorite) root.onRemoveFavorite(modelData)
                             }
                         }
                     }
@@ -194,7 +208,7 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            if (root.onClicked) root.onClicked()
+                            if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
                         }
                     }
                 }
@@ -217,13 +231,14 @@ Item {
                     font.pixelSize: Style.font.caption
                     font.bold: true
                     font.letterSpacing: 1
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
                 }
             }
 
             EmptyState {
                 bar: root.bar
-                icon: "\uf017"
+                icon: Icons.clock
                 title: "No recent items"
                 subtitle: "Recently accessed files will appear here"
                 width: parent.width
@@ -235,7 +250,7 @@ Item {
         Column {
             id: transfersSection
             width: parent.width
-            visible: TransferService.getActiveCount() > 0
+            visible: root.activeCount > 0
             spacing: Style.space(4)
 
             Row {
@@ -247,52 +262,52 @@ Item {
                     font.pixelSize: Style.font.caption
                     font.bold: true
                     font.letterSpacing: 1
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
                 }
             }
 
             Repeater {
-                model: TransferService.getActiveTransfers()
+                model: root.activeTransfers
                 delegate: Item {
                     required property var modelData
                     width: parent.width
-                    required property QtObject bar
-                    required property var onCancel
-                    required property var onOpen
 
                     property bool isDownload: modelData.type === "download"
-                    property bool isActive: modelData.state === "pending" || modelData.state === "downloading" || modelData.state === "uploading" || modelData.state === "opening" || modelData.state === "cancelling"
+                    // "queued" and "validating" are active: the upload is
+                    // accepted and cancellable before its first byte moves.
+                    property bool isActive: modelData.state === "queued" || modelData.state === "validating" || modelData.state === "pending" || modelData.state === "downloading" || modelData.state === "uploading" || modelData.state === "opening" || modelData.state === "cancelling"
+                    property bool isQueued: modelData.state === "queued"
 
                     implicitHeight: row.implicitHeight
 
                     Row {
                         id: row
-                        anchors.fill: parent
-                        anchors.leftMargin: Style.space(12)
-                        anchors.rightMargin: Style.space(12)
                         spacing: Style.space(12)
                         height: Style.space(28)
 
                         Text {
                             id: typeIcon
-                            text: isDownload ? "\uf019" : "\uf093"
+                            text: isDownload ? Icons.download : Icons.upload
                             color: root.bar.foreground
-                            font.family: "Noto Sans"
+                            font.family: Icons.family
                             font.pixelSize: Style.font.body
                             width: Style.space(20)
                             horizontalAlignment: Text.AlignHCenter
-                            anchors.verticalCenter: parent.verticalCenter
+                            height: parent.height
+                            verticalAlignment: Text.AlignVCenter
                         }
 
                         Text {
                             id: nameLabel
-                            text: Models.boundedDisplayText(modelData.fileName || "Unknown", 1024)
+                            text: Models.boundedDisplayText((isQueued ? "Queued - " : "") + (modelData.fileName || "Unknown"), 1024)
                             color: root.bar.foreground
                             font.family: root.bar.fontFamily
                             font.pixelSize: Style.font.body
                             elide: Text.ElideRight
                             width: parent.width - typeIcon.width - progressBar.width - cancelBtn.width - Style.space(36)
-                            anchors.verticalCenter: parent.verticalCenter
+                            height: parent.height
+                            verticalAlignment: Text.AlignVCenter
                             textFormat: Text.PlainText
                         }
 
@@ -304,17 +319,22 @@ Item {
                             to: 1
                             value: modelData.progress
                             visible: isActive
-                            anchors.verticalCenter: parent.verticalCenter
+                            height: parent.height
                         }
 
                         Button {
                             id: cancelBtn
-                            text: "\uf00d"
+                            text: Icons.times
                             width: Style.space(24)
                             height: Style.space(24)
-                                                        visible: isActive
+                            visible: isActive
                             tooltipText: "Cancel transfer"
-                            onClicked: root.onCancel
+                            // Was `onClicked: root.onCancel`, which evaluated the
+                            // callback without ever calling it - cancel did
+                            // nothing. Queued transfers are cancellable too.
+                            onClicked: {
+                                if (root.onTransferCancel) root.onTransferCancel(modelData)
+                            }
                         }
                     }
                 }
@@ -362,12 +382,13 @@ Item {
         EmptyState {
             id: emptyState
             bar: root.bar
-            icon: "\uf02d"
+            icon: Icons.book
             title: "Quick Access"
             subtitle: "Pin libraries and folders for quick access\nRight-click an item in the browser and select \"Add to Quick Access\""
             width: parent.width
-            visible: Favorites.getLibraries().length === 0 && Favorites.getFolders().length === 0 && TransferService.getActiveCount() === 0 && !(root.libraries && root.libraries.length > 0)
-            anchors.fill: parent
+            visible: Favorites.getLibraries().length === 0 && Favorites.getFolders().length === 0 && root.activeCount === 0 && !(root.libraries && root.libraries.length > 0)
+            width: parent.width
+            height: parent.height
         }
     }
 }

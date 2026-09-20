@@ -39,7 +39,6 @@ Column {
         Row {
             width: parent.width
             height: Style.space(40)
-            anchors.leftMargin: Style.space(12)
             spacing: Style.space(8)
 
             Text {
@@ -48,7 +47,8 @@ Column {
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.title
                 font.bold: true
-                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
                 width: parent.width - Style.space(24)
                 textFormat: Text.PlainText
@@ -74,27 +74,24 @@ Column {
 
                 Row {
                     id: row
-                    anchors.fill: parent
-                    anchors.leftMargin: Style.space(12)
-                    anchors.rightMargin: Style.space(12)
                     spacing: Style.space(12)
                     height: Math.max(icon.implicitHeight, timeLabel.implicitHeight) + Style.space(8)
 
                     Text {
                         id: icon
-                        text: "\uf017"
+                        text: Icons.clock
                         color: root.bar.foreground
-                        font.family: "Noto Sans"
+                        font.family: Icons.family
                         font.pixelSize: Style.font.title
                         width: Style.space(24)
                         horizontalAlignment: Text.AlignHCenter
-                        anchors.verticalCenter: parent.verticalCenter
+                        height: parent.height
+                        verticalAlignment: Text.AlignVCenter
                     }
 
                     Column {
                         width: parent.width - icon.width - actionColumn.width - Style.space(24)
                         spacing: Style.space(2)
-                        anchors.verticalCenter: parent.verticalCenter
 
                         Text {
                             id: timeLabel
@@ -137,7 +134,6 @@ Column {
                     Column {
                         id: actionColumn
                         width: Style.space(80)
-                        anchors.verticalCenter: parent.verticalCenter
                         spacing: Style.space(4)
 
                         Button {
@@ -168,7 +164,7 @@ Column {
         EmptyState {
                 id: emptyState
                 bar: root.bar
-                icon: "\uf017"
+                icon: Icons.clock
                 title: "No history"
                 subtitle: "File revisions will appear here"
                 width: parent.width

@@ -16,6 +16,16 @@ QtObject {
         return false
     }
 
+    // Validate the Seafile BASE URL used for authentication.
+    //
+    // Beyond the scheme rules this rejects anything that is not a clean base:
+    //   * userinfo  - https://user:pass@host would smuggle credentials into a
+    //                 stored URL and into logs
+    //   * query     - ?foo=bar has no meaning for an API base and is a common
+    //                 paste accident
+    //   * fragment  - #x is client-side only and would break request building
+    // Subpaths ARE allowed (https://example.com/seafile) because Seafile is
+    // routinely deployed behind a reverse proxy prefix.
     function validateForAuth(url) {
         if (!url || typeof url !== "string") {
             return { valid: false, error: "Empty URL" }
@@ -29,11 +39,21 @@ QtObject {
         var scheme = parsed.protocol.replace(":", "")
         var host = parsed.hostname
 
+        if (parsed.username || parsed.password) {
+            return { valid: false, error: "Server URL must not contain credentials (user:pass@)." }
+        }
+        if (parsed.search && parsed.search !== "") {
+            return { valid: false, error: "Server URL must not contain a query string." }
+        }
+        if (parsed.hash && parsed.hash !== "") {
+            return { valid: false, error: "Server URL must not contain a fragment (#)." }
+        }
+
         if (scheme === "https") {
             return { valid: true }
         }
         if (scheme === "http" && root.isLoopbackHost(host)) {
-            return { valid: true, warning: "Loopback HTTP — not recommended for production" }
+            return { valid: true, warning: "Loopback HTTP \u2014 not recommended for production" }
         }
         return { valid: false, error: "Cleartext HTTP not allowed for authentication. Use HTTPS or loopback (http://localhost, http://127.0.0.1)." }
     }

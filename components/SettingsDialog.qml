@@ -16,6 +16,7 @@ Item {
     property var onSingleClickOpenToggled: null
     property var onSortColumnChange: null
     property var onSortAscendingChange: null
+    property var onFoldersFirstToggled: null
     property var onNotifyToggled: null
 
     Component.onCompleted: {
@@ -39,6 +40,7 @@ Item {
     property bool singleClickOpen: false
     property string sortColumn: "name"
     property bool sortAscending: true
+    property bool foldersFirst: true
     property bool notifyEnabled: true
     property bool connectionTestRunning: false
     property bool connectionTestSuccess: false
@@ -48,7 +50,6 @@ Item {
         id: column
         spacing: Style.space(10)
         width: Math.min(parent.width, Style.space(420))
-        anchors.horizontalCenter: parent.horizontalCenter
 
         Text {
             text: "Settings"
@@ -160,14 +161,14 @@ Item {
                 width: parent.width
                 height: Style.space(26)
                 Row {
-                    anchors.fill: parent
                     spacing: Style.space(6)
                     Text {
-                        text: "\uf007"
-                        font.family: "Noto Sans"
+                        text: Icons.user
+                        font.family: Icons.family
                         font.pixelSize: Style.font.title
                         color: Qt.darker(root.bar.foreground, 1.4)
-                        anchors.verticalCenter: parent.verticalCenter
+                        height: parent.height
+                        verticalAlignment: Text.AlignVCenter
                         width: Style.space(24)
                     }
                     Text {
@@ -176,7 +177,8 @@ Item {
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.body
                         elide: Text.ElideRight
-                        anchors.verticalCenter: parent.verticalCenter
+                        height: parent.height
+                        verticalAlignment: Text.AlignVCenter
                         textFormat: Text.PlainText
                     }
                 }
@@ -212,7 +214,8 @@ Item {
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
                     width: parent.width - autoLoginSwitch.width - Style.space(8)
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
                 }
                 Switch {
                     id: autoLoginSwitch
@@ -220,7 +223,7 @@ Item {
                     onToggled: {
                         if (root.onAutoLoginToggled) root.onAutoLoginToggled(checked)
                     }
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
                 }
             }
 
@@ -233,7 +236,8 @@ Item {
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
                     width: parent.width - singleClickOpenSwitch.width - Style.space(8)
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
                 }
                 Switch {
                     id: singleClickOpenSwitch
@@ -241,7 +245,7 @@ Item {
                     onToggled: {
                         if (root.onSingleClickOpenToggled) root.onSingleClickOpenToggled(checked)
                     }
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
                 }
             }
 
@@ -254,7 +258,8 @@ Item {
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
                     width: parent.width - sortColumnCombo.width - Style.space(8)
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
                 }
                 ComboBox {
                     id: sortColumnCombo
@@ -264,7 +269,7 @@ Item {
                     onActivated: {
                         if (root.onSortColumnChange) root.onSortColumnChange(["name", "size", "date", "type"][index])
                     }
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
                 }
             }
 
@@ -277,13 +282,18 @@ Item {
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
                     width: parent.width - foldersFirstSwitch.width - Style.space(8)
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
                 }
                 Switch {
                     id: foldersFirstSwitch
-                    checked: true  // Always enabled in current implementation
-                    enabled: false
-                    anchors.verticalCenter: parent.verticalCenter
+                    // Was a hard-coded, disabled always-true switch: the setting
+                    // existed in the UI but did nothing.
+                    checked: root.foldersFirst
+                    onToggled: {
+                        if (root.onFoldersFirstToggled) root.onFoldersFirstToggled(checked)
+                    }
+                    height: parent.height
                 }
             }
 
@@ -296,7 +306,8 @@ Item {
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
                     width: parent.width - sortAscendingSwitch.width - Style.space(8)
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
                 }
                 Switch {
                     id: sortAscendingSwitch
@@ -304,7 +315,7 @@ Item {
                     onToggled: {
                         if (root.onSortAscendingChange) root.onSortAscendingChange(checked)
                     }
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
                 }
             }
 
@@ -317,7 +328,8 @@ Item {
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
                     width: parent.width - notifySwitch.width - Style.space(8)
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
                 }
                 Switch {
                     id: notifySwitch
@@ -325,7 +337,7 @@ Item {
                     onToggled: {
                         if (root.onNotifyToggled) root.onNotifyToggled(checked)
                     }
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
                 }
             }
         }

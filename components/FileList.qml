@@ -30,6 +30,9 @@ ListView {
 
     property string sortColumn: setting("sortColumn", "name")
     property bool sortAscending: setting("sortAscending", true)
+    // Directories first. Owned by Panel (which persists it); the local default
+    // keeps the list correct if it is instantiated without one.
+    property bool foldersFirst: true
 
     width: parent.width
     height: parent.height
@@ -41,13 +44,19 @@ ListView {
     onSortColumnChanged: setting("sortColumn", sortColumn)
     onSortAscendingChanged: setting("sortAscending", sortAscending)
 
-    // Sorted model for display
+    // Sorted model for display.
+    //
+    // foldersFirst=true  -> directories precede files for Name/Size/Modified.
+    // foldersFirst=false -> entries are ordered purely by the selected column
+    //                       and direction, directories interleaved with files.
+    // "type" sorting keeps its own logical semantics either way, since grouping
+    // by type is the whole point of that column.
     property var sortedItems: {
         var items = root.items.slice()
         items.sort(function(a, b) {
             var aIsDir = a.type === "dir"
             var bIsDir = b.type === "dir"
-            if (root.sortColumn !== "type" && aIsDir !== bIsDir) {
+            if (root.foldersFirst && root.sortColumn !== "type" && aIsDir !== bIsDir) {
                 return aIsDir ? -1 : 1
             }
             var valA, valB
@@ -122,8 +131,6 @@ delegate: FileItem {
             Row {
             width: parent.width
             height: implicitHeight
-            anchors.leftMargin: Style.space(12)
-            anchors.rightMargin: Style.space(12)
             spacing: Style.space(12)
 
             // Icon column = Type sort (matches FileItem icon column)

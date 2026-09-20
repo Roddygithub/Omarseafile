@@ -30,6 +30,13 @@ QtObject {
     // QML int is signed 32-bit: reservation totals must remain IEEE-754 numbers.
     readonly property double _reservationPerTransfer: root.maxTransferBytes + root.safetyMarginBytes
     property double _activeReservedBytes: 0
+
+    // ===== BOUNDED UPLOAD QUEUE =====
+    // At most maxConcurrentUploads stat/curl pipelines run at once; the rest
+    // wait in submission order and are started as active ones terminate.
+    property int maxConcurrentUploads: 3
+    property int maxQueuedUploads: 100
+    property int sessionEpoch: 0
     readonly property string _transferOutputHelper: Qt.resolvedUrl("../scripts/transfer_output.py").toString().replace(/^file:\/\//, "")
     readonly property string _secureFinalizeHelper: Qt.resolvedUrl("../scripts/secure_finalize.py").toString().replace(/^file:\/\//, "")
 
@@ -156,12 +163,20 @@ QtObject {
 
     // ===== DERIVED QUERIES =====
 
+    // Non-terminal states. "queued" and "validating" are included so a transfer
+    // is always visible and cancellable from the moment it is accepted.
+    function isActiveState(state) {
+        return state === "queued" || state === "validating" || state === "pending"
+            || state === "downloading" || state === "uploading"
+            || state === "opening" || state === "cancelling"
+    }
+
     function findTransfer(fileItem) {
         if (!fileItem) return null
         var fullPath = fileItem.fullPath || fileItem.path || fileItem.name || ""
         for (var i = 0; i < root.transfers.length; i++) {
             var t = root.transfers[i]
-            if (t.state !== "pending" && t.state !== "downloading" && t.state !== "uploading" && t.state !== "opening" && t.state !== "cancelling") continue
+            if (!root.isActiveState(t.state)) continue
             if (t.repoId === fileItem.repoId && t.fileName === fileItem.name && (t.fullPath === fullPath || t.fullPath === "/" + fileItem.name)) return t
         }
         return null
@@ -169,7 +184,23 @@ QtObject {
 
     function getActiveTransfers() {
         return root.transfers.filter(function(t) {
-            return t.state === "pending" || t.state === "downloading" || t.state === "uploading" || t.state === "opening" || t.state === "cancelling"
+            return root.isActiveState(t.state)
+        })
+    }
+
+    // Uploads that currently own a stat/curl pipeline.
+    function getRunningUploadCount() {
+        var n = 0
+        for (var i = 0; i < root.transfers.length; i++) {
+            var t = root.transfers[i]
+            if (t.type === "upload" && (t.state === "validating" || t.state === "pending" || t.state === "uploading")) n++
+        }
+        return n
+    }
+
+    function getQueuedUploads() {
+        return root.transfers.filter(function(t) {
+            return t.type === "upload" && t.state === "queued"
         })
     }
 
@@ -266,18 +297,53 @@ QtObject {
         return "Unknown error"
     }
 
-    function isRetryableError(status, errorMsg) {
-        if (status === 0) return true
-        if (status === 408) return true
-        if (status >= 500 && status < 600) return true
-        if (errorMsg && errorMsg.includes("network")) return true
-        if (errorMsg && errorMsg.includes("timeout")) return true
-        if (errorMsg && errorMsg.includes("connection")) return true
+    // Coerce an HTTP status into the canonical numeric form. Anything that is
+    // not a real status becomes 0, which means "no HTTP response was observed"
+    // and is treated as a transport failure. Status is never inferred by
+    // parsing human-readable error text.
+    function normalizeStatus(status) {
+        var n
+        if (typeof status === "number" && isFinite(status)) n = Math.floor(status)
+        else if (typeof status === "string") {
+            var t = status.trim()
+            if (!/^[0-9]{3}$/.test(t)) return 0
+            n = parseInt(t, 10)
+        } else return 0
+        if (n <= 0 || n > 599) return 0
+        return n
+    }
+
+    // Retryable: no HTTP response at all (0), request timeout (408),
+    // Too Early (425), rate limited (429), and any 5xx. Ordinary permanent 4xx
+    // such as 400, 404, 409 and 422 deliberately fall through to false so they
+    // are not blindly retried with exponential backoff.
+    function isRetryableStatus(status) {
+        var n = root.normalizeStatus(status)
+        if (n === 0) return true
+        if (n === 408) return true
+        if (n === 425) return true
+        if (n === 429) return true
+        if (n >= 500 && n < 600) return true
         return false
     }
 
+    // Back-compatible name. The message is accepted but ignored: a message can
+    // never raise or lower retryability, only the status decides.
+    function isRetryableError(status, errorMsg) {
+        return root.isRetryableStatus(status)
+    }
+
     function isAuthError(status) {
-        return status === 401 || status === 403
+        var n = root.normalizeStatus(status)
+        return n === 401 || n === 403
+    }
+
+    // Build a user-facing message that carries the real status when there is
+    // one, without ever guessing a status from the message text.
+    function _httpFailureMessage(error, status, fallback) {
+        var n = root.normalizeStatus(status)
+        if (n === 0) return error || fallback
+        return (error || fallback) + " (HTTP " + n + ")"
     }
 
     function curlFileForm(path) {
@@ -435,6 +501,8 @@ QtObject {
     }
 
     function finishCancelled(transfer) {
+        // A cancelled upload frees its concurrency slot.
+        if (transfer && transfer.type === "upload") root._pumpUploadQueue()
         root.releaseOpenCache(transfer)
         transfer.state = "cancelled"
         root.sanitizeForHistory(transfer)
@@ -500,10 +568,13 @@ QtObject {
                 startTime: Date.now(),
                 endTime: null,
                 authHeaderFile: null,
-                curlConfigFile: null
+                curlConfigFile: null,
+                epoch: root.sessionEpoch
             }
 
-            root.transfers.push(download)
+            var downloads = root.transfers.slice()
+            downloads.push(download)
+            root.transfers = downloads
             root.transfersChanged()
 
             if (typeof downloadLink === "string" && downloadLink !== "") {
@@ -542,8 +613,9 @@ QtObject {
         var path = download.fullPath || "/" + download.fileName
         var url = download.baseUrl.replace(/\/+$/, "") + "/api2/repos/" + download.repoId + "/file/?p=" + encodeURIComponent(path) + "&reuse=1"
         HttpTransport.get(url, { "Authorization": "Token " + download.token, "Accept": "application/json" },
-            function(success, data, error) {
-                if (download.state === "cancelled") return
+            function(success, data, error, status) {
+                if (download.epoch !== undefined && download.epoch !== root.sessionEpoch) return
+                if (download.state === "cancelled" || download.state === "cancelling") return
                 if (success) {
                     if (typeof data !== "string" || data === "") {
                         download.state = "failed"
@@ -567,23 +639,27 @@ QtObject {
                     root.transferStateChanged(download)
                     root.transfersChanged()
                     root.executeCurlDownload(download)
-                } else if (root.isAuthError(error)) {
+                } else if (root.isAuthError(status)) {
                     download.state = "auth_failed"
-                    download.error = "Authentication failed"
+                    download.error = "Authentication failed (HTTP " + status + ")"
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
-                } else if (root.isRetryableError(0, error) && download.retryCount < root.maxRetries) {
+                } else if (root.isRetryableStatus(status) && download.retryCount < root.maxRetries) {
                     download.retryCount++
                     var delay = Math.min(root.retryBaseDelay * Math.pow(2, download.retryCount - 1), root.maxRetryDelay)
                     download.state = "pending"
                     root.transferRetryStarted(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
-                    scheduleRetry(delay, function() { root.getDownloadLinkAndExecute(download) })
+                    scheduleRetry(delay, function() {
+                        if (download.epoch !== undefined && download.epoch !== root.sessionEpoch) return
+                        if (download.state === "cancelled" || download.state === "cancelling") return
+                        root.getDownloadLinkAndExecute(download)
+                    })
                 } else {
                     download.state = "failed"
-                    download.error = error || "Download link request failed"
+                    download.error = root._httpFailureMessage(error, status, "Download link request failed")
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
@@ -822,74 +898,151 @@ QtObject {
         }
     }
 
+    // Accepts an upload request. The transfer is registered SYNCHRONOUSLY,
+    // before any asynchronous validation, so logout/cancel can always see it
+    // and invalidate it. Previously the stat preflight ran first and the
+    // transfer only appeared afterwards, which let a logout slip past and a
+    // stale callback resurrect the upload with the old token.
     function startUpload(localFilePath, token, baseUrl, repoId, destPath, fileName) {
-        // Validate upload source: absolute path, regular file, not symlink, size limit
         if (!localFilePath || typeof localFilePath !== "string" || !localFilePath.startsWith("/")) {
-            var errTransfer = { error: "Upload source must be an absolute path", state: "failed" }
             root.reportError("Invalid upload source: must be absolute path")
-            return
+            return null
         }
-        var statProc = _statFactory.createObject(root, {
+        var pendingQueued = root.getQueuedUploads().length
+        if (pendingQueued >= root.maxQueuedUploads) {
+            root.reportError("Upload queue is full (" + root.maxQueuedUploads + " waiting). Try again shortly.")
+            return null
+        }
+
+        var upload = {
+            id: Date.now() + Math.random(),
+            type: "upload",
+            state: "queued",
+            srcPath: localFilePath,
+            destUploadPath: destPath,
+            fileName: fileName || localFilePath.split("/").pop(),
+            repoId: repoId,
+            repoName: "",
+            token: token,
+            baseUrl: baseUrl,
+            process: null,
+            statProcess: null,
+            uploadLink: null,
+            progress: 0,
+            speed: "",
+            error: "",
+            retryCount: 0,
+            startTime: Date.now(),
+            endTime: null,
+            authHeaderFile: null,
+            curlConfigFile: null,
+            // Captured at creation. Every later continuation compares against
+            // root.sessionEpoch and bails out if a logout happened meanwhile.
+            epoch: root.sessionEpoch
+        }
+
+        var list = root.transfers.slice()
+        list.push(upload)
+        root.transfers = list
+        root.transfersChanged()
+
+        root._pumpUploadQueue()
+        return upload
+    }
+
+    // ===== UPLOAD SCHEDULER =====
+
+    function _pumpUploadQueue() {
+        while (root.getRunningUploadCount() < root.maxConcurrentUploads) {
+            var next = null
+            for (var i = 0; i < root.transfers.length; i++) {
+                var t = root.transfers[i]
+                // transfers[] keeps submission order, so the first queued entry
+                // is the oldest one. Stale entries (from a previous session) are
+                // skipped rather than started - and skipping is what keeps this
+                // loop terminating, because _beginUploadValidation refuses a
+                // stale transfer and would otherwise never change its state.
+                if (t.type !== "upload" || t.state !== "queued") continue
+                if (t.epoch !== undefined && t.epoch !== root.sessionEpoch) continue
+                next = t
+                break
+            }
+            if (!next) return
+            var before = next.state
+            root._beginUploadValidation(next)
+            if (next.state === before) return
+        }
+    }
+
+    // Validation Process belongs to the transfer, so cancel/logout can stop it.
+    function _beginUploadValidation(upload) {
+        if (upload.epoch !== root.sessionEpoch) return
+        if (upload.state !== "queued") return
+        upload.state = "validating"
+        root.transferStateChanged(upload)
+        root.transfersChanged()
+
+        var proc = _statFactory.createObject(root, {
             onDone: function(out) {
+                upload.statProcess = null
+                // A logout or a cancel while stat was running invalidates this
+                // continuation entirely - no curl, no resurrected transfer.
+                if (upload.epoch !== root.sessionEpoch) return
+                if (upload.state === "cancelled" || upload.state === "cancelling") return
+                if (upload.state !== "validating") return
+
                 if (!out) {
-                    var errTransfer = { error: "Upload source does not exist or cannot be accessed", state: "failed" }
-                    root.reportError("Invalid upload source: " + errTransfer.error)
+                    root._failUpload(upload, "Upload source does not exist or cannot be accessed")
                     return
                 }
                 var statResult = root.parseUploadStat(out)
                 if (!statResult) {
-                    root.reportError("Invalid upload source: file metadata could not be validated")
+                    root._failUpload(upload, "Upload source: file metadata could not be validated")
                     return
                 }
                 if (!statResult.regular) {
-                    var errTransfer = { error: "Upload source must be a regular file (not symlink, directory, device, FIFO, or socket)", state: "failed" }
-                    root.reportError("Invalid upload source: " + errTransfer.error)
+                    root._failUpload(upload, "Upload source must be a regular file (not symlink, directory, device, FIFO, or socket)")
                     return
                 }
                 if (statResult.size > root.maxUploadBodyBytes) {
-                    var errTransfer = { error: "Upload source exceeds maximum size of " + root.maxUploadBodyBytes + " bytes", state: "failed" }
-                    root.reportError("Upload too large: " + errTransfer.error)
+                    root._failUpload(upload, "Upload source exceeds maximum size of " + root.maxUploadBodyBytes + " bytes")
                     return
                 }
-
-                var nameResult = SafePath.sanitizeBasename(fileName)
+                var nameResult = SafePath.sanitizeBasename(upload.fileName)
                 if (!nameResult.valid) {
-                    var errTransfer = { error: nameResult.error, state: "failed" }
-                    root.reportError("Invalid filename: " + nameResult.error)
+                    root._failUpload(upload, nameResult.error)
                     return
                 }
-
-                var upload = {
-                    id: Date.now() + Math.random(),
-                    type: "upload",
-                    state: "pending",
-                    srcPath: localFilePath,
-                    destUploadPath: destPath,
-                    fileName: nameResult.sanitized,
-                    repoId: repoId,
-                    repoName: "",
-                    token: token,
-                    baseUrl: baseUrl,
-                    process: null,
-                    uploadLink: null,
-                    progress: 0,
-                    speed: "",
-                    error: "",
-                    retryCount: 0,
-                    startTime: Date.now(),
-                    endTime: null,
-                    authHeaderFile: null,
-                    curlConfigFile: null
-                }
-
-                root.transfers.push(upload)
+                upload.fileName = nameResult.sanitized
+                upload.state = "pending"
+                root.transferStateChanged(upload)
                 root.transfersChanged()
                 root.getUploadLinkAndExecute(upload)
-                return upload
             }
         })
-        statProc.command = ["stat", "-c", "%f:%s", "--", localFilePath]
-        statProc.running = true
+        if (!proc) {
+            root._failUpload(upload, "Failed to validate upload source")
+            return
+        }
+        upload.statProcess = proc
+        proc.command = ["stat", "-c", "%f:%s", "--", upload.srcPath]
+        proc.running = true
+    }
+
+    function _failUpload(upload, message) {
+        upload.state = "failed"
+        upload.error = message
+        root.reportError("Invalid upload source: " + message)
+        root.sanitizeForHistory(upload)
+        root.transferStateChanged(upload)
+        root.transfersChanged()
+        root._pumpUploadQueue()
+    }
+
+    // Releases a finished upload's slot and starts the next queued one.
+    function _uploadSettled(upload) {
+        if (upload) upload.process = null
+        root._pumpUploadQueue()
     }
 
     function getUploadLinkAndExecute(upload) {
@@ -905,8 +1058,9 @@ QtObject {
         }
         var url = upload.baseUrl.replace(/\/+$/, "") + "/api2/repos/" + upload.repoId + "/upload-link/?p=" + encodeURIComponent(upload.destUploadPath)
         HttpTransport.get(url, { "Authorization": "Token " + upload.token, "Accept": "application/json" },
-            function(success, data, error) {
-                if (upload.state === "cancelled") return
+            function(success, data, error, status) {
+                if (upload.epoch !== root.sessionEpoch) return
+                if (upload.state === "cancelled" || upload.state === "cancelling") return
                 if (success) {
                     if (typeof data !== "string" || data === "") {
                         upload.state = "failed"
@@ -930,26 +1084,33 @@ QtObject {
                     root.transferStateChanged(upload)
                     root.transfersChanged()
                     root.executeCurlUpload(upload)
-                } else if (root.isAuthError(error)) {
+                } else if (root.isAuthError(status)) {
                     upload.state = "auth_failed"
-                    upload.error = "Authentication failed"
+                    upload.error = "Authentication failed (HTTP " + status + ")"
                     root.sanitizeForHistory(upload)
                     root.transferStateChanged(upload)
                     root.transfersChanged()
-                } else if (root.isRetryableError(0, error) && upload.retryCount < root.maxRetries) {
+                    root._uploadSettled(upload)
+                } else if (root.isRetryableStatus(status) && upload.retryCount < root.maxRetries) {
                     upload.retryCount++
                     var delay = Math.min(root.retryBaseDelay * Math.pow(2, upload.retryCount - 1), root.maxRetryDelay)
                     upload.state = "pending"
                     root.transferRetryStarted(upload)
                     root.transferStateChanged(upload)
                     root.transfersChanged()
-                    scheduleRetry(delay, function() { root.getUploadLinkAndExecute(upload) })
+                    scheduleRetry(delay, function() {
+                        if (upload.epoch !== root.sessionEpoch) return
+                        if (upload.state === "cancelled" || upload.state === "cancelling") return
+                        root.getUploadLinkAndExecute(upload)
+                    })
                 } else {
                     upload.state = "failed"
-                    upload.error = error || "Upload link request failed"
+                    // Permanent failure (e.g. 400/404/409/422): no blind retry.
+                    upload.error = root._httpFailureMessage(error, status, "Upload link request failed")
                     root.sanitizeForHistory(upload)
                     root.transferStateChanged(upload)
                     root.transfersChanged()
+                    root._uploadSettled(upload)
                 }
             }
         )
@@ -1129,6 +1290,8 @@ QtObject {
         }
         root.transferStateChanged(upload)
         root.transfersChanged()
+        // This upload no longer occupies a concurrency slot; start the next one.
+        root._pumpUploadQueue()
     }
 
     // ===== CANCEL (with process group kill) =====
@@ -1137,6 +1300,34 @@ QtObject {
         for (var i = 0; i < root.transfers.length; i++) {
             var t = root.transfers[i]
             if (t.id === transferId) {
+                // Still waiting for a scheduler slot: nothing was started, so
+                // it can be retired immediately without any process work.
+                if (t.state === "queued") {
+                    t.state = "cancelled"
+                    t.endTime = Date.now()
+                    root.sanitizeForHistory(t)
+                    root.transferStateChanged(t)
+                    root.transfersChanged()
+                    root._pumpUploadQueue()
+                    return true
+                }
+                // Validation in flight: stop it, then retire. The stat Process
+                // belongs to the transfer, and the preflight continuation is
+                // additionally gated on state and session epoch.
+                if (t.state === "validating") {
+                    if (t.statProcess) {
+                        try { t.statProcess.running = false } catch (e) {}
+                        try { t.statProcess.destroy() } catch (e) {}
+                        t.statProcess = null
+                    }
+                    t.state = "cancelled"
+                    t.endTime = Date.now()
+                    root.sanitizeForHistory(t)
+                    root.transferStateChanged(t)
+                    root.transfersChanged()
+                    root._pumpUploadQueue()
+                    return true
+                }
                 if (t.process) {
                     t.state = "cancelling"
                     try {
@@ -1273,12 +1464,16 @@ QtObject {
             startTime: Date.now(),
             endTime: null,
             authHeaderFile: null,
-            curlConfigFile: null
+            curlConfigFile: null,
+            epoch: root.sessionEpoch
         }
-        root.transfers.push(download)
+        var openDownloads = root.transfers.slice()
+        openDownloads.push(download)
+        root.transfers = openDownloads
         root.transfersChanged()
         // Recover abandoned cache entries before admitting a new persistent file.
         SafePath.evictCache(function(ok) {
+            if (download.epoch !== root.sessionEpoch) return
             if (download.state !== "pending") return
             if (!ok) {
                 download.state = "failed"
@@ -1339,8 +1534,9 @@ QtObject {
         var path = download.fullPath || "/" + download.fileName
         var url = download.baseUrl.replace(/\/+$/, "") + "/api2/repos/" + download.repoId + "/file/?p=" + encodeURIComponent(path) + "&reuse=1"
         HttpTransport.get(url, { "Authorization": "Token " + download.token, "Accept": "application/json" },
-            function(success, data, error) {
-                if (download.state === "cancelled") return
+            function(success, data, error, status) {
+                if (download.epoch !== undefined && download.epoch !== root.sessionEpoch) return
+                if (download.state === "cancelled" || download.state === "cancelling") return
                 if (success) {
                     if (typeof data !== "string" || data === "") {
                         download.state = "failed"
@@ -1364,23 +1560,27 @@ QtObject {
                     root.transferStateChanged(download)
                     root.transfersChanged()
                     root.executeCurlOpenDownload(download)
-                } else if (root.isAuthError(error)) {
+                } else if (root.isAuthError(status)) {
                     download.state = "auth_failed"
-                    download.error = "Authentication failed"
+                    download.error = "Authentication failed (HTTP " + status + ")"
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
-                } else if (root.isRetryableError(0, error) && download.retryCount < root.maxRetries) {
+                } else if (root.isRetryableStatus(status) && download.retryCount < root.maxRetries) {
                     download.retryCount++
                     var delay = Math.min(root.retryBaseDelay * Math.pow(2, download.retryCount - 1), root.maxRetryDelay)
                     download.state = "pending"
                     root.transferRetryStarted(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
-                    scheduleRetry(delay, function() { root.getDownloadLinkAndOpen(download) })
+                    scheduleRetry(delay, function() {
+                        if (download.epoch !== undefined && download.epoch !== root.sessionEpoch) return
+                        if (download.state === "cancelled" || download.state === "cancelling") return
+                        root.getDownloadLinkAndOpen(download)
+                    })
                 } else {
                     download.state = "failed"
-                    download.error = error || "Download link request failed"
+                    download.error = root._httpFailureMessage(error, status, "Download link request failed")
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
@@ -1717,8 +1917,26 @@ QtObject {
     // ===== LOGOUT CLEANUP =====
 
     function logoutCleanup() {
+        // Bump first: any in-flight continuation that captured an older epoch
+        // (stat preflight, upload-link request, scheduled retry) becomes inert
+        // the moment this runs, so nothing can resurrect a transfer or reuse
+        // the old credentials afterwards.
+        root.sessionEpoch++
         var active = root.transfers.slice()
-        for (var i = 0; i < active.length; i++) root.cancelTransfer(active[i].id)
+        for (var i = 0; i < active.length; i++) {
+            // Retire anything the epoch bump orphaned (a queued upload that will
+            // never be scheduled) so it cannot linger in a non-terminal state.
+            if (active[i].state === "queued" || active[i].state === "validating") {
+                if (active[i].statProcess) {
+                    try { active[i].statProcess.running = false } catch (e) {}
+                    try { active[i].statProcess.destroy() } catch (e) {}
+                    active[i].statProcess = null
+                }
+                active[i].state = "cancelled"
+                active[i].endTime = Date.now()
+            }
+            root.cancelTransfer(active[i].id)
+        }
         root.transfers = []
         root.transfersChanged()
     }

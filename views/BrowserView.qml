@@ -28,6 +28,7 @@ Item {
     required property var destinationMode
     required property ConnectionService connectionService
     required property bool singleClickOpen
+    required property bool foldersFirst
 
     required property var onItemClicked
     required property var onDownloadClicked
@@ -48,6 +49,11 @@ Item {
 
     width: parent.width
     implicitHeight: content.implicitHeight
+
+    // The FileList Panel drives with the keyboard, exposed through the view API
+    // so Panel never reaches for a lexical id inside this component. Null while
+    // a search or the transfers surface owns the content area.
+    readonly property var activeFileList: fileList.visible ? fileList : null
 
     Column {
         id: content
@@ -106,7 +112,6 @@ Item {
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
             horizontalAlignment: Text.AlignHCenter
-            anchors.horizontalCenter: parent.horizontalCenter
             topPadding: Style.space(4)
             textFormat: Text.PlainText
         }
@@ -146,6 +151,7 @@ Item {
             onPositionClicked: root.onPositionClicked
             onContextMenuRequested: root.onContextMenuRequested
             singleClickOpen: root.singleClickOpen
+            foldersFirst: root.foldersFirst
         }
 
         SearchResults {
@@ -156,45 +162,12 @@ Item {
             bar: root.bar
             visible: root.searchActive && root.searchState !== "loading"
             onResultClicked: root.onSearchResultClicked
-            onResultRightClicked: root.onSearchResultClicked
         }
 
-        TransferManager {
-            id: transferManager
-            width: parent.width
-            height: visible ? Style.space(360) : 0
-            bar: root.bar
-            visible: root.showTransfers && !root.searchActive
-            transferRevision: root.transferRevision
-            onCancel: function(transfer) { TransferService.cancelTransfer(transfer.id) }
-            onRetry: function(transfer) {
-                var token = Auth.getToken()
-                var baseUrl = Auth.getServerUrl()
-                TransferService.retryTransfer(transfer.id, token, baseUrl)
-            }
-            onClearCompleted: function() { TransferService.clearCompleted() }
-            onClearFailed: function() { TransferService.clearFailed() }
-            onRetryAllFailed: function() {
-                var token = Auth.getToken()
-                var baseUrl = Auth.getServerUrl()
-                var failed = TransferService.getFailedTransfers()
-                for (var i = 0; i < failed.length; i++) {
-                    TransferService.retryTransfer(failed[i].id, token, baseUrl)
-                }
-            }
-            onClearAllCompleted: function() { TransferService.clearCompleted() }
-            onClearAllFailed: function() { TransferService.clearFailed() }
-            onOpen: function(transfer) {
-                var url = Models.toFileUrl(transfer.destPath)
-                var success = Qt.openUrlExternally(url)
-                if (!success) root.showToast("Could not open file", "error")
-            }
-            onShowInFolder: function(transfer) {
-                var url = Models.toParentFileUrl(transfer.destPath)
-                var success = Qt.openUrlExternally(url)
-                if (!success) root.showToast("Could not open folder", "error")
-            }
-        }
+        // The TransferManager now lives at Panel level (see Panel.qml's
+        // transfersLoader) so that Transfers works from the Libraries root,
+        // where currentRepo is null and this view is not instantiated. Keeping
+        // a second instance here would duplicate transfer state.
 
         // Details panel - shows info for selected item(s)
         DetailsPanel {

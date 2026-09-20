@@ -10,7 +10,7 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 - Download files to the XDG user download directory (falling back to `~/Downloads`) with progress, cancellation, retry, and no-overwrite collision protection.
 - **Secure download target creation**: temporary files created with exclusive O_CREAT|O_EXCL|O_NOFOLLOW on a held directory FD, mode 0600, curl writes to held FD (no pathname reopen), producer-side byte ceiling (1 GiB default) and disk-space admission check (256 MiB safety margin), automatic cleanup on failure/cancellation, symlink and clobber protection.
 - **Open Local**: download to private `XDG_CACHE_HOME` (or `~/.cache`) cache, same secure creation, bounded cache (1 GiB default, recovery/eviction before use), cached file opened with xdg-open.
-- **Graphical file picker** for uploads (uses xdg-desktop-portal via Qt FileDialog) with multi-file selection; manual path entry remains as fallback.
+- **Graphical file picker** for uploads (an out-of-process `zenity --file-selection --multiple`) with multi-file selection; manual path entry remains as fallback and is the only route when `zenity` is absent.
 - **Upload source hardening**: absolute path required, must be regular file (rejects symlinks, directories, devices, FIFOs, sockets), size precheck (1 GiB default).
 - Create folders, rename items (F2), and delete files or folders (Delete).
 - Select multiple items with Ctrl+Click, Shift+Click, or Ctrl+A for batch actions.
@@ -33,13 +33,15 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 - A reachable Seafile server. Development validation used Seafile CE 12.0.x.
 - `curl` for transfers.
 - `libsecret` for `secret-tool` and credential storage.
+- `zenity` for the graphical upload picker. **Optional**: without it the manual path field still uploads, and login is not blocked.
 - `wl-clipboard` for copying share links. Sharing still works without it, but copying the link does not.
+- `libnotify` for `notify-send` transfer notifications. **Optional**.
 - Python 3, `coreutils` (`stat`, `realpath`), `util-linux` (`setsid`), and `xdg-user-dirs`/`xdg-utils` (`xdg-user-dir`, `xdg-open`), normally supplied by Omarchy/Arch desktop installations.
 
 On Arch/Omarchy:
 
 ```bash
-sudo pacman -S curl libsecret wl-clipboard
+sudo pacman -S curl libsecret python zenity wl-clipboard libnotify
 ```
 
 ## Installation
@@ -71,7 +73,7 @@ The session token, server URL, and account email are stored through the desktop 
 ### Home / Quick Access
 
 On first open, the Home view shows:
-- **Quick Access**: Pinned libraries and folders. Right-click any item in the browser → "Add to Quick Access".
+- **Quick Access**: Pinned libraries and folders. Right-click a library (at the Libraries root) or a folder (inside a library) → "Add to Quick Access". Files cannot be pinned in v1.1. Entries are per account; the remove button works from Home without opening the library first.
 - **Active Transfers**: Current downloads/uploads with progress.
 
 ### Browsing and transfers
@@ -109,7 +111,9 @@ Search is available from the toolbar. It is debounced and searches each accessib
 
 - **Connection**: Server URL, Test Connection, Auto-login.
 - **Account**: Shows signed-in email.
-- **Preferences**: Single-click to open, Default sort (Name/Size/Modified/Type), Ascending/Descending, Transfer notifications.
+- **Preferences**: Single-click to open, Default sort (Name/Size/Modified/Type), Ascending/Descending, **Folders first**, Transfer notifications.
+
+`Folders first` puts directories ahead of files when sorting by Name, Size or Modified. Turning it off orders every entry purely by the selected column and direction. Sorting by the Type column always groups directories first regardless of this switch. The setting is persisted across shell restarts.
 - **Data**: Clear Cache, Logout.
 - **About**: Version and issue tracker link.
 
@@ -151,6 +155,8 @@ In Move or Copy destination mode, Enter and pointer activation navigate folders 
 - HTTPS is required for non-loopback servers. Certificate verification uses the system trust store; TLS verification is not bypassed.
 - The plugin assumes Omarchy's Quickshell runtime and Wayland desktop integration.
 - Desktop notifications require `notify-send` (provided by `libnotify`).
+- The graphical upload picker is `zenity`, and it separates the selected paths with a newline. A filename that itself contains a newline therefore cannot be picked; enter such a path manually instead. Spaces, percent signs and non-ASCII filenames are handled correctly.
+- Quick Access is scoped to the signed-in account (server URL plus email). Signing out hides the entries without deleting them; signing back in restores them. Entries pinned before 1.1 are migrated into the first account that signs in, once.
 
 ## Troubleshooting
 
@@ -163,7 +169,7 @@ In Move or Copy destination mode, Enter and pointer activation navigate folders 
 | Auto-login failure | Check that Secret Service is available and Auto-login is enabled in Settings. |
 | Share link will not copy | Install `wl-clipboard`; the link can still be viewed. |
 | Plugin missing from the bar | Check `omarchy plugin list`, then inspect Omarchy shell logs. |
-| File picker doesn't appear | Ensure `xdg-desktop-portal-hyprland` (or appropriate backend) is running. |
+| File picker doesn't appear | Install `zenity`, or type the path into the upload dialog manually. |
 
 ## Development
 

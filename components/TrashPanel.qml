@@ -37,7 +37,6 @@ Column {
         Row {
             width: parent.width
             height: Style.space(40)
-            anchors.leftMargin: Style.space(12)
             spacing: Style.space(8)
 
             Text {
@@ -46,7 +45,8 @@ Column {
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.title
                 font.bold: true
-                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
                 width: parent.width - Style.space(24)
             }
@@ -71,26 +71,23 @@ Column {
 
                 Row {
                     id: row
-                    anchors.fill: parent
-                    anchors.leftMargin: Style.space(12)
-                    anchors.rightMargin: Style.space(12)
                     spacing: Style.space(12)
                     height: Math.max(icon.implicitHeight, nameLabel.implicitHeight) + Style.space(8)
 
                     Text {
                         id: icon
-                        text: isDir ? "\uf07b" : "\uf15b"
+                        text: isDir ? Icons.folder : Icons.file
                         color: root.bar.foreground
-                        font.family: "Noto Sans"
+                        font.family: Icons.family
                         font.pixelSize: Style.font.title
                         width: Style.space(24)
                         horizontalAlignment: Text.AlignHCenter
-                        anchors.verticalCenter: parent.verticalCenter
+                        height: parent.height
+                        verticalAlignment: Text.AlignVCenter
                     }
 
                     Column {
                         width: parent.width - icon.width - actionColumn.width - Style.space(24)
-                        anchors.verticalCenter: parent.verticalCenter
                         spacing: Style.space(2)
 
                         Text {
@@ -131,7 +128,6 @@ Column {
                     Column {
                         id: actionColumn
                         width: Style.space(100)
-                        anchors.verticalCenter: parent.verticalCenter
                         spacing: Style.space(4)
 
                         Text {
@@ -151,7 +147,7 @@ Column {
         EmptyState {
                 id: emptyState
                 bar: root.bar
-                icon: "\uf1f8"
+                icon: Icons.trash
                 title: "Trash is empty"
                 subtitle: "Deleted items appear here"
                 width: parent.width

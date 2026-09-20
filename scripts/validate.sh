@@ -43,6 +43,9 @@ check "manifest version semver format" jq -e '.version | test("^\\d+\\.\\d+\\.\\
 check "manifest kinds includes bar-widget" jq -e '.kinds | index("bar-widget")' manifest.json >/dev/null
 check "manifest entryPoints.barWidget exists" jq -e '.entryPoints.barWidget' manifest.json >/dev/null
 check "manifest barWidget.schema has autoLogin" jq -e '.barWidget.schema[] | select(.key == "autoLogin")' manifest.json >/dev/null
+check "manifest barWidget.schema has foldersFirst" jq -e '.barWidget.schema[] | select(.key == "foldersFirst")' manifest.json >/dev/null
+check "manifest version matches Panel.qml pluginVersion" bash -c "test \"$(jq -r .version manifest.json)\" = \"$(grep -oE 'pluginVersion: .[0-9.]+' Panel.qml | grep -oE '[0-9.]+')\""
+check "CHANGELOG has an entry for the manifest version" bash -c "grep -qF \"[$(jq -r .version manifest.json)]\" CHANGELOG.md"
 check "BarWidget.qml exists" test -f BarWidget.qml
 check "Panel.qml exists" test -f Panel.qml
 check "SettingsDialog.qml exists" test -f components/SettingsDialog.qml
@@ -126,6 +129,19 @@ check "Upload picker uses out-of-process zenity (no QtQuick.Dialogs FileDialog)"
 check "Upload picker supports multi-file selection" grep -q '"--multiple"' components/UploadDialog.qml
 check "Upload picker runs in isolated Process (not in Quickshell)" bash -c 'grep -q "Process {" components/UploadDialog.qml && grep -q "pickerProcess" components/UploadDialog.qml'
 check "Upload picker zenity filter uses NAME | PATTERN format" grep -q '"--file-filter=All files | \*"' components/UploadDialog.qml
+check "Upload picker does not URI-decode selected paths" bash -c '! grep -vE "^\s*(//|\*|/\*)" components/UploadDialog.qml | grep -q "decodeURIComponent"'
+# Looks for a file:// string literal, not for the word in a comment.
+check "Upload picker passes raw filesystem paths to the caller" bash -c "! grep -qE '\"file://' components/UploadDialog.qml"
+check "Quick Access is limited to libraries and folders" bash -c 'grep -q "Only libraries and folders can be added to Quick Access" Panel.qml'
+check "zenity cannot block login (optional dependency)" bash -c 'grep -A2 "cmd: \"zenity\"" js/Auth.qml | grep -q "required: false"'
+check "python3 is a declared required dependency" bash -c 'grep -A2 "cmd: \"python3\"" js/Auth.qml | grep -q "required: true"'
+check "foldersFirst is a real wired preference" bash -c 'grep -q "foldersFirst: root.foldersFirst" views/BrowserView.qml && grep -q "root.foldersFirst &&" components/FileList.qml'
+check "Transfers surface is reachable without a library open" grep -q 'root.state === "browse" && root.showTransfers' Panel.qml
+check "exactly one TransferManager is instantiated" bash -c 'test "$(grep -rl "TransferManager {" --include="*.qml" . | wc -l)" -eq 1'
+check "HTTP status is classified numerically, not from text" bash -c '! grep -q "isAuthError(error)" js/TransferService.qml && ! grep -q "isRetryableError(0, error)" js/TransferService.qml'
+check "Upload queue is bounded" bash -c 'grep -q "maxConcurrentUploads: 3" js/TransferService.qml && grep -q "maxQueuedUploads: 100" js/TransferService.qml'
+check "Logout invalidates in-flight upload continuations" bash -c 'grep -q "sessionEpoch++" js/TransferService.qml && grep -q "upload.epoch !== root.sessionEpoch" js/TransferService.qml'
+check "Server URL rejects credentials/query/fragment" bash -c 'grep -q "userinfo" js/UrlPolicy.qml'
 
 # --- LOCAL_RUNTIME: Requires Omarchy/Quickshell ---
 echo ""
@@ -220,11 +236,29 @@ if problems:
 sys.exit(0)
 PY
 
+# --- QML POSITIONER ANCHORS ---
+# anchors.* on a direct Column/Row child is ignored by Qt and logs a warning at
+# runtime. This is a static scan of the real sources, not a re-implementation.
+echo ""
+echo "--- QML Positioner Anchors ---"
+check "no anchors on direct positioner children" python3 scripts/check_positioner_anchors.py
+
 # --- Security microfix tests ---
 echo ""
 echo "--- Security Microfix Tests ---"
 check "portable CI suite passes" python3 scripts/test_portable.py
-check "deployment scope suite passes" python3 scripts/test_deploy_scope.py
+# Listed explicitly so a reader can see these are enforced rather than only
+# present on disk. test_portable.py runs all of them.
+check "qml warnings suite enforced" bash -c 'grep -q "test_qml_warnings.py" scripts/test_portable.py'
+check "panel reopen/libraries suite enforced" bash -c 'grep -q "test_panel_reopen_libraries.py" scripts/test_portable.py'
+check "v1.1 remediation suite enforced" bash -c 'grep -q "test_v11_remediation.py" scripts/test_portable.py'
+# deploy.sh drives rsync, so this suite cannot run where rsync is absent.
+# Reported as SKIP with the reason rather than a bare FAIL.
+if command -v rsync >/dev/null; then
+    check "deployment scope suite passes" python3 scripts/test_deploy_scope.py
+else
+    echo "  deployment scope suite passes... SKIP (rsync not installed; deploy.sh requires it)"
+fi
 if command -v qs >/dev/null; then
     check "Open Local lifecycle suite passes" python3 scripts/test_open_lifecycle.py
     check "Quickshell runtime remediation suite passes" python3 scripts/test_runtime_remediation.py
@@ -235,7 +269,7 @@ fi
 # --- Dependency Reporting ---
 echo ""
 echo "--- Dependency Report ---"
-for cmd in curl secret-tool wl-copy; do
+for cmd in curl python3 secret-tool zenity wl-copy xdg-open notify-send; do
     if command -v "$cmd" >/dev/null; then
         echo "  $cmd: $(which $cmd)"
     else

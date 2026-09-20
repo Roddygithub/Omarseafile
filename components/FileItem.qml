@@ -28,12 +28,21 @@ Item {
     property bool singleClickOpen: false
 
     readonly property var safeItem: item || {}
+
+    // Single guarded read of the ListView attached property. `ListView` is an
+    // attached object that is null when the delegate is not parented to a view
+    // (e.g. while being reparented or measured), so EVERY use must go through
+    // these two - reading root.ListView.isCurrentItem directly throws.
+    readonly property var _listView: root.ListView
+    readonly property bool isCurrent: root._listView ? root._listView.isCurrentItem === true : false
     property bool isDir: safeItem.type === "dir"
     property var activeTransfer: root.findTransfer(root.item)
     property bool isDownloading: activeTransfer !== null && activeTransfer.type === "download" && (activeTransfer.state === "pending" || activeTransfer.state === "downloading")
     property bool isUploading: activeTransfer !== null && activeTransfer.type === "upload" && (activeTransfer.state === "pending" || activeTransfer.state === "uploading")
     property real transferProgress: activeTransfer ? activeTransfer.progress : 0
-    property string transferSpeed: activeTransfer ? activeTransfer.speed : ""
+    // activeTransfer.speed may be absent on a freshly registered (queued)
+    // transfer, and assigning undefined to a string property is a binding error.
+    property string transferSpeed: (activeTransfer && activeTransfer.speed) ? activeTransfer.speed : ""
     property bool isSelected: root.selected
 
     onTransferRevisionChanged: root.activeTransfer = root.findTransfer(root.item)
@@ -44,16 +53,16 @@ Item {
     // Keyboard cursor highlight
     Rectangle {
         anchors.fill: parent
-        color: root.ListView.isCurrentItem ? Color.accent : "transparent"
-        opacity: root.ListView.isCurrentItem ? 0.18 : 0
-        visible: (root.ListView && root.ListView.isCurrentItem) || false
+        color: root.isCurrent ? Color.accent : "transparent"
+        opacity: root.isCurrent ? 0.18 : 0
+        visible: root.isCurrent
     }
 
     // Batch-selection row highlight — distinct from the keyboard cursor.
     Rectangle {
         anchors.fill: parent
         color: root.isSelected ? Color.accent : "transparent"
-        opacity: root.isSelected && !root.ListView.isCurrentItem ? 0.10 : 0
+        opacity: root.isSelected && !root.isCurrent ? 0.10 : 0
         visible: root.isSelected
     }
 
@@ -68,21 +77,19 @@ Item {
 
     Row {
         id: row
-        anchors.fill: parent
-        anchors.leftMargin: Style.space(12)
-        anchors.rightMargin: Style.space(12)
         spacing: Style.space(12)
         height: Math.max(icon.implicitHeight, nameLabel.implicitHeight) + Style.space(6)
 
         Text {
             id: icon
-            text: root.isDir ? "\uf07b" : "\uf15b"
+            text: root.isDir ? Icons.folder : Icons.file
             color: root.isSelected ? Color.accent : (root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground)
-            font.family: "Noto Sans"
+            font.family: Icons.family
             font.pixelSize: Style.font.title
             width: Style.space(24)
             horizontalAlignment: Text.AlignHCenter
-            anchors.verticalCenter: parent.verticalCenter
+            height: parent.height
+            verticalAlignment: Text.AlignVCenter
         }
 
         Text {
@@ -93,7 +100,8 @@ Item {
             font.pixelSize: Style.font.body
             elide: Text.ElideRight
             width: parent ? parent.width - icon.width - sizeLabel.width - (dateLabel.visible ? dateLabel.width : 0) - transferWidth - Style.space(36) : 0
-            anchors.verticalCenter: parent.verticalCenter
+            height: parent.height
+            verticalAlignment: Text.AlignVCenter
             textFormat: Text.PlainText
         }
 
@@ -104,7 +112,6 @@ Item {
             visible: root.isDownloading || root.isUploading
 
             Row {
-                anchors.fill: parent
                 spacing: Style.space(8)
 
                 ProgressBar {
@@ -114,7 +121,7 @@ Item {
                     from: 0
                     to: 1
                     value: root.transferProgress
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
                 }
 
                 Text {
@@ -123,7 +130,8 @@ Item {
                     color: Qt.darker(root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground, 1.4)
                     font.family: root.bar ? root.bar.fontFamily : Style.font.family
                     font.pixelSize: Style.font.caption
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
                     textFormat: Text.PlainText
                 }
             }
@@ -137,7 +145,8 @@ Item {
             font.pixelSize: Style.font.caption
             width: Style.space(80)
             horizontalAlignment: Text.AlignRight
-            anchors.verticalCenter: parent.verticalCenter
+            height: parent.height
+            verticalAlignment: Text.AlignVCenter
             visible: !root.isDownloading && !root.isUploading
             textFormat: Text.PlainText
         }
@@ -151,7 +160,8 @@ Item {
             width: visible ? Style.space(150) : 0
             horizontalAlignment: Text.AlignRight
             elide: Text.ElideRight
-            anchors.verticalCenter: parent.verticalCenter
+            height: parent.height
+            verticalAlignment: Text.AlignVCenter
             visible: !root.isDownloading && !root.isUploading
             textFormat: Text.PlainText
         }
@@ -174,7 +184,7 @@ Item {
             }
 
             // Ensure keyboard focus follows click
-            if ((root.ListView && root.ListView.view)) (root.ListView && root.ListView.view).currentIndex = root.itemIndex
+            if (root._listView && root._listView.view) root._listView.view.currentIndex = root.itemIndex
 
             var accel = Qt.ControlModifier | Qt.MetaModifier
             if (mouse.modifiers & accel) {

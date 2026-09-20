@@ -20,14 +20,62 @@ QtObject {
             property var onDone: null
             property var headerFilePath: ""
             property var bodyFilePath: ""
+            property var statusFilePath: ""
             stdout: StdioCollector {}
             stderr: StdioCollector {}
             onExited: function(exitCode, exitStatus) {
                 var cb = onDone
                 var out = stdout.text
                 var err = stderr.text
+                var statusPath = statusFilePath
                 destroy()
-                if (cb) cb(exitCode, out, err)
+                if (!cb) return
+                // Resolve the real HTTP status before invoking the caller, so
+                // downstream classification never has to guess a status by
+                // parsing human-readable error text.
+                root._readStatusFile(statusPath, function(status) {
+                    cb(exitCode, out, err, status)
+                })
+            }
+        }
+    }
+
+    // Reads the 3-digit status curl wrote via `-w %{http_code}`. Returns 0 when
+    // the file is missing or unreadable: 0 means "no HTTP response observed",
+    // i.e. a transport-level failure, which is the honest classification.
+    // The path always comes from SafePath.createSecureFile and is passed as an
+    // argv element, never through a shell.
+    function _readStatusFile(path, callback) {
+        if (!path) { callback(0); return }
+        var proc = root._statusReaderFactory.createObject(root, {
+            onDone: function(text) {
+                callback(root._statusFromText(text))
+            }
+        })
+        if (!proc) { callback(0); return }
+        proc.command = ["cat", "--", path]
+        proc.running = true
+    }
+
+    function _statusFromText(text) {
+        if (typeof text !== "string") return 0
+        var trimmed = text.trim()
+        if (!/^[0-9]{3}$/.test(trimmed)) return 0
+        var n = parseInt(trimmed, 10)
+        // curl reports 000 when it never received an HTTP response.
+        if (n === 0) return 0
+        return n
+    }
+
+    property Component _statusReaderFactory: Component {
+        Process {
+            property var onDone: null
+            stdout: StdioCollector {}
+            onExited: function(exitCode) {
+                var cb = onDone
+                var out = stdout.text
+                destroy()
+                if (cb) cb(exitCode === 0 ? out : "")
             }
         }
     }
@@ -40,10 +88,13 @@ QtObject {
 
     function request(method, url, headers, body, callback) {
         var finished = false
-        function finish(success, data, error) {
+        // The 4th argument is the real HTTP status (0 == no HTTP response was
+        // observed, i.e. a transport failure). Callers written against the old
+        // 3-argument contract simply ignore it.
+        function finish(success, data, error, status) {
             if (finished) return
             finished = true
-            callback(success, data, error)
+            callback(success, data, error, typeof status === "number" ? status : 0)
         }
         var config = {
             method: method,
@@ -57,98 +108,118 @@ QtObject {
         var hasBody = config.body !== undefined && config.body !== null && config.body !== ""
 
         SafePath.getRuntimeSubdir("http", function(httpResult) {
-            if (!httpResult.valid) { finish(false, null, "Runtime dir unavailable: " + httpResult.error); return }
+            if (!httpResult.valid) { finish(false, null, "Runtime dir unavailable: " + httpResult.error, 0); return }
 
-            var curlArgs = [
-                "curl", "-q", "-f", "-s", "-S",
-                "--connect-timeout", Math.ceil(root.connectTimeoutMs / 1000).toString(),
-                "--max-time", Math.ceil(root.totalTimeoutMs / 1000).toString(),
-                "--speed-limit", "1",
-                "--speed-time", "30",
-                "--no-location",
-                "--max-filesize", root.maxResponseBytes.toString()
-            ]
+            // A private 0600 file curl writes the response status into. curl's
+            // own exit code only distinguishes "HTTP >= 400" (22) from
+            // everything else, which is not enough to tell a permanent 404 from
+            // a retryable 503 - so the exact status is captured out of band.
+            SafePath.createSecureFile("http", "curl_status", "000", function(statusResult) {
+                if (!statusResult.valid) { finish(false, null, "Status file failed: " + statusResult.error, 0); return }
+                var statusFile = statusResult.path
 
-            for (var h in config.headers) {
-                if (h.toLowerCase() !== "authorization") {
-                    curlArgs.push("-H", h + ": " + config.headers[h])
+                var curlArgs = [
+                    "curl", "-q", "-f", "-s", "-S",
+                    "--connect-timeout", Math.ceil(root.connectTimeoutMs / 1000).toString(),
+                    "--max-time", Math.ceil(root.totalTimeoutMs / 1000).toString(),
+                    "--speed-limit", "1",
+                    "--speed-time", "30",
+                    "--no-location",
+                    "--max-filesize", root.maxResponseBytes.toString(),
+                    // Response body is discarded into the status file; the
+                    // write-out code is appended after it and is the only thing
+                    // we read back.
+                    "-o", statusFile,
+                    "-w", "%{http_code}"
+                ]
+
+                for (var h in config.headers) {
+                    if (h.toLowerCase() !== "authorization") {
+                        curlArgs.push("-H", h + ": " + config.headers[h])
+                    }
                 }
-            }
 
-            if (authHeader) {
-                var configContent = "header = \"Authorization: " + authHeader.replace(/"/g, "\\\"") + "\"\n"
-                SafePath.createSecureFile("http", "curl_hdr", configContent, function(hdrResult) {
-                    if (!hdrResult.valid) { finish(false, null, "Header file failed: " + hdrResult.error); return }
-                    runRequest(hdrResult.path)
-                })
-            } else {
-                runRequest("")
-            }
-
-            function runRequest(headerFile) {
-                if (hasBody) {
-                    SafePath.createSecureFile("http", "curl_body", config.body, function(bodyResult) {
-                        if (!bodyResult.valid) {
-                            cleanup(headerFile)
-                            finish(false, null, "Body file failed: " + bodyResult.error); return
-                        }
-                        execute(headerFile, bodyResult.path, curlArgs.slice())
+                if (authHeader) {
+                    var configContent = "header = \"Authorization: " + authHeader.replace(/\"/g, "\\\"") + "\"\n"
+                    SafePath.createSecureFile("http", "curl_hdr", configContent, function(hdrResult) {
+                        if (!hdrResult.valid) { cleanup(statusFile); finish(false, null, "Header file failed: " + hdrResult.error, 0); return }
+                        runRequest(hdrResult.path)
                     })
                 } else {
-                    execute(headerFile, "", curlArgs.slice())
+                    runRequest("")
                 }
-            }
 
-            function execute(hdrFile, bodyFile, args) {
-                if (hdrFile) {
-                    args.push("--config", hdrFile)
+                function runRequest(headerFile) {
+                    if (hasBody) {
+                        SafePath.createSecureFile("http", "curl_body", config.body, function(bodyResult) {
+                            if (!bodyResult.valid) {
+                                cleanup(headerFile)
+                                cleanup(statusFile)
+                                finish(false, null, "Body file failed: " + bodyResult.error, 0); return
+                            }
+                            execute(headerFile, bodyResult.path, curlArgs.slice())
+                        })
+                    } else {
+                        execute(headerFile, "", curlArgs.slice())
+                    }
                 }
-                if (bodyFile) {
-                    args.push("--data-binary", "@" + bodyFile)
-                }
-                args = ["setsid", "python3", root._transferOutputHelper,
-                    root.maxStderrBytes.toString(), "--"].concat(args)
-                args.push("-X", config.method)
-                args.push(config.url)
 
-                var proc = _requestFactory.createObject(root, {
-                    onDone: function(exitCode, out, err) {
+                function execute(hdrFile, bodyFile, args) {
+                    if (hdrFile) {
+                        args.push("--config", hdrFile)
+                    }
+                    if (bodyFile) {
+                        args.push("--data-binary", "@" + bodyFile)
+                    }
+                    args = ["setsid", "python3", root._transferOutputHelper,
+                        root.maxStderrBytes.toString(), "--"].concat(args)
+                    args.push("-X", config.method)
+                    args.push(config.url)
+
+                    var proc = _requestFactory.createObject(root, {
+                        statusFilePath: statusFile,
+                        onDone: function(exitCode, out, err, status) {
+                            cleanup(hdrFile)
+                            cleanup(bodyFile)
+                            cleanup(statusFile)
+                            if (exitCode === 0) {
+                                try {
+                                    var data = out ? JSON.parse(out) : null
+                                    var validation = validateResponse(data)
+                                    if (!validation.valid) { finish(false, null, validation.error, status); return }
+                                    finish(true, validation.data, null, status)
+                                } catch (e) {
+                                    finish(false, null, "Invalid JSON response", status)
+                                }
+                            } else if (exitCode === 63 || exitCode === 23) {
+                                // 63: max-filesize exceeded (curl 7.56.0+); 23: write error (older curl)
+                                finish(false, null, "Response too large (exceeds " + root.maxResponseBytes + " bytes)", status)
+                            } else {
+                                // Pass the real status through. Callers decide
+                                // retryability from it, never from `err` text.
+                                finish(false, null, "Request failed (exit " + exitCode + "): " + (err || "unknown"), status)
+                            }
+                        }
+                    })
+                    if (!proc) {
                         cleanup(hdrFile)
                         cleanup(bodyFile)
-                        if (exitCode === 0) {
-                            try {
-                                var data = out ? JSON.parse(out) : null
-                                var validation = validateResponse(data)
-                                if (!validation.valid) { finish(false, null, validation.error); return }
-                                finish(true, validation.data, null)
-                            } catch (e) {
-                                finish(false, null, "Invalid JSON response")
-                            }
-                        } else if (exitCode === 63 || exitCode === 23) {
-                            // 63: max-filesize exceeded (curl 7.56.0+); 23: write error (older curl)
-                            finish(false, null, "Response too large (exceeds " + root.maxResponseBytes + " bytes)")
-                        } else {
-                            finish(false, null, "Request failed (exit " + exitCode + "): " + (err || "unknown"))
-                        }
+                        cleanup(statusFile)
+                        finish(false, null, "Failed to create request process", 0)
+                        return
                     }
-                })
-                if (!proc) {
-                    cleanup(hdrFile)
-                    cleanup(bodyFile)
-                    finish(false, null, "Failed to create request process")
-                    return
+                    proc.command = args
+                    proc.running = true
                 }
-                proc.command = args
-                proc.running = true
-            }
 
-            function cleanup(path) {
-                if (!path) return
-                var proc = root._cleanupProcessFactory.createObject(root)
-                if (!proc) return
-                proc.command = ["rm", "-f", "--", path]
-                proc.running = true
-            }
+                function cleanup(path) {
+                    if (!path) return
+                    var proc = root._cleanupProcessFactory.createObject(root)
+                    if (!proc) return
+                    proc.command = ["rm", "-f", "--", path]
+                    proc.running = true
+                }
+            })
         })
     }
 

@@ -74,6 +74,13 @@ Panel {
 
     // ===== UX PREFERENCES =====
     property bool singleClickOpen: setting("singleClickOpen", false)
+    // Directories before files when sorting by Name/Size/Modified. Type sorting
+    // keeps its own logical semantics regardless of this switch.
+    property bool foldersFirst: setting("foldersFirst", true)
+
+    // Single source of truth for the displayed version, kept in step with
+    // manifest.json by scripts/test_v11_remediation.py.
+    readonly property string pluginVersion: "1.1.0"
 
     function selectionKeyForItem(item) {
         return SelectionHelper.makeKey(item)
@@ -133,28 +140,105 @@ Panel {
         root.selectionAnchor = null
     }
 
-    function addToFavorites(item) {
-        if (!item || !root.currentRepo) return
-        var isDir = item.type === "dir"
-        if (isDir) {
-            // Pass parent path (currentPath), Favorites.addFolder normalizes root to ""
-            Favorites.addFolder(root.currentRepo.id, root.currentRepo.name, root.currentPath, item.name)
-        } else {
-            Favorites.addLibrary(root.currentRepo.id, root.currentRepo.name)
-        }
+    // Favorites persist per account, so every mutation writes the scoped store
+    // (plus the one-time legacy-migration marker) back to settings.
+    function persistFavorites() {
         setting("favorites", Favorites.saveToSettings())
+        setting("favoritesLegacyMigrated", Favorites.saveMigratedKeys())
     }
 
-    function removeFromFavorites(item) {
-        if (!item || !root.currentRepo) return
-        var isDir = item.type === "dir"
-        if (isDir) {
-            // Pass parent path (currentPath), Favorites.removeById normalizes root to ""
-            Favorites.removeById(root.currentRepo.id, root.currentPath)
-        } else {
-            Favorites.removeById(root.currentRepo.id, "")
+    // Quick Access targets in v1.1 are libraries (from the Libraries root) and
+    // folders (inside a library). Files are deliberately not favoriteable.
+    function canAddToFavorites(item) {
+        if (!item) return false
+        if (!root.currentRepo) return true
+        return item.type === "dir"
+    }
+
+    function addToFavorites(item) {
+        if (!item) return
+        if (!root.currentRepo) {
+            var libResult = Favorites.addLibrary(item.id, item.name)
+            if (libResult.error) root.showToast(libResult.error, "error")
+            else if (libResult.changed) { root.persistFavorites(); root.showToast("Added to Quick Access") }
+            return
         }
-        setting("favorites", Favorites.saveToSettings())
+        if (item.type !== "dir") {
+            root.showToast("Only libraries and folders can be added to Quick Access", "warning")
+            return
+        }
+        // Identity is the folder's own FULL path, not its parent, so sibling
+        // folders with the same name under different parents stay distinct.
+        var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
+        var folderResult = Favorites.addFolder(root.currentRepo.id, root.currentRepo.name, fullPath, item.name)
+        if (folderResult.error) root.showToast(folderResult.error, "error")
+        else if (folderResult.changed) { root.persistFavorites(); root.showToast("Added to Quick Access") }
+    }
+
+    // Accepts either a favorite record (Home's Quick Access rows) or a browsed
+    // item (context menu). A favorite record carries its own identity, so
+    // removal works while currentRepo is null - identity is never derived from
+    // the browsing context.
+    function removeFromFavorites(entry) {
+        if (!entry) return
+        var result
+        if (entry.type === "library" || entry.type === "folder") {
+            result = Favorites.removeEntry(entry)
+        } else if (root.currentRepo) {
+            if (entry.type === "dir") {
+                var dirFullPath = root.currentPath === "/" ? "/" + entry.name : root.currentPath + "/" + entry.name
+                result = Favorites.removeFolder(root.currentRepo.id, dirFullPath)
+            } else {
+                result = Favorites.removeLibrary(root.currentRepo.id)
+            }
+        } else {
+            return
+        }
+        if (result.error) { root.showToast(result.error, "error"); return }
+        if (result.changed) { root.persistFavorites(); root.showToast("Removed from Quick Access") }
+    }
+
+    // Resolve a favorite to a concrete destination. A stale library or folder
+    // produces feedback without crashing, and the entry stays removable.
+    function openFavorite(entry) {
+        if (!entry) return
+        var repo = null
+        for (var i = 0; i < root.libraries.length; i++) {
+            if (root.libraries[i].id === entry.repoId) { repo = root.libraries[i]; break }
+        }
+        if (!repo) {
+            root.showToast("Library is no longer available. You can remove this entry from Quick Access.", "error")
+            return
+        }
+        root.clearSelection()
+        root.currentRepo = repo
+        if (entry.type === "library") {
+            root.pathHistory = [{ name: repo.name, path: "/", repoId: repo.id }]
+            root.loadFolder(repo.id, "/")
+            return
+        }
+        var fullPath = Favorites.normalizePath(entry.path)
+        if (fullPath === "") {
+            root.showToast("This Quick Access entry has no folder path", "error")
+            return
+        }
+        root.buildPathHistory(repo, fullPath)
+        root.loadFolder(repo.id, fullPath)
+    }
+
+    // Build a breadcrumb chain for an absolute folder path.
+    function buildPathHistory(repo, fullPath) {
+        var history = [{ name: repo.name, path: "/", repoId: repo.id }]
+        var normalized = Favorites.normalizePath(fullPath)
+        if (normalized !== "") {
+            var segments = normalized.split("/").filter(function(seg) { return seg !== "" })
+            var acc = ""
+            for (var i = 0; i < segments.length; i++) {
+                acc += "/" + segments[i]
+                history.push({ name: segments[i], path: acc, repoId: repo.id })
+            }
+        }
+        root.pathHistory = history
     }
 
     function handleBackClick() {
@@ -275,7 +359,7 @@ Panel {
     function renameTarget() {
         if (!root.currentRepo) return null
         if (root.selectedItems.length === 1) return root.selectedItems[0]
-        var list = root.fileListRef
+        var list = root.activeFileList()
         if (!list) return null
         if (list.currentItem) return list.currentItem.item
         if (list.count > 0) {
@@ -294,11 +378,17 @@ Panel {
         contextMenu.libraryMode = root.currentRepo === null
         contextMenu.selectionCount = root.selectedItems.length > 0 ? root.selectedItems.length : 1
         if (root.currentRepo) {
-            var isDir = item.type === "dir"
-            var path = isDir ? root.currentPath : ""
-            contextMenu.isFavorite = Favorites.isFavorite(root.currentRepo.id, path)
+            // Type is part of favorite identity, and a folder is keyed by its
+            // own full path rather than by its parent directory.
+            if (item.type === "dir") {
+                var dirFullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
+                contextMenu.isFavorite = Favorites.isFolderFavorite(root.currentRepo.id, dirFullPath)
+            } else {
+                // Files are not Quick Access targets in v1.1.
+                contextMenu.isFavorite = false
+            }
         } else {
-            contextMenu.isFavorite = false
+            contextMenu.isFavorite = Favorites.isLibraryFavorite(item.id)
         }
         // Parent to the keyboard-panel window's overlay: never clipped by the
         // file list, and rendered in the window that owns pointer/keyboard.
@@ -341,7 +431,7 @@ Panel {
             // (via closeTopDialog above) acts on them.
             onMoveRequested: function(dx, dy) {
                 if (root.state !== "browse" || root.searchActive || root.dialogOpen || root.showTransfers || root.destinationSubmitting) return
-                var list = root.fileListRef
+                var list = root.activeFileList()
                 if (!list) return
                 if (dx < 0) { root.goBack(); return }
                 if (dx > 0) {
@@ -353,7 +443,7 @@ Panel {
             }
             onActivateRequested: {
                 if (root.state !== "browse" || root.searchActive || root.dialogOpen || root.showTransfers || root.destinationSubmitting) return
-                var list = root.fileListRef
+                var list = root.activeFileList()
                 if (!list || !list.currentItem) return
                 var item = list.currentItem.item
                 if (item && item.type === "dir") root.onItemClicked(item)
@@ -362,7 +452,7 @@ Panel {
             onDeleteRequested: {
                 if (root.state !== "browse" || root.searchActive || root.dialogOpen || root.destinationMode || root.showTransfers) return
                 if (root.selectedItems.length > 0) { root.deleteItems(); return }
-                var list = root.fileListRef
+                var list = root.activeFileList()
                 if (!list || !list.currentItem) return
                 root.pickDelete(list.currentItem.item)
             }
@@ -387,7 +477,7 @@ Panel {
                 enabled: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.destinationMode && !root.showTransfers && root.currentRepo !== null
                 onActivated: {
                     if (root.selectedItems.length > 0) { root.deleteItems(); return }
-                    var list = root.fileListRef
+                    var list = root.activeFileList()
                     if (!list || !list.currentItem) return
                     root.pickDelete(list.currentItem.item)
                 }
@@ -429,7 +519,7 @@ Panel {
                     width: parent.width
                     bar: root.bar
                     overlay: keyCatcher.Overlay.overlay
-                    title: root.state === "login" ? "Seafile" : (root.settingsOpen ? "Settings" : (root.searchActive ? "Search" : (root.currentRepo ? root.currentRepo.name : "Libraries")))
+                    title: root.state === "login" ? "Seafile" : (root.settingsOpen ? "Settings" : (root.showTransfers ? "Transfers" : (root.searchActive ? "Search" : (root.currentRepo ? root.currentRepo.name : "Libraries"))))
                     showBack: root.state === "browse" && !root.searchActive && (!root.dialogOpen || root.settingsOpen) && (root.pathHistory.length > 0 || root.settingsOpen)
                     showRefresh: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.destinationMode
                     showUpload: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.destinationMode
@@ -472,7 +562,7 @@ Panel {
                     id: stateLoader
                     sourceComponent: root.state === "login" ? loginComponent : (root.currentRepo ? browserComponent : homeComponent)
                     width: parent.width
-                    visible: !root.dialogOpen
+                    visible: !root.dialogOpen && !root.showTransfers
                     height: visible ? implicitHeight : 0
                 }
                 Loader {
@@ -489,6 +579,19 @@ Panel {
                 Loader { id: historyLoader; sourceComponent: undefined; width: parent.width; height: item ? item.implicitHeight : 0 }
                 Loader { id: trashLoader; sourceComponent: undefined; width: parent.width; height: item ? item.implicitHeight : 0 }
                 Loader { id: settingsLoader; sourceComponent: undefined; width: parent.width; height: item ? item.implicitHeight : 0 }
+
+                // Panel-level Transfers surface. It lives here rather than
+                // inside BrowserView so it works from the Libraries root, where
+                // currentRepo is null and BrowserView is not even instantiated.
+                // This is the only TransferManager in the app, so there is a
+                // single source of transfer state.
+                Loader {
+                    id: transfersLoader
+                    sourceComponent: root.state === "browse" && root.showTransfers ? transfersComponent : undefined
+                    width: parent.width
+                    visible: root.state === "browse" && root.showTransfers && !root.dialogOpen && !root.searchActive
+                    height: visible && item ? item.implicitHeight : 0
+                }
 
                 Component {
                     id: loginComponent
@@ -594,6 +697,11 @@ Panel {
                         onHistoryClicked: root.openHistory
                         onAddToFavorites: function(item) { root.addToFavorites(item) }
                         onRemoveFromFavorites: function(item) { root.removeFromFavorites(item) }
+                        onFavoriteClicked: function(entry) { root.openFavorite(entry) }
+                        onRemoveFavorite: function(entry) { root.removeFromFavorites(entry) }
+                        onTransferCancel: function(transfer) { TransferService.cancelTransfer(transfer.id) }
+                        activeTransfers: TransferService.getActiveTransfers()
+                        activeCount: root.activeTransferCount
                     }
                 }
 
@@ -641,6 +749,7 @@ Panel {
                         onContextMenuRequested: root.showItemContextMenu
                         onSearchRetry: function() { root.executeSearch() }
                         singleClickOpen: root.singleClickOpen
+                        foldersFirst: root.foldersFirst
                     }
                 }
             }
@@ -648,7 +757,18 @@ Panel {
 
     }
 
-    property var fileListRef: null
+    // The navigable FileList is owned by whichever view the state Loader is
+    // currently showing. It is DERIVED on demand from stateLoader.item rather
+    // than cached: caching a Loader child would keep a pointer to an object
+    // destroyed as soon as the view changes. Returns null when the login view
+    // is active, when the loaded view exposes no list, or when the Loader has
+    // no item - so every caller must null-check.
+    function activeFileList() {
+        var view = stateLoader.item
+        if (!view) return null
+        var list = view.activeFileList
+        return (list === undefined || list === null) ? null : list
+    }
 
     readonly property bool settingsOpen: settingsLoader.item !== null
     readonly property bool dialogOpen: settingsLoader.item !== null || createFolderLoader.item !== null || renameLoader.item !== null || confirmLoader.item !== null || shareLoader.item !== null || uploadLoader.item !== null || historyLoader.item !== null || trashLoader.item !== null
@@ -742,17 +862,16 @@ Panel {
             bar: root.bar
             onUpload: function() { root.confirmUpload(pathField.text) }
             onCancel: function() { root.cancelFilePicker() }
-            onFilesSelected: function(urls) {
-                if (!urls || urls.length === 0) return
-                // Convert file:// URLs to local paths and upload each
-                for (var i = 0; i < urls.length; i++) {
-                    var url = urls[i]
-                    if (url.startsWith("file://")) {
-                        var path = url.substring(7)
-                        // Decode URL-encoded characters
-                        path = decodeURIComponent(path)
-                        root.startUpload(path)
-                    }
+            onFilesSelected: function(paths) {
+                if (!paths || paths.length === 0) return
+                // The picker emits raw filesystem paths. They must be passed
+                // through verbatim: turning them into file:// URLs and then
+                // decodeURIComponent()ing them corrupts real filenames such as
+                // "100% termine.txt" or a literal "foo%20bar.txt".
+                for (var i = 0; i < paths.length; i++) {
+                    var path = paths[i]
+                    if (typeof path !== "string" || path === "") continue
+                    root.startUpload(path)
                 }
                 root.cancelFilePicker()
             }
@@ -808,15 +927,48 @@ Panel {
     }
 
     Component {
+        id: transfersComponent
+        TransferManager {
+            bar: root.bar
+            transferRevision: root.transferRevision
+            onCancel: function(transfer) { TransferService.cancelTransfer(transfer.id) }
+            onRetry: function(transfer) {
+                TransferService.retryTransfer(transfer.id, Auth.getToken(), Auth.getServerUrl())
+            }
+            onRetryAllFailed: function() {
+                var token = Auth.getToken()
+                var baseUrl = Auth.getServerUrl()
+                var failed = TransferService.getFailedTransfers()
+                for (var i = 0; i < failed.length; i++) {
+                    TransferService.retryTransfer(failed[i].id, token, baseUrl)
+                }
+            }
+            onClearCompleted: function() { TransferService.clearCompleted() }
+            onClearFailed: function() { TransferService.clearFailed() }
+            onClearAllCompleted: function() { TransferService.clearCompleted() }
+            onClearAllFailed: function() { TransferService.clearFailed() }
+            onOpen: function(transfer) {
+                var url = Models.toFileUrl(transfer.destPath)
+                if (!Qt.openUrlExternally(url)) root.showToast("Could not open file", "error")
+            }
+            onShowInFolder: function(transfer) {
+                var url = Models.toParentFileUrl(transfer.destPath)
+                if (!Qt.openUrlExternally(url)) root.showToast("Could not open folder", "error")
+            }
+        }
+    }
+
+    Component {
         id: settingsComponent
         SettingsDialog {
             bar: root.bar
             serverUrl: root.serverUrl
-            pluginVersion: "1.0.0"
+            pluginVersion: root.pluginVersion
             autoLogin: setting("autoLogin", true)
             singleClickOpen: setting("singleClickOpen", false)
             sortColumn: setting("sortColumn", "name")
             sortAscending: setting("sortAscending", true)
+            foldersFirst: root.foldersFirst
             notifyEnabled: setting("notifyEnabled", true)
             onClose: function() { root.closeSettings() }
             onLogout: function() { root.doLogout() }
@@ -827,6 +979,10 @@ Panel {
             onSingleClickOpenToggled: function(enabled) { setting("singleClickOpen", enabled) }
             onSortColumnChange: function(col) { setting("sortColumn", col) }
             onSortAscendingChange: function(asc) { setting("sortAscending", asc) }
+            onFoldersFirstToggled: function(enabled) {
+                setting("foldersFirst", enabled)
+                root.foldersFirst = enabled
+            }
             onNotifyToggled: function(enabled) { setting("notifyEnabled", enabled) }
         }
     }
@@ -864,6 +1020,10 @@ Panel {
                     root.serverUrl = normalized
                     connectionService.setServerUrl(normalized)
                     connectionService.forceCheck()
+                    // Activate this account's Quick Access scope and persist the
+                    // migration marker in case a legacy blob was absorbed.
+                    Favorites.setAccountKey(normalized, email)
+                    root.persistFavorites()
                     root.state = "browse"
                     root.loadLibraries()
                 }).catch(function(err) {
@@ -1196,15 +1356,7 @@ Panel {
             root.searchState = "idle"
 
             root.currentRepo = repo
-            root.pathHistory = [{ name: repo.name, path: "/", repoId: repo.id }]
-            if (result.path !== "/") {
-                var segments = result.path.split("/").filter(function(s) { return s !== "" })
-                var accPath = ""
-                for (var j = 0; j < segments.length; j++) {
-                    accPath += "/" + segments[j]
-                    root.pathHistory.push({ name: segments[j], path: accPath, repoId: repo.id })
-                }
-            }
+            root.buildPathHistory(repo, result.path)
             root.loadFolder(repo.id, result.path)
         } else if (result.type === "file") {
             var repoFile = null
@@ -1223,15 +1375,7 @@ Panel {
 
             root.currentRepo = repoFile
             var parentPath = result.parentPath
-            root.pathHistory = [{ name: repoFile.name, path: "/", repoId: repoFile.id }]
-            if (parentPath !== "/") {
-                var segs = parentPath.split("/").filter(function(s) { return s !== "" })
-                var ap = ""
-                for (var m = 0; m < segs.length; m++) {
-                    ap += "/" + segs[m]
-                    root.pathHistory.push({ name: segs[m], path: ap, repoId: repoFile.id })
-                }
-            }
+            root.buildPathHistory(repoFile, parentPath)
             root.loadFolder(repoFile.id, parentPath)
         }
     }
@@ -1240,7 +1384,27 @@ Panel {
 
     function pickFileForUpload() { uploadLoader.sourceComponent = uploadComponent }
     function cancelFilePicker() { uploadLoader.sourceComponent = undefined }
-    function confirmUpload(filePath) { uploadLoader.sourceComponent = undefined; startUpload(filePath) }
+    // The manual path field accepts either a plain filesystem path or a
+    // file:// URL the user pasted. Only the pasted-URL form is decoded.
+    function normalizeUserPath(rawPath) {
+        if (typeof rawPath !== "string") return ""
+        var trimmed = rawPath.trim()
+        if (trimmed.indexOf("file://") === 0) {
+            try {
+                return decodeURIComponent(trimmed.substring(7))
+            } catch (e) {
+                return trimmed.substring(7)
+            }
+        }
+        return trimmed
+    }
+
+    function confirmUpload(filePath) {
+        uploadLoader.sourceComponent = undefined
+        var normalized = root.normalizeUserPath(filePath)
+        if (normalized === "") { root.showToast("Enter a file path to upload", "error"); return }
+        startUpload(normalized)
+    }
 
     function startUpload(localFilePath) {
         if (!root.currentRepo) { root.errorMessage = "No library selected"; return }
@@ -1319,6 +1483,11 @@ Panel {
         root.loading = false
         root.serverUrl = ""
         connectionService.setServerUrl("")
+        // Drop the active Quick Access scope. Persisted entries are untouched,
+        // so signing back into this account restores them; another account sees
+        // only its own.
+        Favorites.clearActiveScope()
+        root.showTransfers = false
         root.currentRepo = null
         root.currentPath = "/"
         root.pathHistory = []
@@ -1826,6 +1995,10 @@ Panel {
                     SeafileAPI.setBaseUrl(serverUrl)
                     SeafileAPI.setToken(token)
                     connectionService.setServerUrl(serverUrl)
+                    // Auto-login activates the same account scope as a manual
+                    // login, so Quick Access is identical either way.
+                    Favorites.setAccountKey(serverUrl, Auth.getEmail())
+                    root.persistFavorites()
                     root.state = "browse"
                     root.loadLibraries()
                 }

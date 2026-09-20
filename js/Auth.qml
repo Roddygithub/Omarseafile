@@ -190,10 +190,19 @@ QtObject {
 
     function checkDependencies() {
         return new Promise(function(resolve) {
+            // required: the plugin cannot work at all without it.
+            // optional: a specific feature degrades, the rest still works.
+            // Zenity is optional on purpose: when it is missing the graphical
+            // picker is unavailable but the manual path field still uploads,
+            // so a missing zenity must never block login.
             var checks = [
                 { cmd: "curl", name: "curl", install: "sudo pacman -S curl", required: true },
                 { cmd: "secret-tool", name: "secret-tool (libsecret)", install: "sudo pacman -S libsecret", required: true },
-                { cmd: "wl-copy", name: "wl-copy (wl-clipboard)", install: "sudo pacman -S wl-clipboard", required: false }
+                { cmd: "python3", name: "python3", install: "sudo pacman -S python", required: true },
+                { cmd: "zenity", name: "zenity (graphical file picker)", install: "sudo pacman -S zenity", required: false },
+                { cmd: "wl-copy", name: "wl-copy (wl-clipboard)", install: "sudo pacman -S wl-clipboard", required: false },
+                { cmd: "xdg-open", name: "xdg-open (open files)", install: "sudo pacman -S xdg-utils", required: false },
+                { cmd: "notify-send", name: "notify-send (notifications)", install: "sudo pacman -S libnotify", required: false }
             ]
             var missing = []
             var index = 0

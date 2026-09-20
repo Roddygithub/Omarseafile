@@ -26,11 +26,43 @@ Item {
 
     Component.onCompleted: pathField.forceActiveFocus()
 
+    // Zenity separates selected paths with the requested separator. A newline
+    // is the only practical choice here, which means a filename that itself
+    // contains a newline cannot be represented - see README "Known
+    // limitations". Everything else, including spaces, percent signs and
+    // non-ASCII characters, survives intact.
+    readonly property string pickerSeparator: "\n"
+
     function openPicker() {
         if (pickerProcess.running) return
         pickerProcess.command = ["zenity", "--file-selection", "--multiple",
-            "--separator=\n", "--file-filter=All files | *"]
+            "--separator=" + root.pickerSeparator, "--file-filter=All files | *"]
         pickerProcess.running = true
+    }
+
+    // Split zenity's stdout into filesystem paths.
+    //
+    // Zenity already prints absolute filesystem paths. They must NOT be turned
+    // into file:// URLs and must NOT be decodeURIComponent()-ed: doing so
+    // corrupts real filenames such as "100% termine.txt" or a literal
+    // "foo%20bar.txt". Only the transport framing is removed - a trailing
+    // newline and, on some locales, a carriage return - and legitimately
+    // leading/trailing spaces inside a filename are preserved.
+    function parsePickerOutput(text) {
+        if (typeof text !== "string") return []
+        var normalized = text.replace(/\r/g, "")
+        if (normalized.length > 0 && normalized.charAt(normalized.length - 1) === "\n") {
+            normalized = normalized.substring(0, normalized.length - 1)
+        }
+        if (normalized === "") return []
+        var parts = normalized.split("\n")
+        var paths = []
+        for (var i = 0; i < parts.length; i++) {
+            // An empty record can only come from framing, never from a real
+            // path: zenity never emits an empty selection entry.
+            if (parts[i] !== "") paths.push(parts[i])
+        }
+        return paths
     }
 
     Process {
@@ -38,19 +70,11 @@ Item {
         stdout: StdioCollector {}
 
         onExited: function(exitCode) {
-            if (exitCode === 0) {
-                var text = pickerProcess.stdout.text.trim()
-                if (text === "") return
-                var lines = text.split("\n")
-                var urls = []
-                for (var i = 0; i < lines.length; i++) {
-                    var line = lines[i].trim()
-                    if (line !== "") {
-                        urls.push("file://" + line)
-                    }
-                }
-                if (urls.length > 0 && root.onFilesSelected) root.onFilesSelected(urls)
-            }
+            // Non-zero means the user cancelled (1) or zenity errored (5);
+            // neither produces a selection.
+            if (exitCode !== 0) return
+            var paths = root.parsePickerOutput(pickerProcess.stdout.text)
+            if (paths.length > 0 && root.onFilesSelected) root.onFilesSelected(paths)
         }
     }
 

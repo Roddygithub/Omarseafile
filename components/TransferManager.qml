@@ -55,9 +55,6 @@ Column {
         visible: root.activeCount > 0 || root.completedCount > 0 || root.failedCount > 0
 
         Row {
-            anchors.fill: parent
-            anchors.leftMargin: Style.space(8)
-            anchors.rightMargin: Style.space(8)
             spacing: Style.space(8)
 
             Text {
@@ -66,7 +63,8 @@ Column {
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
-                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
             }
 
             Text {
@@ -74,7 +72,8 @@ Column {
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
-                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
             }
         }
     }
@@ -96,7 +95,8 @@ Column {
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
-                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
                 textFormat: Text.PlainText
             }
         }
@@ -130,7 +130,8 @@ Column {
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
-                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
                 textFormat: Text.PlainText
             }
 
@@ -142,7 +143,8 @@ Column {
                 color: Color.accent
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
-                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
@@ -182,7 +184,8 @@ Column {
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
-                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
                 textFormat: Text.PlainText
             }
 
@@ -194,7 +197,8 @@ Column {
                 color: Color.urgent
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
-                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
@@ -224,8 +228,6 @@ Column {
 
         Row {
             width: parent.width
-            anchors.leftMargin: Style.space(8)
-            anchors.rightMargin: Style.space(8)
             spacing: Style.space(8)
 
             Button {
@@ -265,7 +267,7 @@ Column {
     EmptyState {
         id: emptyState
         bar: root.bar
-        icon: "\uf0ec"
+        icon: Icons.exchange
         title: "No transfers"
         subtitle: "Downloads and uploads appear here"
         width: parent.width

@@ -27,25 +27,22 @@ Item {
 
     Row {
         id: row
-        anchors.fill: parent
-        anchors.leftMargin: Style.space(8)
-        anchors.rightMargin: Style.space(8)
         spacing: Style.space(8)
 
         Text {
             id: typeIcon
-            text: root.transfer.type === "download" ? "\uf019" : "\uf093"
+            text: root.transfer.type === "download" ? Icons.download : Icons.upload
             color: root.bar.foreground
-            font.family: "Noto Sans"
+            font.family: Icons.family
             font.pixelSize: Style.font.body
             width: Style.space(20)
             horizontalAlignment: Text.AlignHCenter
-            anchors.verticalCenter: parent.verticalCenter
+            height: parent.height
+            verticalAlignment: Text.AlignVCenter
         }
 
         Column {
             width: parent.width - typeIcon.width - statusColumn.width - Style.space(32)
-            anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(2)
 
             Text {
@@ -89,7 +86,6 @@ Item {
         Column {
             id: statusColumn
             width: Style.space(60)
-            anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(2)
 
             ProgressBar {
@@ -105,31 +101,32 @@ Item {
                 id: statusIcon
                 text: {
                     if (root.isActive) return ""
-                    if (root.isCompleted) return "\uf00c"
-                    if (root.transfer.state === "cancelled") return "\uf00d"
-                    return "\uf06a"
+                    if (root.isCompleted) return Icons.check
+                    if (root.transfer.state === "cancelled") return Icons.times
+                    return Icons.warning
                 }
                 color: {
                     if (root.isCompleted) return Color.accent
                     if (root.isFailed) return Color.urgent
                     return root.bar.foreground
                 }
-                font.family: "Noto Sans"
+                font.family: Icons.family
                 font.pixelSize: Style.font.body
+                // Full width + AlignHCenter reproduces the centring that the
+                // invalid anchors.horizontalCenter (inside a Column) never did.
+                width: parent.width
                 horizontalAlignment: Text.AlignHCenter
-                anchors.horizontalCenter: parent.horizontalCenter
                 visible: !root.isActive
             }
 
             Row {
                 spacing: Style.space(4)
-                anchors.horizontalCenter: parent.horizontalCenter
                 visible: root.isFailed
 
                 Text {
-                    text: "\uf021"
+                    text: Icons.refresh
                     color: root.bar.foreground
-                    font.family: "Noto Sans"
+                    font.family: Icons.family
                     font.pixelSize: Style.font.caption
                     ToolTip.text: "Retry transfer"
                     MouseArea {
@@ -140,9 +137,9 @@ Item {
                 }
 
                 Text {
-                    text: "\uf00d"
+                    text: Icons.times
                     color: Color.urgent
-                    font.family: "Noto Sans"
+                    font.family: Icons.family
                     font.pixelSize: Style.font.caption
                     ToolTip.text: "Remove from history"
                     MouseArea {
@@ -154,13 +151,13 @@ Item {
             }
 
             Text {
-                text: "\uf00d"
+                text: Icons.times
                 color: Color.urgent
-                font.family: "Noto Sans"
+                font.family: Icons.family
                 font.pixelSize: Style.font.caption
                 ToolTip.text: "Cancel transfer"
+                width: parent.width
                 horizontalAlignment: Text.AlignHCenter
-                anchors.horizontalCenter: parent.horizontalCenter
                 visible: root.isActive && !root.isCancelling
                 MouseArea {
                     anchors.fill: parent
@@ -171,13 +168,12 @@ Item {
 
             Row {
                 spacing: Style.space(4)
-                anchors.horizontalCenter: parent.horizontalCenter
                 visible: root.showOpenActions
 
                 Text {
-                    text: "\uf07c"
+                    text: Icons.folderOpen
                     color: root.bar.foreground
-                    font.family: "Noto Sans"
+                    font.family: Icons.family
                     font.pixelSize: Style.font.caption
                     ToolTip.text: "Open file"
                     MouseArea {
@@ -188,9 +184,9 @@ Item {
                 }
 
                 Text {
-                    text: "\uf07b"
+                    text: Icons.folder
                     color: root.bar.foreground
-                    font.family: "Noto Sans"
+                    font.family: Icons.family
                     font.pixelSize: Style.font.caption
                     ToolTip.text: "Show in file manager"
                     MouseArea {

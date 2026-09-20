@@ -44,7 +44,6 @@ Item {
             Item {
                 width: parent.width
                 height: Style.space(32)
-                anchors.horizontalCenter: parent.horizontalCenter
 
                 Text {
                     text: root.isMultiSelection ? (root.selectedItems.length + " items selected") : (root.item ? (root.item.type === "dir" ? "Folder" : "File") : "")
@@ -265,7 +264,7 @@ Item {
 
                     Text {
                         id: valueText6
-                        text: root.item ? (root.currentPath === "/" ? "/" + root.item.name : root.currentPath + "/" + root.item.name) : ""
+                        text: root.item ? Models.boundedDisplayText(root.currentPath === "/" ? "/" + root.item.name : root.currentPath + "/" + root.item.name, 1024) : ""
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -409,8 +408,6 @@ Item {
                 Row {
                     width: parent.width
                     spacing: Style.space(8)
-                    anchors.leftMargin: Style.space(8)
-                    anchors.rightMargin: Style.space(8)
 
                     Button {
                         text: root.item.type === "dir" ? "Open" : "Download"
@@ -447,8 +444,6 @@ Item {
                 Row {
                     width: parent.width
                     spacing: Style.space(8)
-                    anchors.leftMargin: Style.space(8)
-                    anchors.rightMargin: Style.space(8)
 
                     Button {
                         text: "Rename"
@@ -489,8 +484,6 @@ Item {
                 Row {
                     width: parent.width
                     spacing: Style.space(8)
-                    anchors.leftMargin: Style.space(8)
-                    anchors.rightMargin: Style.space(8)
 
                     Button {
                         text: "Download"

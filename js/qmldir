@@ -10,3 +10,4 @@ singleton UrlPolicy 1.0 UrlPolicy.qml
 singleton SafePath 1.0 SafePath.qml
 singleton HttpTransport 1.0 HttpTransport.qml
 singleton Favorites 1.0 Favorites.qml
+singleton Icons 1.0 Icons.qml

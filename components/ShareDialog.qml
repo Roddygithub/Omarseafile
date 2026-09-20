@@ -192,7 +192,6 @@ Item {
 
     Column {
         id: column
-        anchors.horizontalCenter: parent.horizontalCenter
         spacing: Style.space(16)
         width: Math.min(parent.width, Style.space(400))
 
@@ -267,7 +266,8 @@ Item {
                             font.pixelSize: Style.font.caption
                             elide: Text.ElideRight
                             width: parent.width - copyBtn.width - deleteBtn.width - Style.space(16)
-                            anchors.verticalCenter: parent.verticalCenter
+                            height: parent.height
+                            verticalAlignment: Text.AlignVCenter
                             textFormat: Text.PlainText
 
                             MouseArea {
@@ -363,7 +363,8 @@ Item {
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
                 }
             }
 
@@ -399,7 +400,8 @@ Item {
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
                 }
             }
 
@@ -429,7 +431,8 @@ Item {
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
                 }
             }
 
@@ -449,7 +452,8 @@ Item {
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
                 }
             }
 
@@ -473,7 +477,8 @@ Item {
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.body
-                        anchors.verticalCenter: parent.verticalCenter
+                        height: parent.height
+                        verticalAlignment: Text.AlignVCenter
                     }
                 }
 
@@ -492,7 +497,8 @@ Item {
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.body
-                        anchors.verticalCenter: parent.verticalCenter
+                        height: parent.height
+                        verticalAlignment: Text.AlignVCenter
                     }
                 }
 
@@ -512,7 +518,8 @@ Item {
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.body
-                        anchors.verticalCenter: parent.verticalCenter
+                        height: parent.height
+                        verticalAlignment: Text.AlignVCenter
                     }
                 }
             }
@@ -542,7 +549,8 @@ Item {
                         font.pixelSize: Style.font.caption
                         elide: Text.ElideRight
                         width: parent.width - copyCreatedBtn.width - Style.space(8)
-                        anchors.verticalCenter: parent.verticalCenter
+                        height: parent.height
+                        verticalAlignment: Text.AlignVCenter
                         textFormat: Text.PlainText
 
                         MouseArea {

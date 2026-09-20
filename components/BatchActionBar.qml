@@ -21,9 +21,6 @@ Item {
 
     Row {
         id: row
-        anchors.fill: parent
-        anchors.leftMargin: Style.space(8)
-        anchors.rightMargin: Style.space(8)
         spacing: Style.space(8)
 
         Text {
@@ -33,7 +30,8 @@ Item {
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
             font.bold: true
-            anchors.verticalCenter: parent.verticalCenter
+            height: parent.height
+            verticalAlignment: Text.AlignVCenter
             textFormat: Text.PlainText
         }
 

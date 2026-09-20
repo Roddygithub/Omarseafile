@@ -54,9 +54,6 @@ Item {
 
     Row {
         id: row
-        anchors.fill: parent
-        anchors.leftMargin: Style.space(10)
-        anchors.rightMargin: Style.space(10)
         spacing: Style.space(5)
 
         // Fixed buttons that must always be accessible
@@ -70,7 +67,7 @@ Item {
 
         Button {
             id: backButton
-            text: "\uf053"
+            text: Icons.chevronLeft
             visible: root.showBack
             tooltipText: "Back"
             onClicked: {
@@ -87,7 +84,8 @@ Item {
             font.bold: true
             elide: Text.ElideRight
             width: Math.max(Style.space(60), row.width - row._fixedWidth)
-            anchors.verticalCenter: parent.verticalCenter
+            height: parent.height
+            verticalAlignment: Text.AlignVCenter
             visible: !root.searchActive && root.selectionCount === 0
             textFormat: Text.PlainText
         }
@@ -133,7 +131,7 @@ Item {
 
         Button {
             id: searchButton
-            text: root.searchActive ? "\uf00d" : "\uf002"
+            text: root.searchActive ? Icons.times : Icons.search
             visible: root.showSearch && !root.searchActive
             tooltipText: "Search"
             onClicked: {
@@ -146,7 +144,7 @@ Item {
         // Primary action: Upload - always visible when not searching/batch
         Button {
             id: uploadButton
-            text: "\uf093"
+            text: Icons.upload
             visible: root.showUpload && !root.searchActive && root.selectionCount === 0
             tooltipText: "Upload file"
             onClicked: {
@@ -163,9 +161,9 @@ Item {
 
             Text {
                 id: transfersIcon
-                text: "\uf0ec"
+                text: Icons.exchange
                 color: root.hasTransferFailures ? Color.urgent : root.bar.foreground
-                font.family: "Noto Sans"
+                font.family: Icons.family
                 font.pixelSize: Style.font.title
                 anchors.centerIn: parent
             }
@@ -211,9 +209,9 @@ Item {
 
             Text {
                 id: offlineIcon
-                text: "\uf05e"
+                text: Icons.ban
                 color: Color.urgent
-                font.family: "Noto Sans"
+                font.family: Icons.family
                 font.pixelSize: Style.font.title
                 anchors.centerIn: parent
             }
@@ -222,7 +220,7 @@ Item {
         // Overflow menu button - always visible as the last fixed button
         Button {
             id: overflowButton
-            text: "\uf142"
+            text: Icons.ellipsisV
             tooltipText: "More actions"
             onClicked: {
                 root.overflowOpen = !root.overflowOpen

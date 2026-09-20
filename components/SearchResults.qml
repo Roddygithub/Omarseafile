@@ -8,7 +8,6 @@ ListView {
     id: root
     required property var results
     required property var onResultClicked
-    required property var onResultRightClicked
     required property QtObject bar
     property string filterType: "all"  // "all", "file", "folder"
     property string filterLibrary: ""  // empty = all libraries
@@ -17,6 +16,17 @@ ListView {
     height: parent.height
     clip: true
     spacing: Style.space(2)
+
+    // Distinct library names present in the current result set, in first-seen
+    // order. Computed once so the filter model and its index lookup agree.
+    readonly property var libraryNames: {
+        var libs = []
+        for (var i = 0; i < root.results.length; i++) {
+            var name = root.results[i].repoName
+            if (name && libs.indexOf(name) === -1) libs.push(name)
+        }
+        return libs
+    }
 
     property var filteredResults: {
         var out = []
@@ -31,6 +41,68 @@ ListView {
 
     model: root.filteredResults
 
+    // The filter controls live in the header so they occupy real layout space
+    // and scroll out of the way. As a plain child of the ListView they floated
+    // at (0,0) directly on top of the first result and never scrolled.
+    header: Column {
+        id: filterBar
+        width: root.width
+        visible: root.results.length > 0
+        height: visible ? implicitHeight : 0
+        spacing: Style.space(4)
+
+        Row {
+            width: parent.width
+            height: implicitHeight
+            spacing: Style.space(8)
+
+            Text {
+                text: "Filter:"
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            ComboBox {
+                id: typeFilter
+                width: Style.space(100)
+                model: ["All", "Files", "Folders"]
+                currentIndex: root.filterType === "all" ? 0 : (root.filterType === "file" ? 1 : 2)
+                onActivated: function(index) {
+                    root.filterType = ["all", "file", "folder"][index]
+                }
+            }
+
+            ComboBox {
+                id: libraryFilter
+                width: Style.space(140)
+                model: ["All libraries"].concat(root.libraryNames)
+                currentIndex: root.filterLibrary === "" ? 0 : Math.max(0, root.libraryNames.indexOf(root.filterLibrary) + 1)
+                onActivated: function(index) {
+                    root.filterLibrary = index === 0 ? "" : (root.libraryNames[index - 1] || "")
+                }
+            }
+
+            Button {
+                text: "Clear"
+                width: Style.space(50)
+                onClicked: {
+                    root.filterType = "all"
+                    root.filterLibrary = ""
+                }
+            }
+        }
+
+        Rectangle {
+            width: parent.width
+            height: Style.spacing.hairline
+            color: root.bar.foreground
+            opacity: 0.12
+        }
+    }
+
     delegate: Item {
         id: delegate
         required property var modelData
@@ -38,29 +110,28 @@ ListView {
         property string repoName: modelData.repoName || ""
 
         implicitHeight: row.implicitHeight
-        width: parent.width
+        width: ListView.view ? ListView.view.width : parent.width
 
         Row {
             id: row
-            anchors.fill: parent
-            anchors.leftMargin: Style.space(12)
-            anchors.rightMargin: Style.space(12)
             spacing: Style.space(12)
+            height: Math.max(icon.implicitHeight, textColumn.implicitHeight) + Style.space(6)
 
             Text {
                 id: icon
-                text: delegate.isDir ? "\uf07b" : "\uf15b"
+                text: delegate.isDir ? Icons.folder : Icons.file
                 color: root.bar.foreground
-                font.family: "Noto Sans"
+                font.family: Icons.family
                 font.pixelSize: Style.font.title
                 width: Style.space(24)
                 horizontalAlignment: Text.AlignHCenter
-                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
             }
 
             Column {
+                id: textColumn
                 width: parent.width - icon.width - sizeLabel.width - Style.space(36)
-                anchors.verticalCenter: parent.verticalCenter
                 spacing: Style.space(2)
 
                 Text {
@@ -95,7 +166,8 @@ ListView {
                 font.pixelSize: Style.font.caption
                 width: Style.space(80)
                 horizontalAlignment: Text.AlignRight
-                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
                 textFormat: Text.PlainText
             }
         }
@@ -104,85 +176,12 @@ ListView {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            // Left-click activation only. Right-click previously performed the
+            // same navigation as a left-click, which is surprising and offered
+            // no menu of its own.
+            acceptedButtons: Qt.LeftButton
             onClicked: {
-                if (mouse.button === Qt.LeftButton) {
-                    if (root.onResultClicked) root.onResultClicked(delegate.modelData)
-                } else if (mouse.button === Qt.RightButton) {
-                    if (root.onResultRightClicked) root.onResultRightClicked(delegate.modelData, mouse)
-                }
-            }
-        }
-    }
-
-    // Filter bar
-    Column {
-        id: filterBar
-        width: parent.width
-        visible: root.results.length > 0
-        spacing: Style.space(4)
-
-        Row {
-            width: parent.width
-            spacing: Style.space(8)
-
-            Text {
-                text: "Filter:"
-                color: Qt.darker(root.bar.foreground, 1.4)
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.caption
-                anchors.verticalCenter: parent.verticalCenter
-            }
-
-            ComboBox {
-                id: typeFilter
-                width: Style.space(100)
-                model: ["All", "Files", "Folders"]
-                currentIndex: root.filterType === "all" ? 0 : (root.filterType === "file" ? 1 : 2)
-                onActivated: {
-                    root.filterType = ["all", "file", "folder"][index]
-                }
-            }
-
-            ComboBox {
-                id: libraryFilter
-                width: Style.space(140)
-                model: ["All libraries"] + (function() {
-                    var libs = []
-                    for (var i = 0; i < root.results.length; i++) {
-                        if (libs.indexOf(root.results[i].repoName) === -1) {
-                            libs.push(root.results[i].repoName)
-                        }
-                    }
-                    return libs
-                })()
-                currentIndex: root.filterLibrary === "" ? 0 : (function() {
-                    var libs = []
-                    for (var i = 0; i < root.results.length; i++) {
-                        if (libs.indexOf(root.results[i].repoName) === -1) {
-                            libs.push(root.results[i].repoName)
-                        }
-                    }
-                    return libs.indexOf(root.filterLibrary) + 1
-                })()
-                onActivated: {
-                    var libs = [""]
-                    for (var i = 0; i < root.results.length; i++) {
-                        if (libs.indexOf(root.results[i].repoName) === -1) {
-                            libs.push(root.results[i].repoName)
-                        }
-                    }
-                    root.filterLibrary = libs[index]
-                }
-            }
-
-            Button {
-                text: "Clear"
-                width: Style.space(50)
-                onClicked: {
-                    root.filterType = "all"
-                    root.filterLibrary = ""
-                }
+                if (root.onResultClicked) root.onResultClicked(delegate.modelData)
             }
         }
     }
@@ -190,12 +189,18 @@ ListView {
     EmptyState {
         id: emptyState
         bar: root.bar
-        icon: "\uf002"
+        icon: Icons.search
         title: root.results.length === 0 ? "No results" : "No matching results"
         subtitle: root.results.length === 0 ? "Try different search terms" : "Adjust filters or search terms"
-        width: parent.width
-        height: parent.height
-        anchors.centerIn: parent
+        // Positioned explicitly rather than anchors.centerIn: parent. Anchors are
+        // unsupported on ListView children, and centering against the ListView
+        // would place this in the middle of the (header-sized) content item
+        // rather than in the middle of what the user can actually see. Tracking
+        // contentY keeps it fixed in the viewport while the filter header above
+        // it scrolls out of the way.
+        width: root.width
+        height: root.height
+        y: root.contentY + (root.height - height) / 2
         visible: root.filteredResults.length === 0
     }
 

@@ -20,9 +20,9 @@ Item {
 
         Text {
             id: spinner
-            text: "\uf110"
+            text: Icons.spinner
             color: root.bar.foreground
-            font.family: "Noto Sans"
+            font.family: Icons.family
             font.pixelSize: Style.font.title
             visible: root.indeterminate
             RotationAnimator on rotation {

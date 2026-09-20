@@ -30,6 +30,14 @@ def test(name, condition, detail=""):
         print(msg)
 
 
+def strip_comments(src):
+    """Drop comment lines so prose about a removed defect cannot trip a check."""
+    return "\n".join(
+        line for line in src.split("\n")
+        if not line.lstrip().startswith(("//", "/*", "*"))
+    )
+
+
 def read_file(relpath):
     with open(os.path.join(REPO_ROOT, relpath)) as f:
         return f.read()
@@ -69,23 +77,42 @@ if __name__ == "__main__":
     test("DetailsPanel: root.item.mtime null guard",
          "root.item && root.item.mtime ? Models.formatDate(root.item.mtime) : \"—\"" in read_file("components/DetailsPanel.qml"))
     
+    # v1.1: the same null guard, now additionally bounded so a hostile name or
+    # path cannot inject an unbounded string.
     test("DetailsPanel: root.item.name null guard (path)",
-         "root.item ? (root.currentPath === \"/\" ? \"/\" + root.item.name : root.currentPath + \"/\" + root.item.name) : \"\"" in read_file("components/DetailsPanel.qml"))
+         "root.item ? Models.boundedDisplayText(root.currentPath === \"/\" ? \"/\" + root.item.name : root.currentPath + \"/\" + root.item.name, 1024) : \"\"" in read_file("components/DetailsPanel.qml"))
 
     # --- FileItem tests ---
     fileitem_src = read_file("components/FileItem.qml")
     
-    test("FileItem: ListView.isCurrentItem null guard (visible)",
-         "(root.ListView && root.ListView.isCurrentItem) || false" in fileitem_src)
-    
+    # v1.1: reading root.ListView.isCurrentItem inline threw once per delegate
+    # while the view was being created. The attached property is now captured
+    # once into a nullable `var` and every use is null-guarded, which subsumes
+    # the per-site `root.ListView &&` repetition these checks used to pin.
+    test("FileItem: ListView attached property captured into a nullable var",
+         "readonly property var _listView: root.ListView" in fileitem_src)
+
+    test("FileItem: ListView.isCurrentItem read is null-guarded and centralized",
+         "readonly property bool isCurrent: root._listView ? root._listView.isCurrentItem === true : false"
+         in fileitem_src)
+
+    test("FileItem: highlight visibility uses the guarded isCurrent",
+         "root.isCurrent" in fileitem_src)
+
+    test("FileItem: no unguarded root.ListView.isCurrentItem remains",
+         "root.ListView.isCurrentItem" not in strip_comments(fileitem_src))
+
     test("FileItem: ListView.view null guard",
-         "(root.ListView && root.ListView.view)" in fileitem_src)
+         "(root._listView && root._listView.view)" in fileitem_src)
+
+    test("FileItem: no unguarded root.ListView.view remains",
+         "root.ListView.view" not in strip_comments(fileitem_src))
     
     test("FileItem: root.bar.foreground null guard (|| Color.foreground)",
          "(root.bar.foreground || Color.foreground)" in fileitem_src)
     
     test("FileItem: ListView.view access guard",
-         "(root.ListView && root.ListView.view)" in fileitem_src)
+         "(root._listView && root._listView.view)" in fileitem_src)
     
     test("FileItem: color property bar.foreground null guard",
          "root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground" in fileitem_src)

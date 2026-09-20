@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-09-20
+
+### Added
+- First-class Transfers view reachable from the Libraries root as well as inside a library, with a single shared transfer state and a "Transfers" toolbar title.
+- Account-scoped Quick Access: favorites are stored per server URL plus signed-in email, so switching accounts or servers no longer mixes entries.
+- Bounded upload queue: at most three concurrent uploads, with the remainder queued in selection order (cap of 100) and cancellable while queued.
+- Real `foldersFirst` preference, persisted and wired through Settings, Panel and the file list. Type sorting keeps its own semantics.
+- Quick Access entries for libraries (from the Libraries root) and folders (inside a library), keyed by full folder path so same-named siblings stay distinct.
+
+### Changed
+- Upload file picker paths are passed through verbatim. Zenity already returns filesystem paths, so the previous `file://` wrapping plus `decodeURIComponent()` round-trip - which corrupted names such as `100% termine.txt` or a literal `foo%20bar.txt` - is gone.
+- Transfer failures are classified from the real HTTP status instead of curl's exit code and message text.
+- Icon glyphs and the dedicated icon font are centralised in `js/Icons.qml`; all other text follows the Omarchy user font.
+- Search results activate on left-click only, and the filter controls moved into the list header.
+- `zenity`, `xdg-open` and `notify-send` are now declared optional dependencies; `python3` is declared required.
+
+### Fixed
+- Keyboard navigation was inert: `Panel.fileListRef` was declared but never assigned, so every key handler bailed out on a null list. The navigable list is now derived from the loaded view and nulls itself when no list is on screen.
+- Home failed to load because three delegates declared `required property` entries (`bar`, `onClicked`, `onRemoveFromFavorites`, `onCancel`, `onOpen`) that the Repeater never supplied.
+- The Home active-transfer cancel button evaluated its callback without calling it, so cancel did nothing.
+- `isAuthError()` and `isRetryableError()` were handed error strings rather than statuses, so 401/403 never triggered re-authentication and every HTTP failure looked retryable.
+- Adding a file to Quick Access silently pinned the whole library; files are no longer Quick Access targets.
+- Removing a Quick Access entry derived its identity from the current browsing context, so it could not work from Home.
+- A logout during upload validation could be missed by the pending `stat` preflight, which then resurrected the transfer with the old token. Transfers are now registered before validation and every continuation checks a session epoch.
+- `anchors` set on direct children of `Column`/`Row` positioners - ignored by Qt with a runtime warning - replaced with the supported alignment properties.
+- Unguarded `ListView` attached-property reads in `FileItem` and an `EmptyState` anchored inside a `Column`.
+- The server URL now rejects credentials, query strings and fragments, while still allowing subpath deployments.
+
+### Known Limitations
+- The zenity picker separates selections with a newline, so a filename containing a newline cannot be selected. Enter such a path manually in the upload dialog.
+- Graphical upload selection needs `zenity`; without it the manual path field is the only upload route.
+
 ## [1.0.0] - 2026-09-01
 
 ### Added
