@@ -24,7 +24,33 @@ Item {
     // reads this to stop interpreting typing as panel shortcuts.
     readonly property bool editing: pathField.activeFocus
 
-    Component.onCompleted: pathField.forceActiveFocus()
+    Component.onCompleted: {
+        pathField.forceActiveFocus()
+        root.checkPickerAvailable()
+    }
+
+    // True once we've probed for zenity. Missing zenity must never block login
+    // or the manual path field; only the graphical Browse action degrades.
+    property bool pickerAvailable: true
+
+    // Probe PATH for zenity without running it. A missing binary disables
+    // Browse with a clear message instead of a silent, doomed launch.
+    function checkPickerAvailable() {
+        var proc = pickerProbeProcess.createObject(root)
+        if (!proc) { root.pickerAvailable = false; return }
+        proc.command = ["which", "zenity"]
+        proc.running = true
+    }
+
+    Component {
+        id: pickerProbeProcess
+        Process {
+            onExited: function(exitCode) {
+                root.pickerAvailable = exitCode === 0
+                destroy()
+            }
+        }
+    }
 
     // Zenity separates selected paths with the requested separator. A newline
     // is the only practical choice here, which means a filename that itself
@@ -124,8 +150,21 @@ Item {
                 height: Style.space(32)
                 text: "Browse..."
                 tooltipText: "Open graphical file picker"
+                enabled: root.pickerAvailable
                 onClicked: root.openPicker()
             }
+        }
+
+        Text {
+            id: pickerWarning
+            width: parent.width
+            color: Color.urgent
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+            wrapMode: Text.WordWrap
+            textFormat: Text.PlainText
+            text: "Zenity is not installed; enter the path manually."
+            visible: !root.pickerAvailable
         }
 
         Text {

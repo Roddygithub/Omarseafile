@@ -36,7 +36,23 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 - `zenity` for the graphical upload picker. **Optional**: without it the manual path field still uploads, and login is not blocked.
 - `wl-clipboard` for copying share links. Sharing still works without it, but copying the link does not.
 - `libnotify` for `notify-send` transfer notifications. **Optional**.
-- Python 3, `coreutils` (`stat`, `realpath`), `util-linux` (`setsid`), and `xdg-user-dirs`/`xdg-utils` (`xdg-user-dir`, `xdg-open`), normally supplied by Omarchy/Arch desktop installations.
+- Python 3, `coreutils` (`stat`, `realpath`, `cat`, `rm`, `mv`), `util-linux` (`setsid`, `kill`), and `xdg-user-dirs`/`xdg-utils` (`xdg-user-dir`, `xdg-open`), normally supplied by Omarchy/Arch desktop installations.
+
+Dependency classification:
+
+| Command | Class | Blocking? |
+|---------|-------|-----------|
+| `curl` | REQUIRED | Yes — every authenticated API call and transfer uses it. |
+| `secret-tool` (libsecret) | REQUIRED | Yes — token/credential storage and lookup. |
+| `python3` | REQUIRED | Yes — hardened temp-file writers, transfer wrappers, cache eviction. |
+| `setsid`, `stat`, `cat`, `rm`, `kill`, `which`, `realpath`, `mv` | SYSTEM_ASSUMPTION | No — standard util-linux/coreutils present on any Arch/Omarchy install. |
+| `bash`/`sh` | SYSTEM_ASSUMPTION | No — used for secure `mv -nT` finalization and the xdg-open handoff. |
+| `xdg-user-dir` (xdg-user-dirs) | SYSTEM_ASSUMPTION | No — resolves the Downloads directory; falls back to `~/Downloads`. |
+| `zenity` | OPTIONAL_FEATURE | No — graphical upload picker only; the manual path field still uploads, and login is never blocked. |
+| `wl-copy` (wl-clipboard) | OPTIONAL_FEATURE | No — copying share links only. |
+| `notify-send` (libnotify) | OPTIONAL_FEATURE | No — desktop notifications only. |
+| `xdg-open`, `xdg-mime` | OPTIONAL_FEATURE | No — "Open Local" and "Show in folder" only. |
+| `uwsm-app` | OPTIONAL_FEATURE | No — honors MIME-handler desktop entries for "Open Local". |
 
 On Arch/Omarchy:
 
