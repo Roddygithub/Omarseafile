@@ -141,11 +141,14 @@ Panel {
     }
 
     // Favorites persist per account, so every mutation writes the scoped store
-    // (plus the one-time legacy-migration marker) back to settings. The legacy
+    // (plus the one-time legacy-migration markers) back to settings. The legacy
     // pre-1.1 blob is kept under its own key so it can be imported exactly once.
     function persistFavorites() {
         setting("favoritesStore", Favorites.saveToSettings())
         setting("favoritesLegacyMigrated", Favorites.saveMigratedKeys())
+        // GLOBAL migration-complete marker: once set, no other account ever
+        // imports the pre-1.1 legacy blob on a later startup.
+        setting("favoritesLegacyMigratedGlobally", Favorites.saveGloballyMigrated())
     }
 
     // Quick Access targets in v1.1 are libraries (from the Libraries root) and
@@ -1966,10 +1969,12 @@ Panel {
         updateConnectionServiceUrl()
 
         // Load favorites from settings: the account-scoped store, the legacy
-        // pre-1.1 blob (imported once into the first signed-in account), and the
-        // migration marker that prevents re-import. The legacy blob historically
-        // lived under `favorites`; if the new `favoritesLegacy` key is empty we
-        // fall back to it so no pre-1.1 favorites are lost.
+        // pre-1.1 blob (imported once into the first signed-in account), the
+        // migration markers that prevent re-import, and the GLOBAL marker. The
+        // global marker is authoritative: once migration completed anywhere,
+        // the legacy blob is retired and no later account imports it. The blob
+        // historically lived under `favorites`; if the new `favoritesLegacy`
+        // key is empty we fall back to it so no pre-1.1 favorites are lost.
         var legacyRaw = setting("favoritesLegacy", "[]")
         if (!legacyRaw || legacyRaw === "[]" || legacyRaw === "{}") {
             legacyRaw = setting("favorites", "[]")
@@ -1977,7 +1982,8 @@ Panel {
         Favorites.loadFromSettings(
             setting("favoritesStore", "{}"),
             legacyRaw,
-            setting("favoritesLegacyMigrated", "[]")
+            setting("favoritesLegacyMigrated", "[]"),
+            setting("favoritesLegacyMigratedGlobally", "false")
         )
 
         var startupLoginGeneration = root.loginGeneration

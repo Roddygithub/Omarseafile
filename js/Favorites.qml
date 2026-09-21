@@ -25,6 +25,13 @@ QtObject {
     property var store: ({})
     // account keys whose legacy unscoped `favorites` blob was already absorbed
     property var legacyMigratedKeys: []
+    // GLOBAL migration-complete flag. The pre-1.1 unscoped favorites blob is
+    // adopted exactly once, into the first authenticated account that migrates.
+    // Once true it is persisted and no later account ever re-imports the blob,
+    // so migration cannot break account isolation across restarts. This is the
+    // authoritative gate; legacyMigratedKeys is retained as a compatibility
+    // record of which account performed the migration.
+    property bool legacyMigratedGlobally: false
     // account key currently signed in; "" means signed out
     property string activeKey: ""
     // bumped on every mutation so bindings that read through helper functions
@@ -139,7 +146,9 @@ QtObject {
     }
 
     // Called by Panel where `setting` is available.
-    function loadFromSettings(storeJson, legacyJson, migratedJson) {
+    // globallyMigratedJson: the persisted GLOBAL migration-complete marker.
+    // When it is true the legacy blob is retired and never exposed for import.
+    function loadFromSettings(storeJson, legacyJson, migratedJson, globallyMigratedJson) {
         root.store = root._readStore(storeJson)
         var migrated = []
         try {
@@ -152,6 +161,9 @@ QtObject {
         }
         root.legacyMigratedKeys = migrated
 
+        root.legacyMigratedGlobally = (globallyMigratedJson === "true"
+            || globallyMigratedJson === true)
+
         var legacy = []
         try {
             var parsedLegacy = legacyJson ? JSON.parse(legacyJson) : []
@@ -159,7 +171,9 @@ QtObject {
         } catch (e) {
             legacy = []
         }
-        root._legacyEntries = legacy
+        // Once the global migration is complete the legacy blob must never be
+        // imported again, into ANY account. Retire it here so it is invisible.
+        root._legacyEntries = root.legacyMigratedGlobally ? [] : legacy
     }
 
     // Called by Panel where `setting` is available.
@@ -171,19 +185,26 @@ QtObject {
         return JSON.stringify(root.legacyMigratedKeys)
     }
 
+    function saveGloballyMigrated() {
+        return root.legacyMigratedGlobally ? "true" : "false"
+    }
+
     function hasLegacyEntries() {
         return root._legacyEntries.length > 0
     }
 
-    // Activate the account scope. Deterministic one-time migration: a legacy
-    // unscoped blob is absorbed into this account the first time it is seen,
-    // and never imported again for that key.
+    // Activate the account scope. Deterministic one-time migration: the legacy
+    // unscoped blob is absorbed into the first account and then a GLOBAL marker
+    // is set so it is adopted exactly once across the whole app, never into a
+    // second account.
     function setAccountKey(serverUrl, email) {
         var key = root.makeAccountKey(serverUrl, email)
         if (key === "") return
         root.activeKey = key
         var already = root.legacyMigratedKeys.indexOf(key) !== -1
-        if (root._legacyEntries.length === 0 || already) {
+        // Global gate first: once any account migrated, no other account ever
+        // imports the legacy blob, even after a restart re-loads the blob.
+        if (root.legacyMigratedGlobally || root._legacyEntries.length === 0 || already) {
             root.revision++
             return
         }
@@ -196,6 +217,7 @@ QtObject {
         keys.push(key)
         root.legacyMigratedKeys = keys
         root._legacyEntries = []
+        root.legacyMigratedGlobally = true
         root.revision++
     }
 

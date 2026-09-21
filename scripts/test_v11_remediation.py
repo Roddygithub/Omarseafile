@@ -214,7 +214,7 @@ console.log(R.join("\n"));
          json.loads(res2["revisionBumped"]) is True)
     test("no in-place favorites.push/splice left", json.loads(res2["noBareMutation"]) is True)
 
-    # Legacy migration is deterministic and one-time.
+    # Legacy migration is deterministic and one-time, globally.
     out3 = run_node(HARNESS + r'''
 const F = h.loadQmlObject("js/Favorites.qml", {});
 const R = [];
@@ -223,19 +223,24 @@ const legacy = JSON.stringify([
   { type: "folder", repoId: "old", repoName: "Old", path: "/legacy", name: "legacy" },
   { type: "bogus", repoId: "x" },
 ]);
-F.loadFromSettings("{}", legacy, "[]");
+F.loadFromSettings("{}", legacy, "[]", "false");
 R.push("legacySeen=" + JSON.stringify(F.hasLegacyEntries()));
 F.setAccountKey("https://s.example", "u@example.com");
 R.push("migratedCount=" + JSON.stringify(F.count()));
 R.push("bogusDropped=" + JSON.stringify(F.count() === 2));
 R.push("marker=" + JSON.stringify(F.saveMigratedKeys()));
-// reload with the SAME legacy blob plus the recorded marker: must not re-import
+R.push("globalSet=" + F.saveGloballyMigrated());
+// reload with the SAME legacy blob plus the recorded markers: must not re-import
 const saved = F.saveToSettings();
 const marker = F.saveMigratedKeys();
 const F2 = h.loadQmlObject("js/Favorites.qml", {});
-F2.loadFromSettings(saved, legacy, marker);
+F2.loadFromSettings(saved, legacy, marker, "true");
+R.push("legacyRetired=" + JSON.stringify(!F2.hasLegacyEntries()));
 F2.setAccountKey("https://s.example", "u@example.com");
 R.push("noSecondImport=" + JSON.stringify(F2.count() === 2));
+// A SECOND account must receive ZERO legacy entries after global migration.
+F2.setAccountKey("https://other.example", "b@example.com");
+R.push("secondAccountCount=" + JSON.stringify(F2.count()));
 console.log(R.join("\n"));
 ''')
     res3 = dict(line.split("=", 1) for line in out3.strip().split("\n"))
@@ -246,13 +251,18 @@ console.log(R.join("\n"));
     test("migration marker records the account",
          json.loads(json.loads(res3["marker"])) == ["https://s.example|u@example.com"],
          res3.get("marker"))
+    test("global migration marker set after first import", res3["globalSet"] == "true")
+    test("legacy blob retired on next start", json.loads(res3["legacyRetired"]) is True)
     test("legacy not re-imported on next start", json.loads(res3["noSecondImport"]) is True)
+    test("second account receives zero legacy entries",
+         json.loads(res3["secondAccountCount"]) == 0, res3.get("secondAccountCount"))
 
     # Panel-wiring contract (INTEGRATION): simulate Panel's exact settings keys
-    # (favoritesStore / favoritesLegacy / favoritesLegacyMigrated) round-tripped
-    # through setting(), proving the legacy blob flows into the first account
-    # and the marker prevents re-import under the real Panel wiring, not just
-    # through Favorites.qml helpers directly.
+    # (favoritesStore / favoritesLegacy / favoritesLegacyMigrated /
+    # favoritesLegacyMigratedGlobally) round-tripped through setting(),
+    # proving the legacy blob flows into the first account, a full app restart
+    # happens, and account B receives ZERO legacy entries while account A
+    # keeps its migrated entries.
     out4 = run_node(HARNESS + r'''
 const F = h.loadQmlObject("js/Favorites.qml", {});
 const R = [];
@@ -264,32 +274,39 @@ const settings = {
     { type: "folder", repoId: "legacy-lib", repoName: "Old", path: "/docs", name: "docs" },
   ]),
   favoritesLegacyMigrated: "[]",
+  favoritesLegacyMigratedGlobally: "false",
 };
-function loadFavorites() {
+function loadFavorites(inst) {
   const legacy = settings.favoritesLegacy;
   const legacyRaw = (!legacy || legacy === "[]" || legacy === "{}") ? settings.favorites : legacy;
-  this.loadFromSettings(settings.favoritesStore, legacyRaw, settings.favoritesLegacyMigrated);
+  inst.loadFromSettings(settings.favoritesStore, legacyRaw, settings.favoritesLegacyMigrated,
+      settings.favoritesLegacyMigratedGlobally);
 }
 function persistFavorites() {
   settings.favoritesStore = F.saveToSettings();
   settings.favoritesLegacyMigrated = F.saveMigratedKeys();
+  settings.favoritesLegacyMigratedGlobally = F.saveGloballyMigrated();
 }
-function loadFavorites(inst) {
-  const legacy = settings.favoritesLegacy;
-  const legacyRaw = (!legacy || legacy === "[]" || legacy === "{}") ? settings.favorites : legacy;
-  inst.loadFromSettings(settings.favoritesStore, legacyRaw, settings.favoritesLegacyMigrated);
-}
+// A. legacy -> account A
 loadFavorites(F);
 F.setAccountKey("https://srv.example.com/", "user@example.com");
+// B. persist
 persistFavorites();
 R.push("importedOnce=" + JSON.stringify(F.count() === 2));
 R.push("storePersisted=" + JSON.stringify(JSON.parse(settings.favoritesStore)["https://srv.example.com|user@example.com"].length === 2));
 R.push("markerPersisted=" + JSON.stringify(JSON.parse(settings.favoritesLegacyMigrated).length === 1));
-// Next start: reload from the persisted store + marker, same legacy blob.
+R.push("globalPersisted=" + settings.favoritesLegacyMigratedGlobally);
+const accountAStore = settings.favoritesStore;
+// C. simulate full app restart: fresh Favorites instance, reload from settings
 const F2 = h.loadQmlObject("js/Favorites.qml", {});
 loadFavorites(F2);
+// D. login account B
+F2.setAccountKey("https://other.example.com", "b@example.com");
+// E. account B receives ZERO legacy entries
+R.push("accountBLegacyCount=" + JSON.stringify(F2.count()));
+// F. account A still has its migrated entries
 F2.setAccountKey("https://srv.example.com/", "user@example.com");
-R.push("noDuplicateOnRestart=" + JSON.stringify(F2.count() === 2));
+R.push("accountARestored=" + JSON.stringify(F2.count()));
 console.log(R.join("\n"));
 ''')
     res4 = dict(line.split("=", 1) for line in out4.strip().split("\n"))
@@ -297,7 +314,11 @@ console.log(R.join("\n"));
     test("Panel wiring imports legacy into first account", _json4.loads(res4["importedOnce"]) is True)
     test("Panel wiring persists the scoped store", _json4.loads(res4["storePersisted"]) is True)
     test("Panel wiring persists the migration marker", _json4.loads(res4["markerPersisted"]) is True)
-    test("Panel wiring does not duplicate on restart", _json4.loads(res4["noDuplicateOnRestart"]) is True)
+    test("Panel wiring persists the global marker", res4["globalPersisted"] == "true")
+    test("account B receives zero legacy entries after restart",
+         _json4.loads(res4["accountBLegacyCount"]) == 0, res4.get("accountBLegacyCount"))
+    test("account A keeps its migrated entries after restart",
+         _json4.loads(res4["accountARestored"]) == 2, res4.get("accountARestored"))
 
 
 # =====================================================================
