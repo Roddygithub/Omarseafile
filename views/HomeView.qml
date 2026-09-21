@@ -93,6 +93,19 @@ Item {
 
                     implicitHeight: row.implicitHeight
 
+                    // Declared BEFORE the Row so the Row's remove Button stacks
+                    // above it and owns its own presses: the row only navigates
+                    // for clicks that miss the button. Later siblings render on
+                    // top in QML, so this ordering is what makes Remove win.
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
+                        }
+                    }
+
                     Row {
                         id: row
                         spacing: Style.space(12)
@@ -129,23 +142,11 @@ Item {
                             width: Style.space(24)
                             height: Style.space(24)
                             tooltipText: "Remove from Quick Access"
-                            // Sits above the row MouseArea, so removing an entry
-                            // never also navigates.
+                            // The row MouseArea is declared before this Row, so
+                            // the button stacks above it and owns its presses.
                             onClicked: {
                                 if (root.onRemoveFavorite) root.onRemoveFavorite(modelData)
                             }
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        // The remove button is a later sibling stacked on top and
-                        // accepts its own presses, so the row only sees clicks
-                        // that miss it.
-                        onClicked: {
-                            if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
                         }
                     }
                 }
@@ -161,6 +162,17 @@ Item {
 
                     implicitHeight: row.implicitHeight
 
+                    // Declared before the Row so the remove Button stacks above
+                    // it and owns its presses (see library delegate above).
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
+                        }
+                    }
+
                     Row {
                         id: row
                         spacing: Style.space(12)
@@ -197,18 +209,11 @@ Item {
                             width: Style.space(24)
                             height: Style.space(24)
                             tooltipText: "Remove from Quick Access"
+                            // The row MouseArea is declared before this Row, so
+                            // the button stacks above it and owns its presses.
                             onClicked: {
                                 if (root.onRemoveFavorite) root.onRemoveFavorite(modelData)
                             }
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
                         }
                     }
                 }
@@ -319,7 +324,6 @@ Item {
                             to: 1
                             value: modelData.progress
                             visible: isActive
-                            height: parent.height
                         }
 
                         Button {
@@ -387,8 +391,6 @@ Item {
             subtitle: "Pin libraries and folders for quick access\nRight-click an item in the browser and select \"Add to Quick Access\""
             width: parent.width
             visible: Favorites.getLibraries().length === 0 && Favorites.getFolders().length === 0 && root.activeCount === 0 && !(root.libraries && root.libraries.length > 0)
-            width: parent.width
-            height: parent.height
         }
     }
 }

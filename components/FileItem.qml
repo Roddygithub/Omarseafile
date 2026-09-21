@@ -121,7 +121,6 @@ Item {
                     from: 0
                     to: 1
                     value: root.transferProgress
-                    height: parent.height
                 }
 
                 Text {

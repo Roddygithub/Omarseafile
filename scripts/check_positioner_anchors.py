@@ -21,10 +21,22 @@ POSITIONERS = {"Column", "Row", "Grid", "Flow"}
 DECL = re.compile(r"^([A-Z]\w*)\s*\{")
 
 # Anchors that are meaningless/invalid when the parent is a positioner.
+# Qt empirically warns for exactly this set on ANY direct positioner child,
+# regardless of the anchor target:
+#   "Cannot specify top, bottom, verticalCenter, fill or centerIn anchors
+#    for items inside Column. Column will not function."
+# horizontalCenter / left / right / margins are permitted by Qt on positioner
+# children (verified with qs), so they are NOT flagged here.
 INVALID_ON_POSITIONER_CHILD = re.compile(
-    r"^anchors\.(fill|centerIn|horizontalCenter|verticalCenter|"
-    r"left|right|top|bottom|leftMargin|rightMargin|topMargin|bottomMargin|"
-    r"verticalCenterOffset|horizontalCenterOffset)\b"
+    r"^anchors\.(fill|centerIn|verticalCenter|top|bottom)\b"
+)
+
+# Qt warns for these anchor types on ANY direct positioner child, regardless of
+# the anchor target. Empirically `anchors.centerIn: sibling` on a Column child
+# emits "Cannot specify ... centerIn anchors for items inside Column", so a
+# sibling target is NOT a safe escape hatch for these.
+TARGET_INDEPENDENT = re.compile(
+    r"^anchors\.(fill|centerIn|verticalCenter|top|bottom)\b"
 )
 
 
@@ -195,10 +207,14 @@ def scan(path):
             continue
         if not INVALID_ON_POSITIONER_CHILD.match(stripped):
             continue
-        # Anchors that resolve against something other than the positioner
-        # parent (a sibling, a named item) are legitimate.
-        target = stripped.split(':', 1)[1].strip() if ':' in stripped else ''
-        if not (target.startswith('parent') or target == ''):
+# Anchors that resolve against something other than the positioner
+        # parent (a sibling, a named item) are legitimate for side anchors but
+        # not for fill/centerIn/verticalCenter/top/bottom, which Qt rejects on
+        # positioner children whatever their target.
+        target = stripped.split(":", 1)[1].strip() if ":" in stripped else ""
+        if TARGET_INDEPENDENT.match(stripped):
+            pass  # flagged regardless of target
+        elif not (target.startswith("parent") or target == ""):
             continue
         findings.append((idx, decls[owner]['type'], parent_type, stripped))
 

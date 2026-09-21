@@ -52,109 +52,114 @@ Column {
             }
         }
 
-        // Trash list
-        ListView {
-            id: trashList
+        // Trash list + empty state overlaid in a plain Item (anchors on a
+        // direct Column child are invalid, so the overlay container is an Item).
+        Item {
             width: parent.width
-            height: root.trashData.length === 0 ? Style.space(160) : Math.min(contentHeight, Style.space(360))
-            clip: true
-            spacing: Style.space(4)
-            model: root.trashData
+            height: trashList.height
 
-            delegate: Item {
+            ListView {
+                id: trashList
                 width: parent.width
-                height: row.implicitHeight + Style.space(8)
-                required property var modelData
+                height: root.trashData.length === 0 ? Style.space(160) : Math.min(contentHeight, Style.space(360))
+                clip: true
+                spacing: Style.space(4)
+                model: root.trashData
 
-                property var trashItem: modelData
-                property bool isDir: modelData.isDir === true
+                delegate: Item {
+                    width: parent.width
+                    height: row.implicitHeight + Style.space(8)
+                    required property var modelData
 
-                Row {
-                    id: row
-                    spacing: Style.space(12)
-                    height: Math.max(icon.implicitHeight, nameLabel.implicitHeight) + Style.space(8)
+                    property var trashItem: modelData
+                    property bool isDir: modelData.isDir === true
 
-                    Text {
-                        id: icon
-                        text: isDir ? Icons.folder : Icons.file
-                        color: root.bar.foreground
-                        font.family: Icons.family
-                        font.pixelSize: Style.font.title
-                        width: Style.space(24)
-                        horizontalAlignment: Text.AlignHCenter
-                        height: parent.height
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
-                    Column {
-                        width: parent.width - icon.width - actionColumn.width - Style.space(24)
-                        spacing: Style.space(2)
+                    Row {
+                        id: row
+                        spacing: Style.space(12)
+                        height: Math.max(icon.implicitHeight, nameLabel.implicitHeight) + Style.space(8)
 
                         Text {
-                            id: nameLabel
-                            text: Models.boundedDisplayText(trashItem.objName, 1024)
+                            id: icon
+                            text: isDir ? Icons.folder : Icons.file
                             color: root.bar.foreground
-                            font.family: root.bar.fontFamily
-                            font.pixelSize: Style.font.body
-                            elide: Text.ElideRight
-                            width: parent.width
-                            textFormat: Text.PlainText
-                        }
-
-                        Text {
-                            id: detailLabel
-                            text: Models.boundedDisplayText((function() {
-                                var parts = []
-                                if (trashItem.deletedTime) {
-                                    var date = new Date(trashItem.deletedTime)
-                                    parts.push(date.toLocaleDateString() + " " + date.toLocaleTimeString())
-                                }
-                                if (!isDir && trashItem.size) {
-                                    parts.push(Models.formatSize(trashItem.size))
-                                }
-                                parts.push(isDir ? "Folder" : "File")
-                                return parts.join(" \u2022 ")
-                            })(), 1024)
-                            color: Qt.darker(root.bar.foreground, 1.4)
-                            font.family: root.bar.fontFamily
-                            font.pixelSize: Style.font.caption
-                            elide: Text.ElideRight
-                            width: parent.width
-                            visible: text !== ""
-                            textFormat: Text.PlainText
-                        }
-                    }
-
-                    Column {
-                        id: actionColumn
-                        width: Style.space(100)
-                        spacing: Style.space(4)
-
-                        Text {
-                            id: fileRestoreLabel
-                            text: "Restore unavailable"
-                            color: Qt.darker(root.bar.foreground, 1.4)
-                            font.family: root.bar.fontFamily
-                            font.pixelSize: Style.font.caption
+                            font.family: Icons.family
+                            font.pixelSize: Style.font.title
+                            width: Style.space(24)
                             horizontalAlignment: Text.AlignHCenter
+                            height: parent.height
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        Column {
+                            width: parent.width - icon.width - actionColumn.width - Style.space(24)
+                            spacing: Style.space(2)
+
+                            Text {
+                                id: nameLabel
+                                text: Models.boundedDisplayText(trashItem.objName, 1024)
+                                color: root.bar.foreground
+                                font.family: root.bar.fontFamily
+                                font.pixelSize: Style.font.body
+                                elide: Text.ElideRight
+                                width: parent.width
+                                textFormat: Text.PlainText
+                            }
+
+                            Text {
+                                id: detailLabel
+                                text: Models.boundedDisplayText((function() {
+                                    var parts = []
+                                    if (trashItem.deletedTime) {
+                                        var date = new Date(trashItem.deletedTime)
+                                        parts.push(date.toLocaleDateString() + " " + date.toLocaleTimeString())
+                                    }
+                                    if (!isDir && trashItem.size) {
+                                        parts.push(Models.formatSize(trashItem.size))
+                                    }
+                                    parts.push(isDir ? "Folder" : "File")
+                                    return parts.join(" \u2022 ")
+                                })(), 1024)
+                                color: Qt.darker(root.bar.foreground, 1.4)
+                                font.family: root.bar.fontFamily
+                                font.pixelSize: Style.font.caption
+                                elide: Text.ElideRight
+                                width: parent.width
+                                visible: text !== ""
+                                textFormat: Text.PlainText
+                            }
+                        }
+
+                        Column {
+                            id: actionColumn
+                            width: Style.space(100)
+                            spacing: Style.space(4)
+
+                            Text {
+                                id: fileRestoreLabel
+                                text: "Restore unavailable"
+                                color: Qt.darker(root.bar.foreground, 1.4)
+                                font.family: root.bar.fontFamily
+                                font.pixelSize: Style.font.caption
+                                horizontalAlignment: Text.AlignHCenter
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Empty state
-        EmptyState {
+            // Empty state, overlaid and centered on the overlay Item.
+            EmptyState {
                 id: emptyState
                 bar: root.bar
                 icon: Icons.trash
                 title: "Trash is empty"
                 subtitle: "Deleted items appear here"
                 width: parent.width
-                height: trashList.height
-                anchors.centerIn: trashList
+                anchors.centerIn: parent
                 visible: root.trashData.length === 0
             }
+        }
     }
 
     // Bottom close button

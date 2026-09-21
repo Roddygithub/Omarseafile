@@ -50,6 +50,9 @@ Item {
         id: column
         spacing: Style.space(10)
         width: Math.min(parent.width, Style.space(420))
+        // root is a plain Item (not a positioner), so anchoring the top-level
+        // column is valid and preserves the intended horizontal centring.
+        anchors.horizontalCenter: parent.horizontalCenter
 
         Text {
             text: "Settings"

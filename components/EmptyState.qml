@@ -15,19 +15,21 @@ Item {
     width: parent.width
     implicitHeight: column.implicitHeight
 
-    // Column is a positioner: it manages its children's positions, so setting
-    // anchors on them is invalid and makes Qt warn while ignoring the anchor.
-    // horizontalAlignment is the supported way to centre them.
+    // Column is a positioner; Qt only forbids fill/centerIn/verticalCenter/
+    // top/bottom anchors on its direct children. horizontalCenter is permitted,
+    // so each child centres itself in the full-width Column, which in turn
+    // spans the parent — this is what actually centres the whole block.
     Column {
         id: column
+        width: parent.width
         spacing: Style.space(12)
-        horizontalAlignment: Qt.AlignHCenter
 
         Text {
             text: root.icon
             font.family: Icons.family
             font.pixelSize: 48
             color: Qt.darker(root.bar.foreground, 1.5)
+            anchors.horizontalCenter: parent.horizontalCenter
         }
 
         Text {
@@ -37,6 +39,7 @@ Item {
             font.pixelSize: Style.font.body
             font.bold: true
             textFormat: Text.PlainText
+            anchors.horizontalCenter: parent.horizontalCenter
         }
 
         Text {
@@ -46,12 +49,14 @@ Item {
             font.pixelSize: Style.font.caption
             visible: root.subtitle !== ""
             textFormat: Text.PlainText
+            anchors.horizontalCenter: parent.horizontalCenter
         }
 
         Button {
             width: implicitWidth + Style.space(24)
             text: root.actionText
             visible: root.action !== null && root.actionText !== ""
+            anchors.horizontalCenter: parent.horizontalCenter
             onClicked: {
                 if (root.action) root.action()
             }
