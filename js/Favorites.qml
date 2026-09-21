@@ -67,9 +67,34 @@ QtObject {
     }
 
     // Account identity. URL + email only — never a token or password.
+    // Only the scheme and hostname are lowercased: a URL path/subpath is
+    // case-sensitive and must be preserved exactly.
     function makeAccountKey(serverUrl, email) {
-        var url = serverUrl === null || serverUrl === undefined ? "" : String(serverUrl).trim().toLowerCase().replace(/\/+$/, "")
+        var raw = serverUrl === null || serverUrl === undefined ? "" : String(serverUrl).trim()
         var id = email === null || email === undefined ? "" : String(email).trim().toLowerCase()
+        var url = ""
+        if (raw !== "") {
+            var parsed
+            try {
+                parsed = new URL(raw)
+                var scheme = parsed.protocol.replace(":", "").toLowerCase()
+                var host = parsed.hostname.toLowerCase()
+                var port = parsed.port ? ":" + parsed.port : ""
+                var path = parsed.pathname.replace(/\/+$/, "")
+                var search = parsed.search || ""
+                var hash = parsed.hash || ""
+                url = scheme + "://" + host + port + path + search + hash
+            } catch (e) {
+                // Not a parseable URL: fall back to lowercasing the scheme and
+                // authority only, preserving any path verbatim.
+                var m = /^([a-z][a-z0-9+.-]*):\/\/([^/]+)/i.exec(raw)
+                if (m) {
+                    url = m[1].toLowerCase() + "://" + m[2].toLowerCase() + raw.substring(m.index + m[0].length)
+                } else {
+                    url = raw.toLowerCase()
+                }
+            }
+        }
         if (url === "" && id === "") return ""
         return url + "|" + id
     }

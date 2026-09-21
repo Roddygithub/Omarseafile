@@ -141,9 +141,10 @@ Panel {
     }
 
     // Favorites persist per account, so every mutation writes the scoped store
-    // (plus the one-time legacy-migration marker) back to settings.
+    // (plus the one-time legacy-migration marker) back to settings. The legacy
+    // pre-1.1 blob is kept under its own key so it can be imported exactly once.
     function persistFavorites() {
-        setting("favorites", Favorites.saveToSettings())
+        setting("favoritesStore", Favorites.saveToSettings())
         setting("favoritesLegacyMigrated", Favorites.saveMigratedKeys())
     }
 
@@ -262,6 +263,9 @@ Panel {
         if (historyLoader.item) { root.historyGeneration++; root.showHistory = false; historyLoader.sourceComponent = undefined; return true }
         if (trashLoader.item) { root.showTrash = false; trashLoader.sourceComponent = undefined; return true }
         if (settingsLoader.item) { root.closeSettings(); return true }
+        // Transfers surface: Escape returns to the underlying view (Libraries
+        // root or the browser), never closes the whole panel.
+        if (root.showTransfers) { root.showTransfers = false; return true }
         return false
     }
 
@@ -520,14 +524,17 @@ Panel {
                     bar: root.bar
                     overlay: keyCatcher.Overlay.overlay
                     title: root.state === "login" ? "Seafile" : (root.settingsOpen ? "Settings" : (root.showTransfers ? "Transfers" : (root.searchActive ? "Search" : (root.currentRepo ? root.currentRepo.name : "Libraries"))))
-                    showBack: root.state === "browse" && !root.searchActive && (!root.dialogOpen || root.settingsOpen) && (root.pathHistory.length > 0 || root.settingsOpen)
-                    showRefresh: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.destinationMode
-                    showUpload: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.destinationMode
-                    showCreateFolder: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.destinationMode && root.currentRepo !== null
-                    showSearch: root.state === "browse" && !root.dialogOpen && !root.destinationMode
+                    showBack: root.state === "browse" && !root.searchActive && (!root.dialogOpen || root.settingsOpen) && (root.pathHistory.length > 0 || root.settingsOpen || root.showTransfers)
+                    // While the Transfers surface is active the underlying
+                    // browser view is hidden, so only intentional global actions
+                    // (Back, Logout, Settings, the Transfers indicator) stay on.
+                    showRefresh: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.destinationMode && !root.showTransfers
+                    showUpload: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.destinationMode && !root.showTransfers
+                    showCreateFolder: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.destinationMode && !root.showTransfers && root.currentRepo !== null
+                    showSearch: root.state === "browse" && !root.dialogOpen && !root.destinationMode && !root.showTransfers
                     showLogout: root.state === "browse" && !root.dialogOpen && !root.destinationMode
                     showTransfers: root.state === "browse" && !root.dialogOpen && !root.destinationMode
-                    showTrash: root.state === "browse" && !root.dialogOpen && !root.destinationMode
+                    showTrash: root.state === "browse" && !root.dialogOpen && !root.destinationMode && !root.showTransfers
                     showSettings: root.state === "browse" && !root.dialogOpen && !root.destinationMode
                     activeTransferCount: root.activeTransferCount
                     hasTransferFailures: root.hasTransferFailures
@@ -947,6 +954,7 @@ Panel {
             onClearFailed: function() { TransferService.clearFailed() }
             onClearAllCompleted: function() { TransferService.clearCompleted() }
             onClearAllFailed: function() { TransferService.clearFailed() }
+            onClearTransfer: function(transfer) { TransferService.clearTransfer(transfer.id) }
             onOpen: function(transfer) {
                 var url = Models.toFileUrl(transfer.destPath)
                 if (!Qt.openUrlExternally(url)) root.showToast("Could not open file", "error")
@@ -1957,8 +1965,20 @@ Panel {
         SeafileAPI.setConnectionService(connectionService)
         updateConnectionServiceUrl()
 
-        // Load favorites from settings
-        Favorites.loadFromSettings(setting("favorites", "[]"))
+        // Load favorites from settings: the account-scoped store, the legacy
+        // pre-1.1 blob (imported once into the first signed-in account), and the
+        // migration marker that prevents re-import. The legacy blob historically
+        // lived under `favorites`; if the new `favoritesLegacy` key is empty we
+        // fall back to it so no pre-1.1 favorites are lost.
+        var legacyRaw = setting("favoritesLegacy", "[]")
+        if (!legacyRaw || legacyRaw === "[]" || legacyRaw === "{}") {
+            legacyRaw = setting("favorites", "[]")
+        }
+        Favorites.loadFromSettings(
+            setting("favoritesStore", "{}"),
+            legacyRaw,
+            setting("favoritesLegacyMigrated", "[]")
+        )
 
         var startupLoginGeneration = root.loginGeneration
         Auth.checkDependencies().then(function(missing) {

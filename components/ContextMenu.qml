@@ -120,9 +120,11 @@ Popup {
         Button {
             width: parent.width
             text: root.isFavorite ? "Remove from Quick Access" : "Add to Quick Access"
-            // Quick Access targets are libraries and folders only in v1.1, so
-            // the entry is hidden for files rather than offering a no-op.
-            visible: !root.libraryMode && !root.batchMode && (root.isDir || root.isFavorite)
+            // Quick Access targets are libraries and folders only in v1.1.
+            // At the Libraries root (libraryMode) the item is a library, so the
+            // action is available there too; for files it is hidden rather than
+            // offering a no-op. Batch selections do not support Quick Access.
+            visible: !root.batchMode && (root.isDir || root.isFavorite || root.libraryMode)
             onClicked: {
                 if (root.isFavorite) {
                     root.removeFromFavoritesClicked(root.item)
