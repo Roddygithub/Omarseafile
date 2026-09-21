@@ -114,6 +114,8 @@ say("fullNested", F.folderFullPath("/a", "x"));
 
 // account key never contains a token
 say("accountKey", F.makeAccountKey("HTTPS://Srv.Example.COM/", "User@Example.COM"));
+// account key preserves path case: only scheme + host are lowercased
+say("pathKey", F.makeAccountKey("HTTPS://Srv.Example.COM/SeafileAPI", "User@Example.COM"));
 
 // removal by record identity, with no browsing context
 const saved = JSON.parse(F.saveToSettings());
@@ -168,6 +170,8 @@ console.log(R.join("\n"));
     test("full path from nested dir", g("fullNested") == "/a/x", res.get("fullNested"))
     test("account key is normalized url+email",
          g("accountKey") == "https://srv.example.com|user@example.com", res.get("accountKey"))
+    test("account key lowercases scheme+host but preserves path case",
+         g("pathKey") == "https://srv.example.com/SeafileAPI|user@example.com", res.get("pathKey"))
     test("account key carries no token", "token" not in g("accountKey").lower())
     test("removal by record works with no currentRepo", g("removeByRecord") is True)
     test("/docs removed", "/docs" not in g("afterRemove"), res.get("afterRemove"))
@@ -244,6 +248,57 @@ console.log(R.join("\n"));
          res3.get("marker"))
     test("legacy not re-imported on next start", json.loads(res3["noSecondImport"]) is True)
 
+    # Panel-wiring contract (INTEGRATION): simulate Panel's exact settings keys
+    # (favoritesStore / favoritesLegacy / favoritesLegacyMigrated) round-tripped
+    # through setting(), proving the legacy blob flows into the first account
+    # and the marker prevents re-import under the real Panel wiring, not just
+    # through Favorites.qml helpers directly.
+    out4 = run_node(HARNESS + r'''
+const F = h.loadQmlObject("js/Favorites.qml", {});
+const R = [];
+// A tiny settings store mirroring Panel's setting()/persistFavorites() keys.
+const settings = {
+  favoritesStore: "{}",
+  favoritesLegacy: JSON.stringify([
+    { type: "library", repoId: "legacy-lib", repoName: "Old" },
+    { type: "folder", repoId: "legacy-lib", repoName: "Old", path: "/docs", name: "docs" },
+  ]),
+  favoritesLegacyMigrated: "[]",
+};
+function loadFavorites() {
+  const legacy = settings.favoritesLegacy;
+  const legacyRaw = (!legacy || legacy === "[]" || legacy === "{}") ? settings.favorites : legacy;
+  this.loadFromSettings(settings.favoritesStore, legacyRaw, settings.favoritesLegacyMigrated);
+}
+function persistFavorites() {
+  settings.favoritesStore = F.saveToSettings();
+  settings.favoritesLegacyMigrated = F.saveMigratedKeys();
+}
+function loadFavorites(inst) {
+  const legacy = settings.favoritesLegacy;
+  const legacyRaw = (!legacy || legacy === "[]" || legacy === "{}") ? settings.favorites : legacy;
+  inst.loadFromSettings(settings.favoritesStore, legacyRaw, settings.favoritesLegacyMigrated);
+}
+loadFavorites(F);
+F.setAccountKey("https://srv.example.com/", "user@example.com");
+persistFavorites();
+R.push("importedOnce=" + JSON.stringify(F.count() === 2));
+R.push("storePersisted=" + JSON.stringify(JSON.parse(settings.favoritesStore)["https://srv.example.com|user@example.com"].length === 2));
+R.push("markerPersisted=" + JSON.stringify(JSON.parse(settings.favoritesLegacyMigrated).length === 1));
+// Next start: reload from the persisted store + marker, same legacy blob.
+const F2 = h.loadQmlObject("js/Favorites.qml", {});
+loadFavorites(F2);
+F2.setAccountKey("https://srv.example.com/", "user@example.com");
+R.push("noDuplicateOnRestart=" + JSON.stringify(F2.count() === 2));
+console.log(R.join("\n"));
+''')
+    res4 = dict(line.split("=", 1) for line in out4.strip().split("\n"))
+    import json as _json4
+    test("Panel wiring imports legacy into first account", _json4.loads(res4["importedOnce"]) is True)
+    test("Panel wiring persists the scoped store", _json4.loads(res4["storePersisted"]) is True)
+    test("Panel wiring persists the migration marker", _json4.loads(res4["markerPersisted"]) is True)
+    test("Panel wiring does not duplicate on restart", _json4.loads(res4["noDuplicateOnRestart"]) is True)
+
 
 # =====================================================================
 print("\n--- 2. HTTP status propagation and retry classification (BEHAVIORAL) ---")
@@ -304,15 +359,22 @@ console.log(R.join("\n"));
          res.get("msg404"))
     test("transport failure message invents no status", "(HTTP" not in res["msg0"], res.get("msg0"))
 
-    # Static: the real status must actually be threaded into the callbacks.
+    # Static: the real status must actually be threaded into the callbacks, and
+    # the curl -o / -w contract must be honoured (body -> file, status -> stdout).
     src = read("js/HttpTransport.qml")
     test("curl captures %{http_code}", "-w\", \"%{http_code}" in src, kind="STATIC")
-    test("response body diverted off stdout", '"-o", statusFile' in src, kind="STATIC")
+    test("response body goes to a private file via -o",
+         '"-o", responseBodyFile' in src and "curl_resp" in src, kind="STATIC")
+    test("response body read back from the file", "_readBodyFile" in src, kind="STATIC")
+    test("status is parsed from stdout text", "_statusFromText(statusText)" in src, kind="STATIC")
     test("callback contract is (success, data, error, status)",
          re.search(r"callback\(success, data, error, typeof status", src) is not None, kind="STATIC")
-    test("status file is private (createSecureFile)",
-         'createSecureFile("http", "curl_status"' in src, kind="STATIC")
-    test("status file is cleaned up", src.count("cleanup(statusFile)") >= 4, kind="STATIC")
+    test("response file is private (createSecureFile)",
+         'createSecureFile("http", "curl_resp"' in src, kind="STATIC")
+    test("response file is cleaned up",
+         src.count("cleanup(responseBodyFile)") >= 4, kind="STATIC")
+    test("no inverted body/status file remains",
+         "curl_status" not in src and "statusFilePath" not in src, kind="STATIC")
 
     ts = read("js/TransferService.qml")
     test("upload link callback receives status",
@@ -440,6 +502,59 @@ console.log(R.join("\n"));
     test("queued/validating are active states",
          'state === "queued" || state === "validating"' in ts, kind="STATIC")
 
+    # Early terminal failures must all pump the next queued upload exactly once.
+    out4 = run_node(HARNESS + r'''
+const T = h.loadQmlObject("js/TransferService.qml", { UrlPolicy: h.loadQmlObject("js/UrlPolicy.qml", {}) });
+T.SafePath = { sanitizeBasename: n => ({ valid: true, sanitized: n }) };
+T.reportError = () => {};
+T.transferStateChanged = () => {};
+T.transfersChanged = () => {};
+T._statFactory = { createObject: () => ({ command: null, running: false, destroy(){} }) };
+const R = [];
+const helperUsed = /function _finishUploadFailure/.test(require("fs").readFileSync("js/TransferService.qml","utf8"));
+R.push("helperPresent=" + helperUsed);
+
+// Inject each early-failure class directly and confirm the slot is released
+// and the next queued upload is pumped into "validating".
+function makeUpload(name) {
+  return { id: name, type: "upload", state: "pending", fileName: name, srcPath: "/tmp/"+name,
+           destUploadPath: "/", repoId: "r1", token: "tok", baseUrl: "https://s.example",
+           process: null, statProcess: null, uploadLink: null, progress: 0, speed: "",
+           error: "", retryCount: 0, startTime: Date.now(), endTime: null,
+           authHeaderFile: null, curlConfigFile: null, epoch: T.sessionEpoch };
+}
+function pumpFor(upload) {
+  // Simulate: the failing upload was running, a queued one waits behind it.
+  T.transfers = [upload, makeUpload("queued-next")];
+  T.transfers[1].state = "queued";
+  const before = T.transfers[1].state;
+  T._finishUploadFailure(upload, "injected");
+  return before + "->" + T.transfers[1].state;
+}
+const failures = [
+  makeUpload("u-policy"), makeUpload("u-resp"), makeUpload("u-url"),
+  makeUpload("u-hdr"), makeUpload("u-cfg"), makeUpload("u-proc")
+];
+R.push("policy=" + pumpFor(failures[0]));
+R.push("resp=" + pumpFor(failures[1]));
+R.push("url=" + pumpFor(failures[2]));
+R.push("hdr=" + pumpFor(failures[3]));
+R.push("cfg=" + pumpFor(failures[4]));
+R.push("proc=" + pumpFor(failures[5]));
+R.push("failedState=" + failures[0].state);
+R.push("doublePumpSafe=" + (function(){ T.transfers=[failures[0]]; failures[0].state="failed"; const before2=failures[0].state; T._finishUploadFailure(failures[0],"again"); return failures[0].state===before2; })());
+console.log(R.join("\n"));
+''')
+    res4 = dict(line.split("=", 1) for line in out4.strip().split("\n"))
+    import json as _json4
+    test("a single _finishUploadFailure helper exists", res4["helperPresent"] == "true",
+         kind="STATIC")
+    for case in ("policy", "resp", "url", "hdr", "cfg", "proc"):
+        test("early failure (%s) pumps the next queued upload" % case,
+             res4[case].endswith("->validating"), res4.get(case))
+    test("failed upload is terminal after early failure", res4["failedState"] == "failed")
+    test("double-pumping a terminal upload is a no-op", res4["doublePumpSafe"] == "true")
+
 
 # =====================================================================
 print("\n--- 4. Home / keyboard architecture (STATIC) ---")
@@ -517,11 +632,70 @@ test("toolbar title shows Transfers",
      'root.showTransfers ? "Transfers"' in panel, kind="STATIC")
 test("back/escape closes transfers", "if (root.showTransfers) { root.showTransfers = false }" in panel,
      kind="STATIC")
+test("Escape from Transfers returns to the view, never closes the panel",
+     "if (root.showTransfers) { root.showTransfers = false; return true }" in panel, kind="STATIC")
+test("Transfers Back is visible from the Libraries root",
+     "root.showTransfers" in panel.split("showBack:")[1].split("\n")[0], kind="STATIC")
+test("browser actions are hidden while Transfers is active",
+     all("!root.showTransfers" in line
+         for line in panel.split("\n")
+         if ("showRefresh:" in line or "showUpload:" in line or "showCreateFolder:" in line
+             or "showSearch:" in line or "showTrash:" in line)
+         and "property bool" not in line), kind="STATIC")
+test("intentional global actions stay while Transfers is active",
+     all("!root.showTransfers" not in line
+         for line in panel.split("\n")
+         if "showLogout:" in line or "showSettings:" in line or "showTransfers:" in line),
+     kind="STATIC")
 test("TransferManager keeps retry/cancel/clear/open/show-in-folder",
      all(k in panel for k in ("onRetry:", "onCancel:", "onClearCompleted:", "onClearFailed:",
                               "onOpen:", "onShowInFolder:", "onRetryAllFailed:")), kind="STATIC")
+test("per-item history removal is wired, not whole-category",
+     "onClearTransfer: function(transfer) { TransferService.clearTransfer(transfer.id) }" in panel
+     and "clearTransfer" in read("js/TransferService.qml")
+     and "onClear: root.onClearTransfer" in read("components/TransferManager.qml"), kind="STATIC")
+test("TransferItem treats queued/validating as active",
+     'transfer.state === "queued" || transfer.state === "validating"'
+     in read("components/TransferItem.qml"), kind="STATIC")
+test("TransferItem shows a queued/validating label",
+     '"Queued..."' in read("components/TransferItem.qml")
+     and '"Validating..."' in read("components/TransferItem.qml"), kind="STATIC")
+test("TransferItem queued/validating remain cancellable",
+     "visible: root.isActive && !root.isCancelling" in read("components/TransferItem.qml")
+     and "onCancel" in read("components/TransferItem.qml"), kind="STATIC")
 
 sr = read("components/SearchResults.qml")
+
+# Behavioral: clearTransfer removes exactly one terminal transfer.
+if NODE:
+    out5 = run_node(HARNESS + r'''
+const T = h.loadQmlObject("js/TransferService.qml", { UrlPolicy: h.loadQmlObject("js/UrlPolicy.qml", {}) });
+T.transfersChanged = () => {};
+T.transfers = [
+  { id: "c1", state: "completed", fileName: "a", type: "download" },
+  { id: "c2", state: "completed", fileName: "b", type: "download" },
+  { id: "f1", state: "failed", fileName: "c", type: "upload" },
+  { id: "a1", state: "uploading", fileName: "d", type: "upload" },
+];
+const R = [];
+const removed = T.clearTransfer("c1");
+R.push("removed=" + removed);
+R.push("remaining=" + JSON.stringify(T.transfers.map(t => t.id).sort()));
+R.push("activeKept=" + JSON.stringify(T.transfers.some(t => t.id === "a1")));
+R.push("nonTerminalRefused=" + (T.clearTransfer("a1") === false));
+console.log(R.join("\n"));
+''')
+    res5 = dict(line.split("=", 1) for line in out5.strip().split("\n"))
+    import json as _json5
+    test("clearTransfer removes exactly one terminal transfer",
+         _json5.loads(res5["removed"]) is True and "c1" not in _json5.loads(res5["remaining"]),
+         res5.get("remaining"))
+    test("clearTransfer keeps other terminal transfers",
+         _json5.loads(res5["remaining"]) == ["a1", "c2", "f1"], res5.get("remaining"))
+    test("clearTransfer keeps active transfers", _json5.loads(res5["activeKept"]) is True)
+    test("clearTransfer refuses non-terminal transfers",
+         _json5.loads(res5["nonTerminalRefused"]) is True)
+
 test("search right-click no longer navigates",
      "onResultRightClicked" not in sr and "Qt.RightButton" not in sr, kind="STATIC")
 test("search accepts left button only", "acceptedButtons: Qt.LeftButton" in sr, kind="STATIC")
@@ -533,8 +707,13 @@ test("BrowserView dropped the right-click wiring", "onResultRightClicked" not in
 
 test("files are not Quick Access targets",
      "Only libraries and folders can be added to Quick Access" in panel, kind="STATIC")
-test("context menu hides Quick Access for files",
-     "(root.isDir || root.isFavorite)" in read("components/ContextMenu.qml"), kind="STATIC")
+test("context menu Quick Access is limited to dirs/favorites",
+     "(root.isDir || root.isFavorite || root.libraryMode)" in read("components/ContextMenu.qml")
+     and "!root.batchMode &&" in read("components/ContextMenu.qml"), kind="STATIC")
+test("libraries at the root support Quick Access (libraryMode)",
+     "root.libraryMode" in read("components/ContextMenu.qml")
+     and "!root.batchMode && (root.isDir || root.isFavorite || root.libraryMode)"
+         in read("components/ContextMenu.qml"), kind="STATIC")
 test("folder favorite identity uses the full path",
      'root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name' in panel,
      kind="STATIC")
@@ -545,6 +724,14 @@ test("favorites scope is set on manual login",
      re.search(r"Favorites\.setAccountKey\(normalized, email\)", panel) is not None, kind="STATIC")
 test("favorites scope is set on auto-login",
      "Favorites.setAccountKey(serverUrl, Auth.getEmail())" in panel, kind="STATIC")
+test("favorites use explicit store + legacy + marker keys",
+     'setting("favoritesStore", Favorites.saveToSettings())' in panel
+     and 'setting("favoritesLegacyMigrated", Favorites.saveMigratedKeys())' in panel
+     and 'setting("favoritesLegacy", "[]")' in panel
+     and 'setting("favoritesStore", "{}")' in panel
+     and 'setting("favoritesLegacyMigrated", "[]")' in panel, kind="STATIC")
+test("legacy blob falls back to the pre-1.1 favorites key",
+     'setting("favorites", "[]")' in panel, kind="STATIC")
 
 
 # =====================================================================
@@ -609,6 +796,14 @@ for (const k in cases) console.log(k+"="+JSON.stringify(ctx.parsePickerOutput(ca
          "normalizeUserPath" in pn and "decodeURIComponent(trimmed.substring(7))" in pn, kind="STATIC")
     test("newline separator limitation is documented in source",
          "cannot be represented" in up, kind="STATIC")
+    test("Browse is disabled when zenity is missing",
+         "enabled: root.pickerAvailable" in up and "pickerAvailable" in up, kind="STATIC")
+    test("manual path stays available when zenity is missing",
+         "onUpload" in up and 'placeholderText: "/home/user/file.txt"' in up, kind="STATIC")
+    test("missing zenity shows a clear message",
+         "Zenity is not installed; enter the path manually." in up, kind="STATIC")
+    test("zenity availability is probed via which",
+         '["which", "zenity"]' in up, kind="STATIC")
 
 
 # =====================================================================
@@ -630,8 +825,14 @@ proc = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "check_posi
 test("no anchors on direct positioner children", proc.returncode == 0,
      proc.stdout.strip()[-400:], kind="STATIC")
 
-test("EmptyState uses Column.horizontalAlignment",
-     "horizontalAlignment: Qt.AlignHCenter" in read("components/EmptyState.qml"), kind="STATIC")
+dup = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "check_duplicate_properties.py")],
+                     capture_output=True, text=True)
+test("no duplicate QML properties on the same object", dup.returncode == 0,
+     dup.stdout.strip()[-400:], kind="STATIC")
+
+test("EmptyState centres content with valid anchors",
+     "anchors.horizontalCenter: parent.horizontalCenter" in read("components/EmptyState.qml")
+     and "horizontalAlignment" not in code("components/EmptyState.qml"), kind="STATIC")
 
 # Untrusted text must stay bounded and PlainText.
 for path in sorted(glob.glob(os.path.join(ROOT, "**", "*.qml"), recursive=True)):

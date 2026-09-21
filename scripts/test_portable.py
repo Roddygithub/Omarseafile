@@ -33,6 +33,9 @@ tests = [
     # classification, bounded upload queue, logout race, zenity path pipeline,
     # keyboard architecture, foldersFirst, URL policy, metadata.
     "test_v11_remediation.py",
+    # Duplicate QML property assignment sweep (wired via validate.sh and the
+    # v1.1 suite; listed explicitly so CI runs it directly too).
+    "test_duplicate_properties.py",
 ]
 
 failed = []
