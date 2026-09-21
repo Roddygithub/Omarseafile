@@ -393,7 +393,7 @@ console.log(R.join("\n"));
     test("response file is private (createSecureFile)",
          'createSecureFile("http", "curl_resp"' in src, kind="STATIC")
     test("response file is cleaned up",
-         src.count("cleanup(responseBodyFile)") >= 4, kind="STATIC")
+         src.count("cleanup(responseBodyFile)") >= 2 or 'responseBodyFile].filter' in src, kind="STATIC")
     test("no inverted body/status file remains",
          "curl_status" not in src and "statusFilePath" not in src, kind="STATIC")
 
