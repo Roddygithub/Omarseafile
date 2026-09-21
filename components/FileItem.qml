@@ -70,8 +70,8 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground
-        opacity: mouseArea.hovered ? 0.04 : 0
-        visible: mouseArea.hovered
+        opacity: mouseArea.containsMouse ? 0.04 : 0
+        visible: mouseArea.containsMouse
         Behavior on opacity { NumberAnimation { duration: 100 } }
     }
 

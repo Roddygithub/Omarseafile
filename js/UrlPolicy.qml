@@ -45,7 +45,9 @@ QtObject {
         if (parsed.search && parsed.search !== "") {
             return { valid: false, error: "Server URL must not contain a query string." }
         }
-        if (parsed.hash && parsed.hash !== "") {
+        // Qt6 URL parser emits spurious hash='#' for some TLDs (e.g. .ts.net).
+        // Treat a bare "#" the same as no fragment.
+        if (parsed.hash && parsed.hash !== "" && parsed.hash !== "#") {
             return { valid: false, error: "Server URL must not contain a fragment (#)." }
         }
 
