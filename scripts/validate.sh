@@ -243,6 +243,11 @@ echo ""
 echo "--- QML Positioner Anchors ---"
 check "no anchors on direct positioner children" python3 scripts/check_positioner_anchors.py
 
+# --- QML DUPLICATE PROPERTIES ---
+echo ""
+echo "--- QML Duplicate Properties ---"
+check "no duplicate QML properties on the same object" python3 scripts/check_duplicate_properties.py
+
 # --- Security microfix tests ---
 echo ""
 echo "--- Security Microfix Tests ---"
@@ -262,6 +267,7 @@ fi
 if command -v qs >/dev/null; then
     check "Open Local lifecycle suite passes" python3 scripts/test_open_lifecycle.py
     check "Quickshell runtime remediation suite passes" python3 scripts/test_runtime_remediation.py
+    check "HTTP transport integration suite passes" python3 scripts/test_http_integration.py
 else
     echo "  Quickshell runtime remediation suite... SKIP (qs not installed)"
 fi

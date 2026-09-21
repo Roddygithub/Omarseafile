@@ -20,39 +20,38 @@ QtObject {
             property var onDone: null
             property var headerFilePath: ""
             property var bodyFilePath: ""
-            property var statusFilePath: ""
+            property var responseBodyPath: ""
             stdout: StdioCollector {}
             stderr: StdioCollector {}
             onExited: function(exitCode, exitStatus) {
                 var cb = onDone
-                var out = stdout.text
+                var statusText = stdout.text
                 var err = stderr.text
-                var statusPath = statusFilePath
+                var bodyPath = responseBodyPath
                 destroy()
                 if (!cb) return
-                // Resolve the real HTTP status before invoking the caller, so
-                // downstream classification never has to guess a status by
-                // parsing human-readable error text.
-                root._readStatusFile(statusPath, function(status) {
-                    cb(exitCode, out, err, status)
-                })
+                // Hand the raw pieces to request()'s scope: curl wrote the body
+                // into a private file (-o) and the status to stdout (-w). The
+                // caller reads the body file back and parses the status. This
+                // is the correct curl contract - -o is the body sink, -w is
+                // stdout.
+                cb(exitCode, statusText, err, bodyPath)
             }
         }
     }
 
-    // Reads the 3-digit status curl wrote via `-w %{http_code}`. Returns 0 when
-    // the file is missing or unreadable: 0 means "no HTTP response observed",
-    // i.e. a transport-level failure, which is the honest classification.
-    // The path always comes from SafePath.createSecureFile and is passed as an
-    // argv element, never through a shell.
-    function _readStatusFile(path, callback) {
-        if (!path) { callback(0); return }
-        var proc = root._statusReaderFactory.createObject(root, {
+    // Reads the response body curl wrote via `-o`. Returns "" when the file is
+    // missing or unreadable (no response body observed). The path always comes
+    // from SafePath.createSecureFile and is passed as an argv element, never
+    // through a shell.
+    function _readBodyFile(path, callback) {
+        if (!path) { callback(""); return }
+        var proc = root._fileReaderFactory.createObject(root, {
             onDone: function(text) {
-                callback(root._statusFromText(text))
+                callback(text === undefined || text === null ? "" : text)
             }
         })
-        if (!proc) { callback(0); return }
+        if (!proc) { callback(""); return }
         proc.command = ["cat", "--", path]
         proc.running = true
     }
@@ -67,7 +66,7 @@ QtObject {
         return n
     }
 
-    property Component _statusReaderFactory: Component {
+    property Component _fileReaderFactory: Component {
         Process {
             property var onDone: null
             stdout: StdioCollector {}
@@ -110,13 +109,16 @@ QtObject {
         SafePath.getRuntimeSubdir("http", function(httpResult) {
             if (!httpResult.valid) { finish(false, null, "Runtime dir unavailable: " + httpResult.error, 0); return }
 
-            // A private 0600 file curl writes the response status into. curl's
-            // own exit code only distinguishes "HTTP >= 400" (22) from
-            // everything else, which is not enough to tell a permanent 404 from
-            // a retryable 503 - so the exact status is captured out of band.
-            SafePath.createSecureFile("http", "curl_status", "000", function(statusResult) {
-                if (!statusResult.valid) { finish(false, null, "Status file failed: " + statusResult.error, 0); return }
-                var statusFile = statusResult.path
+            // curl semantics:
+            //   -o FILE          writes the HTTP BODY into FILE
+            //   -w "%{http_code}" writes the HTTP STATUS to stdout
+            // We honour that contract: the body lands in a private response
+            // file (bounded producer-side by --max-filesize), and the status
+            // comes back on stdout, which _requestFactory parses. This is the
+            // opposite of an earlier implementation that swapped the two.
+            SafePath.createSecureFile("http", "curl_resp", "", function(respResult) {
+                if (!respResult.valid) { finish(false, null, "Response file failed: " + respResult.error, 0); return }
+                var responseBodyFile = respResult.path
 
                 var curlArgs = [
                     "curl", "-q", "-f", "-s", "-S",
@@ -126,10 +128,7 @@ QtObject {
                     "--speed-time", "30",
                     "--no-location",
                     "--max-filesize", root.maxResponseBytes.toString(),
-                    // Response body is discarded into the status file; the
-                    // write-out code is appended after it and is the only thing
-                    // we read back.
-                    "-o", statusFile,
+                    "-o", responseBodyFile,
                     "-w", "%{http_code}"
                 ]
 
@@ -142,7 +141,7 @@ QtObject {
                 if (authHeader) {
                     var configContent = "header = \"Authorization: " + authHeader.replace(/\"/g, "\\\"") + "\"\n"
                     SafePath.createSecureFile("http", "curl_hdr", configContent, function(hdrResult) {
-                        if (!hdrResult.valid) { cleanup(statusFile); finish(false, null, "Header file failed: " + hdrResult.error, 0); return }
+                        if (!hdrResult.valid) { cleanup(responseBodyFile); finish(false, null, "Header file failed: " + hdrResult.error, 0); return }
                         runRequest(hdrResult.path)
                     })
                 } else {
@@ -154,7 +153,7 @@ QtObject {
                         SafePath.createSecureFile("http", "curl_body", config.body, function(bodyResult) {
                             if (!bodyResult.valid) {
                                 cleanup(headerFile)
-                                cleanup(statusFile)
+                                cleanup(responseBodyFile)
                                 finish(false, null, "Body file failed: " + bodyResult.error, 0); return
                             }
                             execute(headerFile, bodyResult.path, curlArgs.slice())
@@ -164,12 +163,12 @@ QtObject {
                     }
                 }
 
-                function execute(hdrFile, bodyFile, args) {
+                function execute(hdrFile, reqBodyFile, args) {
                     if (hdrFile) {
                         args.push("--config", hdrFile)
                     }
-                    if (bodyFile) {
-                        args.push("--data-binary", "@" + bodyFile)
+                    if (reqBodyFile) {
+                        args.push("--data-binary", "@" + reqBodyFile)
                     }
                     args = ["setsid", "python3", root._transferOutputHelper,
                         root.maxStderrBytes.toString(), "--"].concat(args)
@@ -177,34 +176,39 @@ QtObject {
                     args.push(config.url)
 
                     var proc = _requestFactory.createObject(root, {
-                        statusFilePath: statusFile,
-                        onDone: function(exitCode, out, err, status) {
+                        responseBodyPath: responseBodyFile,
+                        onDone: function(exitCode, statusText, err, respBodyPath) {
                             cleanup(hdrFile)
-                            cleanup(bodyFile)
-                            cleanup(statusFile)
-                            if (exitCode === 0) {
-                                try {
-                                    var data = out ? JSON.parse(out) : null
-                                    var validation = validateResponse(data)
-                                    if (!validation.valid) { finish(false, null, validation.error, status); return }
-                                    finish(true, validation.data, null, status)
-                                } catch (e) {
-                                    finish(false, null, "Invalid JSON response", status)
+                            cleanup(reqBodyFile)
+                            var status = root._statusFromText(statusText)
+                            // Read the body file back (root scope has the helpers
+                            // the Process closure cannot see).
+                            root._readBodyFile(respBodyPath, function(respBody) {
+                                cleanup(responseBodyFile)
+                                if (exitCode === 0) {
+                                    try {
+                                        var data = respBody ? JSON.parse(respBody) : null
+                                        var validation = validateResponse(data)
+                                        if (!validation.valid) { finish(false, null, validation.error, status); return }
+                                        finish(true, validation.data, null, status)
+                                    } catch (e) {
+                                        finish(false, null, "Invalid JSON response", status)
+                                    }
+                                } else if (exitCode === 63 || exitCode === 23) {
+                                    // 63: max-filesize exceeded (curl 7.56.0+); 23: write error (older curl)
+                                    finish(false, null, "Response too large (exceeds " + root.maxResponseBytes + " bytes)", status)
+                                } else {
+                                    // Pass the real status through. Callers decide
+                                    // retryability from it, never from `err` text.
+                                    finish(false, null, "Request failed (exit " + exitCode + "): " + (err || "unknown"), status)
                                 }
-                            } else if (exitCode === 63 || exitCode === 23) {
-                                // 63: max-filesize exceeded (curl 7.56.0+); 23: write error (older curl)
-                                finish(false, null, "Response too large (exceeds " + root.maxResponseBytes + " bytes)", status)
-                            } else {
-                                // Pass the real status through. Callers decide
-                                // retryability from it, never from `err` text.
-                                finish(false, null, "Request failed (exit " + exitCode + "): " + (err || "unknown"), status)
-                            }
+                            })
                         }
                     })
                     if (!proc) {
                         cleanup(hdrFile)
-                        cleanup(bodyFile)
-                        cleanup(statusFile)
+                        cleanup(reqBodyFile)
+                        cleanup(responseBodyFile)
                         finish(false, null, "Failed to create request process", 0)
                         return
                     }
