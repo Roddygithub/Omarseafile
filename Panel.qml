@@ -1090,13 +1090,15 @@ Panel {
         root.currentPath = "/"
         root.pathHistory = []
         SeafileAPI.listLibraries(function(success, data, error) {
+            if (success) {
+                Cache.setLibraries(data)
+            }
             if (generation !== root.navigationGeneration) return
             root.loading = false
             if (success) {
                 root.libraries = data
                 root.navigationPhase("model", startedAt)
                 root.currentItems = data
-                Cache.setLibraries(data)
                 root.navigationComplete(startedAt, data.length)
             } else {
                 root.errorMessage = error || "Failed to load libraries"
@@ -1143,10 +1145,12 @@ Panel {
         root.loading = true
         root.errorMessage = ""
         SeafileAPI.listFolder(repoId, path, function(success, data, error) {
+            if (success) {
+                Cache.setFolder(repoId, path, data)
+            }
             if (generation !== root.navigationGeneration) return
             root.loading = false
             if (success) {
-                Cache.setFolder(repoId, path, data)
                 root.currentItems = root.enrichItems(repoId, path, data)
                 root.navigationPhase("model", startedAt)
                 root.currentPath = path

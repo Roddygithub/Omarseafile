@@ -10,6 +10,12 @@ QtObject {
     readonly property int maxCacheBytes: 1073741824  // 1 GiB (fits in int32)
     property var _protectedCacheNames: []
 
+    // Runtime directory cache: validated once per session, reused for all
+    // subsequent requests. The cache is keyed by subdir name ("http", etc.)
+    // and stores { valid: bool, path: string, error: string }.
+    // Security validation (uid, permissions) runs exactly once per subdir.
+    property var _runtimeDirCache: ({})
+
     property Component _mkdirFactory: Component {
         Process {
             property var onDone: null
@@ -110,6 +116,15 @@ QtObject {
             callback({ valid: false, error: "Invalid runtime subdirectory" })
             return
         }
+        // Return cached result immediately — no process spawns.
+        // The cache is populated on first successful validation and never
+        // expires during the plugin session. Security checks (uid, perms)
+        // run exactly once per subdir.
+        var cached = root._runtimeDirCache[subdir]
+        if (cached) {
+            callback(cached)
+            return
+        }
         var runtimeDir = Quickshell.env("XDG_RUNTIME_DIR")
         if (!runtimeDir) {
             callback({ valid: false, error: "XDG_RUNTIME_DIR not set" })
@@ -156,7 +171,9 @@ QtObject {
                                             callback({ valid: false, error: "Runtime subdir has incorrect ownership or permissions" })
                                             return
                                         }
-                                        callback({ valid: true, path: dir })
+                                        var result = { valid: true, path: dir }
+                                        root._runtimeDirCache[subdir] = result
+                                        callback(result)
                                     }
                                 })
                                 verify.command = ["stat", "-c", "%u %a", dir]

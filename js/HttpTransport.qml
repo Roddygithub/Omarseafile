@@ -183,13 +183,19 @@ QtObject {
                     var proc = _requestFactory.createObject(root, {
                         responseBodyPath: responseBodyFile,
                         onDone: function(exitCode, statusText, err, respBodyPath) {
-                            cleanup(hdrFile)
-                            cleanup(reqBodyFile)
                             var status = root._statusFromText(statusText)
                             // Read the body file back (root scope has the helpers
                             // the Process closure cannot see).
                             root._readBodyFile(respBodyPath, function(respBody) {
-                                cleanup(responseBodyFile)
+                                // Batched cleanup: single rm -f call instead of 3 separate processes.
+                                var toClean = [hdrFile, reqBodyFile, responseBodyFile].filter(function(p) { return !!p })
+                                if (toClean.length > 0) {
+                                    var cproc = root._cleanupProcessFactory.createObject(root)
+                                    if (cproc) {
+                                        cproc.command = ["rm", "-f", "--"].concat(toClean)
+                                        cproc.running = true
+                                    }
+                                }
                                 if (exitCode === 0) {
                                     try {
                                         var parseStartedAt = Date.now()

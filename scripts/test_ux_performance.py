@@ -6,6 +6,7 @@ browser = Path('views/BrowserView.qml').read_text()
 toolbar = Path('components/ToolBar.qml').read_text()
 cache = Path('js/Cache.qml').read_text()
 http = Path('js/HttpTransport.qml').read_text()
+safepath = Path('js/SafePath.qml').read_text()
 checks = {
     'login toolbar hidden and collapses': 'visible: root.state !== "login"' in panel and 'implicitHeight: visible ? row.implicitHeight : 0' in toolbar,
     'library title omitted from nested breadcrumb': 'path: root.pathHistory.length > 1 ? root.pathHistory.slice(1) : []' in browser,
@@ -16,6 +17,9 @@ checks = {
     'cache scoped to server and account': 'function setScope(serverUrl, account)' in cache and 'scopedKey' in cache,
     'cache cleared on logout': 'Cache.clear()' in panel,
     'timings include HTTP and parse phases': 'SEAFILE_TIMING http_start' in http and 'parse_ms=' in http,
+    'SafePath caches runtime dir': '_runtimeDirCache' in safepath and 'var cached = root._runtimeDirCache[subdir]' in safepath,
+    'batched cleanup single rm': 'Batched cleanup' in http and '.filter(function(p) { return !!p })' in http,
+    'stale responses populate cache': 'Cache.setFolder(repoId, path, data)' in panel and 'if (generation !== root.navigationGeneration) return' in panel,
 }
 for name, ok in checks.items(): print(('PASS' if ok else 'FAIL') + ': ' + name)
 if not all(checks.values()): raise SystemExit(1)
