@@ -18,12 +18,20 @@ Item {
     width: parent.width
 
     property bool isCancelling: transfer.state === "cancelling"
-    property bool isActive: transfer.state === "pending" || transfer.state === "downloading" || transfer.state === "uploading" || transfer.state === "opening" || isCancelling
+    // "queued" and "validating" are active: the transfer is accepted and
+    // cancellable before its first byte moves (matches TransferService).
+    property bool isActive: transfer.state === "queued" || transfer.state === "validating"
+        || transfer.state === "pending" || transfer.state === "downloading"
+        || transfer.state === "uploading" || transfer.state === "opening" || isCancelling
     property bool isCompleted: transfer.state === "completed"
     property bool isFailed: transfer.state === "failed" || transfer.state === "cancelled" || transfer.state === "auth_failed"
 
     property bool isDownload: transfer.type === "download"
     property bool showOpenActions: isCompleted && isDownload
+
+    // Human-readable label for queued/validating uploads.
+    property string stateLabel: transfer.state === "queued" ? "Queued..."
+        : (transfer.state === "validating" ? "Validating..." : "")
 
     Row {
         id: row
@@ -62,6 +70,7 @@ Item {
                     if (root.isActive) {
                         if (root.isCancelling) return "Cancelling..."
                         if (root.transfer.state === "opening") return "Opening..."
+                        if (root.stateLabel !== "") return root.stateLabel
                         var parts = []
                         if (root.transfer.progress > 0) parts.push(Math.round(root.transfer.progress * 100) + "%")
                         if (root.transfer.speed) parts.push(root.transfer.speed)

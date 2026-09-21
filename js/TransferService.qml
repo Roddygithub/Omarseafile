@@ -1030,13 +1030,28 @@ QtObject {
     }
 
     function _failUpload(upload, message) {
+        root._finishUploadFailure(upload, "Invalid upload source: " + message)
+    }
+
+    // Single choke point for an upload that failed before curl ran (or at the
+    // link-resolution stage). It retires the transfer, sanitizes history,
+    // emits signals, releases the concurrency slot, and pumps the queue exactly
+    // once so the next queued upload starts even though this one never owned a
+    // curl pipeline. Every early terminal failure path routes here.
+    function _finishUploadFailure(upload, message) {
+        if (!upload) return
+        if (upload.state !== "queued" && upload.state !== "validating"
+            && upload.state !== "pending" && upload.state !== "uploading") {
+            // Already terminal: do not double-pump.
+            return
+        }
         upload.state = "failed"
         upload.error = message
-        root.reportError("Invalid upload source: " + message)
+        root.reportError(message)
         root.sanitizeForHistory(upload)
         root.transferStateChanged(upload)
         root.transfersChanged()
-        root._pumpUploadQueue()
+        root._uploadSettled(upload)
     }
 
     // Releases a finished upload's slot and starts the next queued one.
@@ -1049,11 +1064,7 @@ QtObject {
         if (upload.state === "cancelled") return
         var policy = root._authUrlPolicy(upload.baseUrl)
         if (!policy.valid) {
-            upload.state = "failed"
-            upload.error = policy.error
-            root.sanitizeForHistory(upload)
-            root.transferStateChanged(upload)
-            root.transfersChanged()
+            root._finishUploadFailure(upload, policy.error)
             return
         }
         var url = upload.baseUrl.replace(/\/+$/, "") + "/api2/repos/" + upload.repoId + "/upload-link/?p=" + encodeURIComponent(upload.destUploadPath)
@@ -1063,20 +1074,12 @@ QtObject {
                 if (upload.state === "cancelled" || upload.state === "cancelling") return
                 if (success) {
                     if (typeof data !== "string" || data === "") {
-                        upload.state = "failed"
-                        upload.error = "Invalid server response"
-                        root.sanitizeForHistory(upload)
-                        root.transferStateChanged(upload)
-                        root.transfersChanged()
+                        root._finishUploadFailure(upload, "Invalid server response")
                         return
                     }
                     var vUrl = UrlPolicy.validateTransferUrl(data)
                     if (!vUrl.valid) {
-                        upload.state = "failed"
-                        upload.error = "Invalid upload URL: " + vUrl.error
-                        root.sanitizeForHistory(upload)
-                        root.transferStateChanged(upload)
-                        root.transfersChanged()
+                        root._finishUploadFailure(upload, "Invalid upload URL: " + vUrl.error)
                         return
                     }
                     upload.uploadLink = data
@@ -1135,32 +1138,20 @@ QtObject {
                 return
             }
             if (!authHeaderFile) {
-                upload.state = "failed"
-                upload.error = "Failed to create auth header file"
-                root.sanitizeForHistory(upload)
-                root.transferStateChanged(upload)
-                root.transfersChanged()
+                root._finishUploadFailure(upload, "Failed to create auth header file")
                 return
             }
             upload.authHeaderFile = authHeaderFile
             createCurlConfigFile(uploadUrl, function(curlConfigFile) {
                 if (upload.state !== "pending" && upload.state !== "uploading") { deleteFile(curlConfigFile); return }
                 if (!curlConfigFile) {
-                    upload.state = "failed"
-                    upload.error = "Failed to create curl configuration"
-                    root.sanitizeForHistory(upload)
-                    root.transferStateChanged(upload)
-                    root.transfersChanged()
+                    root._finishUploadFailure(upload, "Failed to create curl configuration")
                     return
                 }
                 upload.curlConfigFile = curlConfigFile
                 var curlProc = uploadProcessComponent.createObject(root)
                 if (!curlProc) {
-                    upload.state = "failed"
-                    upload.error = "Failed to create upload process"
-                    root.sanitizeForHistory(upload)
-                    root.transferStateChanged(upload)
-                    root.transfersChanged()
+                    root._finishUploadFailure(upload, "Failed to create upload process")
                     return
                 }
                 curlProc.transferRef = upload
@@ -1191,27 +1182,19 @@ QtObject {
     }
 
     // Cross-origin upload: no auth header attached
-    function executeCurlUploadNoAuth(upload) {
+function executeCurlUploadNoAuth(upload) {
         if (upload.state !== "pending" && upload.state !== "uploading") return
         var uploadUrl = upload.uploadLink + (upload.uploadLink.indexOf("?") === -1 ? "?" : "&") + "ret-json=1"
         createCurlConfigFile(uploadUrl, function(curlConfigFile) {
             if (upload.state !== "pending" && upload.state !== "uploading") { deleteFile(curlConfigFile); return }
             if (!curlConfigFile) {
-                upload.state = "failed"
-                upload.error = "Failed to create curl configuration"
-                root.sanitizeForHistory(upload)
-                root.transferStateChanged(upload)
-                root.transfersChanged()
+                root._finishUploadFailure(upload, "Failed to create curl configuration")
                 return
             }
             upload.curlConfigFile = curlConfigFile
             var curlProc = uploadProcessComponent.createObject(root)
             if (!curlProc) {
-                upload.state = "failed"
-                upload.error = "Failed to create upload process"
-                root.sanitizeForHistory(upload)
-                root.transferStateChanged(upload)
-                root.transfersChanged()
+                root._finishUploadFailure(upload, "Failed to create upload process")
                 return
             }
             curlProc.transferRef = upload
@@ -1435,6 +1418,24 @@ QtObject {
             return t.state === "pending" || t.state === "downloading" || t.state === "uploading" || t.state === "opening"
         })
         root.transfersChanged()
+    }
+
+    // Remove a single TERMINAL transfer from history. Batch "Clear All" actions
+    // keep clearing whole categories; this targets exactly one transfer.
+    function clearTransfer(transferId) {
+        for (var i = 0; i < root.transfers.length; i++) {
+            var t = root.transfers[i]
+            if (t.id === transferId) {
+                var terminal = t.state === "completed" || t.state === "failed" || t.state === "cancelled" || t.state === "auth_failed"
+                if (!terminal) return false
+                cleanupTransferAuthFile(t)
+                var next = root.transfers.filter(function(x) { return x.id !== t.id })
+                root.transfers = next
+                root.transfersChanged()
+                return true
+            }
+        }
+        return false
     }
 
     // ===== OPEN FILE (DOWNLOAD TO CACHE + XDG-OPEN) =====

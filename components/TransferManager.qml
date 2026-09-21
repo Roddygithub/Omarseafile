@@ -13,6 +13,8 @@ Column {
     property var onRetryAllFailed: null
     property var onClearAllCompleted: null
     property var onClearAllFailed: null
+    // Per-item "Remove from history": removes exactly one terminal transfer.
+    property var onClearTransfer: null
     property var onOpen: null
     property var onShowInFolder: null
     property int activeCount: 0
@@ -160,7 +162,7 @@ Column {
                 width: root.width
                 bar: root.bar
                 transfer: modelData
-                onClear: root.onClearCompleted
+                onClear: root.onClearTransfer
                 onOpen: root.onOpen
                 onShowInFolder: root.onShowInFolder
             }
@@ -215,7 +217,7 @@ Column {
                 bar: root.bar
                 transfer: modelData
                 onRetry: root.onRetry
-                onClear: root.onClearFailed
+                onClear: root.onClearTransfer
             }
         }
     }
