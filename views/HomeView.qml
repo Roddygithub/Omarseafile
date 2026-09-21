@@ -357,7 +357,7 @@ Item {
                 id: librariesFileList
                 width: parent.width
                 bar: root.bar
-                height: librariesFileList.contentHeight > 0 ? Math.min(librariesFileList.contentHeight, Style.space(420)) : Style.space(120)
+                height: librariesFileList.contentHeight > 0 ? Math.min(librariesFileList.contentHeight, Style.space(360)) : Style.space(120)
                 items: root.libraries
                 focus: true
                 findTransfer: TransferService.findTransfer

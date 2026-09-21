@@ -64,10 +64,11 @@ Item {
             id: breadcrumbs
             width: parent.width
             height: visible ? implicitHeight : 0
-            path: root.pathHistory
+            // The fixed toolbar already shows the library name.
+            path: root.pathHistory.length > 1 ? root.pathHistory.slice(1) : []
             bar: root.bar
-            visible: !root.searchActive
-            onSegmentClicked: function(index) { root.onNavigateToPath(index) }
+            visible: !root.searchActive && root.pathHistory.length > 1
+            onSegmentClicked: function(index) { root.onNavigateToPath(index + 1) }
         }
 
         LoadingIndicator {
@@ -129,7 +130,7 @@ Item {
             id: fileList
             width: parent.width
             bar: root.bar
-            height: fileList.contentHeight > 0 ? Math.min(fileList.contentHeight, Style.space(420)) : Style.space(120)
+            height: fileList.contentHeight > 0 ? Math.min(fileList.contentHeight, Style.space(360)) : Style.space(120)
             items: root.currentItems
             focus: true
             findTransfer: TransferService.findTransfer
@@ -157,7 +158,7 @@ Item {
         SearchResults {
             id: searchResultsList
             width: parent.width
-            height: visible ? (contentHeight > 0 ? Math.min(contentHeight, Style.space(420)) : Style.space(120)) : 0
+            height: visible ? (contentHeight > 0 ? Math.min(contentHeight, Style.space(360)) : Style.space(120)) : 0
             results: root.searchResults
             bar: root.bar
             visible: root.searchActive && root.searchState !== "loading"

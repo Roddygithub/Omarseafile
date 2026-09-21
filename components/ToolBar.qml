@@ -46,7 +46,7 @@ Item {
     property var onDestinationCancel: null
     property var onDestinationConfirm: null
 
-    implicitHeight: row.implicitHeight
+    implicitHeight: visible ? row.implicitHeight : 0
     width: parent.width
 
     // Overflow menu state

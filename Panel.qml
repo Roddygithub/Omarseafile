@@ -42,6 +42,20 @@ Panel {
     property int sessionGeneration: 0
     property int connectionTestGeneration: 0
     property int loginGeneration: 0
+    property var navigationTiming: ({})
+    property int navigationTimingSequence: 0
+    function beginNavigationTiming(label, cacheHit) {
+        root.navigationTimingSequence++
+        root.navigationTiming = { label: label, startedAt: Date.now(), cacheHit: cacheHit === true }
+        console.log("SEAFILE_TIMING navigation_start label=" + label + " cache=" + (cacheHit ? "hit" : "miss"))
+    }
+    function navigationPhase(phase, startedAt) {
+        console.log("SEAFILE_TIMING navigation_phase phase=" + phase + " duration_ms=" + Math.max(0, Date.now() - startedAt))
+    }
+    function navigationComplete(startedAt, rows) {
+        root.navigationPhase("first_visible_model", startedAt)
+        console.log("SEAFILE_TIMING navigation_complete rows=" + rows + " total_ms=" + Math.max(0, Date.now() - startedAt))
+    }
 
     property int activeTransferCount: 0
     property bool hasTransferFailures: false
@@ -423,6 +437,7 @@ Panel {
         focusTarget: keyCatcher
         contentWidth: panel.fittedContentWidth(Style.space(480))
         contentHeight: panel.fittedContentHeight(content.implicitHeight)
+        clip: true
 
         PanelKeyCatcher {
             id: keyCatcher
@@ -526,7 +541,8 @@ Panel {
                     width: parent.width
                     bar: root.bar
                     overlay: keyCatcher.Overlay.overlay
-                    title: root.state === "login" ? "Seafile" : (root.settingsOpen ? "Settings" : (root.showTransfers ? "Transfers" : (root.searchActive ? "Search" : (root.currentRepo ? root.currentRepo.name : "Libraries"))))
+                    visible: root.state !== "login"
+                    title: root.settingsOpen ? "Settings" : (root.showTransfers ? "Transfers" : (root.searchActive ? "Search" : (root.currentRepo ? root.currentRepo.name : "Libraries")))
                     showBack: root.state === "browse" && !root.searchActive && (!root.dialogOpen || root.settingsOpen) && (root.pathHistory.length > 0 || root.settingsOpen || root.showTransfers)
                     // While the Transfers surface is active the underlying
                     // browser view is hidden, so only intentional global actions
@@ -1020,6 +1036,7 @@ Panel {
         }
         root.loading = true
         root.errorMessage = ""
+        Cache.setScope(normalized, email)
         SeafileAPI.setBaseUrl(normalized)
         SeafileAPI.auth(email, password, function(success, token, error) {
             if (loginAttempt !== root.loginGeneration) return
@@ -1029,6 +1046,7 @@ Panel {
                     if (loginAttempt !== root.loginGeneration) return
                     root.loading = false
                     root.serverUrl = normalized
+                    Cache.setScope(normalized, email)
                     connectionService.setServerUrl(normalized)
                     connectionService.forceCheck()
                     // Activate this account's Quick Access scope and persist the
@@ -1055,12 +1073,16 @@ Panel {
 
     function loadLibraries() {
         var generation = ++root.navigationGeneration
+        var startedAt = Date.now()
         var cached = Cache.getLibraries()
+        root.beginNavigationTiming("libraries", !!cached)
         if (cached && !root.forceRefresh) {
             root.libraries = cached
             root.currentItems = cached
+            root.navigationPhase("model", startedAt)
             root.loading = false
             root.errorMessage = ""
+            root.navigationComplete(startedAt, cached.length)
             return
         }
         root.loading = true
@@ -1073,8 +1095,10 @@ Panel {
             root.loading = false
             if (success) {
                 root.libraries = data
+                root.navigationPhase("model", startedAt)
                 root.currentItems = data
                 Cache.setLibraries(data)
+                root.navigationComplete(startedAt, data.length)
             } else {
                 root.errorMessage = error || "Failed to load libraries"
             }
@@ -1104,13 +1128,17 @@ Panel {
 
     function loadFolder(repoId, path) {
         var generation = ++root.navigationGeneration
+        var startedAt = Date.now()
         root.currentPath = path
         root.errorMessage = ""
         var cached = Cache.getFolder(repoId, path)
+        root.beginNavigationTiming("folder", !!cached)
         if (cached && !root.forceRefresh) {
             root.currentItems = root.enrichItems(repoId, path, cached)
+            root.navigationPhase("model", startedAt)
             root.currentPath = path
             root.loading = false
+            root.navigationComplete(startedAt, cached.length)
             return
         }
         root.loading = true
@@ -1121,7 +1149,9 @@ Panel {
             if (success) {
                 Cache.setFolder(repoId, path, data)
                 root.currentItems = root.enrichItems(repoId, path, data)
+                root.navigationPhase("model", startedAt)
                 root.currentPath = path
+                root.navigationComplete(startedAt, data.length)
             } else {
                 root.errorMessage = error || "Failed to load folder"
             }
@@ -1129,7 +1159,7 @@ Panel {
     }
 
     function onItemClicked(item) {
-        if (root.destinationSubmitting) return
+        if (root.destinationSubmitting || root.loading) return
         if (root.destinationMode) {
             if (item.type === "dir") {
                 root.clearSelection()
@@ -2018,6 +2048,7 @@ Panel {
                         return
                     }
                     root.serverUrl = serverUrl
+                    Cache.setScope(serverUrl, Auth.getEmail())
                     SeafileAPI.setBaseUrl(serverUrl)
                     SeafileAPI.setToken(token)
                     connectionService.setServerUrl(serverUrl)

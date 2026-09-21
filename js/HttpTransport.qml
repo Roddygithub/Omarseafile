@@ -13,6 +13,7 @@ QtObject {
     property int maxResponseBytes: 10 * 1024 * 1024
     property int maxStderrBytes: 65536
     property int maxValidationDepth: 32
+    property int timingSequence: 0
     readonly property string _transferOutputHelper: Qt.resolvedUrl("../scripts/transfer_output.py").toString().replace(/^file:\/\//, "")
 
     property Component _requestFactory: Component {
@@ -95,6 +96,10 @@ QtObject {
             finished = true
             callback(success, data, error, typeof status === "number" ? status : 0)
         }
+        var requestId = ++root.timingSequence
+        var requestStartedAt = Date.now()
+        var safePath = url.replace(/^https?:\/\/[^/]+/, "")
+        console.log("SEAFILE_TIMING http_start id=" + requestId + " method=" + method + " path=" + safePath)
         var config = {
             method: method,
             url: url,
@@ -187,9 +192,12 @@ QtObject {
                                 cleanup(responseBodyFile)
                                 if (exitCode === 0) {
                                     try {
+                                        var parseStartedAt = Date.now()
                                         var data = respBody ? JSON.parse(respBody) : null
+                                        var parseDuration = Date.now() - parseStartedAt
                                         var validation = validateResponse(data)
                                         if (!validation.valid) { finish(false, null, validation.error, status); return }
+                                        console.log("SEAFILE_TIMING http_done id=" + requestId + " duration_ms=" + (Date.now() - requestStartedAt) + " parse_ms=" + parseDuration + " bytes=" + respBody.length)
                                         finish(true, validation.data, null, status)
                                     } catch (e) {
                                         finish(false, null, "Invalid JSON response", status)
@@ -198,6 +206,7 @@ QtObject {
                                     // 63: max-filesize exceeded (curl 7.56.0+); 23: write error (older curl)
                                     finish(false, null, "Response too large (exceeds " + root.maxResponseBytes + " bytes)", status)
                                 } else {
+                                    console.log("SEAFILE_TIMING http_done id=" + requestId + " duration_ms=" + (Date.now() - requestStartedAt) + " parse_ms=0 error=1")
                                     // Pass the real status through. Callers decide
                                     // retryability from it, never from `err` text.
                                     finish(false, null, "Request failed (exit " + exitCode + "): " + (err || "unknown"), status)

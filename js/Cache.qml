@@ -7,9 +7,13 @@ QtObject {
     property var cache: ({})
     property int defaultTtl: 30000
     property int maxEntries: 100
+    // Cache is memory-only and scoped to the authenticated server/account.
+    // The scope is intentionally not persisted and is cleared on logout.
+    property string scope: "anonymous"
+    function scopedKey(key) { return root.scope + ":" + key }
 
     function get(key) {
-        var entry = root.cache[key]
+        var entry = root.cache[root.scopedKey(key)]
         if (!entry) return null
         if (Date.now() > entry.expiresAt) {
             root.remove(key)
@@ -28,9 +32,9 @@ QtObject {
                     oldestKey = k
                 }
             }
-            if (oldestKey) root.remove(oldestKey)
+            if (oldestKey) delete root.cache[oldestKey]
         }
-        root.cache[key] = {
+        root.cache[root.scopedKey(key)] = {
             data: data,
             timestamp: Date.now(),
             expiresAt: Date.now() + (ttl || root.defaultTtl)
@@ -38,14 +42,13 @@ QtObject {
     }
 
     function remove(key) {
-        delete root.cache[key]
+        delete root.cache[root.scopedKey(key)]
     }
 
     function invalidatePrefix(prefix) {
+        var scopedPrefix = root.scopedKey(prefix)
         for (var k in root.cache) {
-            if (k.startsWith(prefix)) {
-                root.remove(k)
-            }
+            if (k.startsWith(scopedPrefix)) delete root.cache[k]
         }
     }
 
@@ -60,6 +63,13 @@ QtObject {
 
     function clear() {
         root.cache = ({})
+        root.scope = "anonymous"
+    }
+
+    function setScope(serverUrl, account) {
+        var next = String(serverUrl || "") + "|" + String(account || "")
+        // Scope is an opaque in-memory key; no credentials are persisted.
+        root.scope = next
     }
 
     function getLibraries() {
@@ -81,7 +91,7 @@ QtObject {
     }
 
     function hasValidCache(key) {
-        var entry = root.cache[key]
+        var entry = root.cache[root.scopedKey(key)]
         if (!entry) return false
         return Date.now() <= entry.expiresAt
     }
