@@ -198,7 +198,11 @@ Item {
                 anchors.centerIn: transfersBadge
             }
 
+            ToolTip.visible: mouseArea.containsMouse
+            ToolTip.text: "Transfers"
+
             MouseArea {
+                id: mouseArea
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
                 onClicked: { if (root.onTransfersClicked) root.onTransfersClicked() }
@@ -220,13 +224,20 @@ Item {
                 font.pixelSize: Style.font.title
                 anchors.centerIn: parent
             }
+            ToolTip.visible: offlineMouseArea.containsMouse
+            ToolTip.text: "Offline — retrying connection"
+            MouseArea {
+                id: offlineMouseArea
+                anchors.fill: parent
+                hoverEnabled: true
+            }
         }
 
         // Overflow menu button - always visible as the last fixed button
         Button {
             id: overflowButton
             text: Icons.ellipsisV
-            tooltipText: "More actions"
+            tooltipText: "More"
             onClicked: {
                 root.overflowOpen = !root.overflowOpen
             }
