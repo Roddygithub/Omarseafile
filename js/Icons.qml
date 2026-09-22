@@ -28,7 +28,14 @@ QtObject {
     readonly property string times: "\uf00d"         // close / remove / cancel
     readonly property string folder: "\uf07b"        // directory
     readonly property string folderOpen: "\uf07c"    // open directory
-    readonly property string file: "\uf15b"          // file
+    readonly property string file: "\uf15b"          // generic file
+    readonly property string filePdf: "\uf1c1"
+    readonly property string fileWord: "\uf1c2"
+    readonly property string fileExcel: "\uf1c3"
+    readonly property string filePowerpoint: "\uf1c4"
+    readonly property string fileImage: "\uf1c5"
+    readonly property string fileArchive: "\uf1c6"
+    readonly property string fileCode: "\uf1c9"
     readonly property string download: "\uf019"      // download
     readonly property string upload: "\uf093"        // upload
     readonly property string search: "\uf002"        // search

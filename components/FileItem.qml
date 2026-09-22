@@ -29,6 +29,21 @@ Item {
 
     readonly property var safeItem: item || {}
 
+    function iconForItem(value) {
+        if (!value || value.type === "dir") return Icons.folder
+        var name = String(value.name || "").toLowerCase()
+        var dot = name.lastIndexOf(".")
+        var ext = dot >= 0 ? name.substring(dot + 1) : ""
+        if (ext === "pdf") return Icons.filePdf
+        if (["doc", "docx", "odt", "rtf"].indexOf(ext) >= 0) return Icons.fileWord
+        if (["xls", "xlsx", "ods", "csv"].indexOf(ext) >= 0) return Icons.fileExcel
+        if (["ppt", "pptx", "odp"].indexOf(ext) >= 0) return Icons.filePowerpoint
+        if (["png", "jpg", "jpeg", "gif", "webp", "svg"].indexOf(ext) >= 0) return Icons.fileImage
+        if (["zip", "tar", "gz", "bz2", "7z", "rar"].indexOf(ext) >= 0) return Icons.fileArchive
+        if (["c", "cpp", "h", "hpp", "js", "qml", "py", "sh", "json", "xml", "html", "css"].indexOf(ext) >= 0) return Icons.fileCode
+        return Icons.file
+    }
+
     // Single guarded read of the ListView attached property. `ListView` is an
     // attached object that is null when the delegate is not parented to a view
     // (e.g. while being reparented or measured), so EVERY use must go through
@@ -62,8 +77,26 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: root.isSelected ? Color.accent : "transparent"
-        opacity: root.isSelected && !root.isCurrent ? 0.10 : 0
+        opacity: root.isSelected && !root.isCurrent ? 0.16 : 0
         visible: root.isSelected
+    }
+
+    Rectangle {
+        width: Style.space(3)
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        color: Color.accent
+        visible: root.isSelected || root.isCurrent
+        opacity: root.isCurrent ? 1 : 0.8
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        color: "transparent"
+        border.color: Color.accent
+        border.width: root.isCurrent ? Style.spacing.hairline : 0
+        visible: root.isCurrent
     }
 
     // Hover highlight
@@ -82,8 +115,8 @@ Item {
 
         Text {
             id: icon
-            text: root.isDir ? Icons.folder : Icons.file
-            color: root.isSelected ? Color.accent : (root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground)
+            text: root.iconForItem(root.safeItem)
+            color: root.isSelected || root.isDir ? Color.accent : (root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground)
             font.family: Icons.family
             font.pixelSize: Style.font.title
             width: Style.space(24)
@@ -103,6 +136,9 @@ Item {
             height: parent.height
             verticalAlignment: Text.AlignVCenter
             textFormat: Text.PlainText
+            ToolTip.visible: mouseArea.containsMouse && truncated
+            ToolTip.delay: 500
+            ToolTip.text: safeItem.name || ""
         }
 
         Item {
