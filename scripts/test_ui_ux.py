@@ -20,4 +20,8 @@ file_item = (ROOT / "components/FileItem.qml").read_text()
 assert "ToolTip.visible: mouseArea.containsMouse && truncated" in file_item
 assert "border.width: root.isCurrent ? Style.spacing.hairline : 0" in file_item
 print("PASS long-name tooltip and focus styling")
+bar = (ROOT / "components/BatchActionBar.qml").read_text()
+assert 'text: "More"' in bar and 'text: "Copy"' in bar
+assert 'text: "Delete"' in bar and 'text: "Clear"' in bar
+print("PASS compact selection action hierarchy")
 print("=== UI/UX list checks passed ===")

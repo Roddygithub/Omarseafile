@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import qs.Commons
 import qs.Ui
 
@@ -50,15 +51,6 @@ Item {
         }
 
         Button {
-            id: copyBtn
-            text: "Copy"
-            visible: root.count > 0
-            onClicked: {
-                if (root.onCopy) root.onCopy()
-            }
-        }
-
-        Button {
             id: deleteBtn
             text: "Delete"
             color: Color.urgent
@@ -69,11 +61,48 @@ Item {
         }
 
         Button {
+            id: moreBtn
+            text: "More"
+            visible: root.count > 0
+            onClicked: moreMenu.open()
+        }
+
+        Button {
             id: clearBtn
             text: "Clear"
             visible: root.count > 0
             onClicked: {
                 if (root.onClear) root.onClear()
+            }
+        }
+    }
+
+    Popup {
+        id: moreMenu
+        width: Style.space(140)
+        padding: Style.space(4)
+        x: moreBtn.x + moreBtn.width - width
+        y: moreBtn.y + moreBtn.height + Style.space(2)
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Rectangle {
+            color: Qt.darker(root.bar.background, 1.1)
+            border.color: Color.accent
+            border.width: Style.spacing.hairline
+            radius: Style.cornerRadius
+        }
+
+        Column {
+            width: parent.width
+            spacing: Style.space(2)
+
+            Button {
+                width: parent.width
+                text: "Copy"
+                onClicked: {
+                    moreMenu.close()
+                    if (root.onCopy) root.onCopy()
+                }
             }
         }
     }
