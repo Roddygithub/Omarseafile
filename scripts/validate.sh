@@ -251,6 +251,7 @@ check "no duplicate QML properties on the same object" python3 scripts/check_dup
 # --- Security microfix tests ---
 echo ""
 echo "--- Security Microfix Tests ---"
+check "UI/UX behavior suite passes" python3 scripts/test_ui_ux.py
 check "blocker behavioral suite passes" python3 scripts/test_blockers.py
 check "portable CI suite passes" python3 scripts/test_portable.py
 # Listed explicitly so a reader can see these are enforced rather than only
