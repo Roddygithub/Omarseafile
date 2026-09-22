@@ -94,6 +94,38 @@ F.selectedItems = [{repoId: "repo", fullPath: "/removed"}];
 F.loadFolder("repo", "/");
 folderCallback(true, [{name: "kept", type: "file", size: 1, mtime: 1}], null);
 check("refresh prunes removed batch selection", F.selectedItems.length === 0);
+
+// Run the real multi-item delete continuation with mixed server outcomes.
+let deleteCallbacks = [];
+const D = h.loadQmlObject("Panel.qml", {
+  SeafileAPI: {
+    deleteFile: (repo, path, token, cb) => deleteCallbacks.push(cb),
+    deleteFolder: (repo, path, token, cb) => deleteCallbacks.push(cb)
+  },
+  Auth: {getToken: () => "token"},
+  Cache: {invalidatePath: () => {}},
+  SelectionHelper: {makeKey: item => item.repoId + "|" + item.fullPath},
+  TransferService: {}, Favorites: {}, UrlPolicy: {}, Models: {}, SafePath: {},
+  Qt: {resolvedUrl: () => ""}, confirmLoader: {sourceComponent: null}
+});
+D.currentRepo = {id: "repo"};
+D.currentPath = "/";
+D.currentItems = [
+  {repoId: "repo", fullPath: "/ok", name: "ok", type: "file"},
+  {repoId: "repo", fullPath: "/bad", name: "bad", type: "file"}
+];
+D.refresh = () => {};
+D.showToast = () => {};
+D.deleteItemData = {items: D.currentItems.slice(), isDir: false};
+D.confirmDelete();
+check("batch delete starts each real item", deleteCallbacks.length === 1);
+deleteCallbacks[0](true, null);
+check("batch delete continues after success", deleteCallbacks.length === 2);
+deleteCallbacks[1](false, "failed");
+check("batch delete keeps only failed item selected", D.selectedItems.length === 1 && D.selectedItems[0].name === "bad");
+D.currentItems = [D.currentItems[0]];
+D.pruneSelection();
+check("batch delete selection clears after failed item disappears", D.selectedItems.length === 0);
 console.log("=== blocker behavioral checks passed ===");
 '''
 subprocess.run(["node", "-e", script], cwd=ROOT, check=True)
