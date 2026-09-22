@@ -41,9 +41,6 @@ ListView {
     keyNavigationEnabled: true
     highlightFollowsCurrentItem: true
 
-    onSortColumnChanged: setting("sortColumn", sortColumn)
-    onSortAscendingChanged: setting("sortAscending", sortAscending)
-
     // Sorted model for display.
     //
     // foldersFirst=true  -> directories precede files for Name/Size/Modified.
@@ -80,7 +77,7 @@ ListView {
             root.sortColumn = column
             root.sortAscending = true
         }
-        if (root.onSortChanged) root.onSortChanged()
+        if (root.onSortChanged) root.onSortChanged(root.sortColumn, root.sortAscending)
     }
 
     model: root.sortedItems

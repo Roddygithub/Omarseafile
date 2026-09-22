@@ -46,6 +46,7 @@ Item {
     required property var onSelectOnly
     required property var onPositionClicked
     required property var onContextMenuRequested
+    required property var onSortChanged
 
     width: parent.width
     implicitHeight: content.implicitHeight
@@ -146,6 +147,7 @@ Item {
             visible: !root.loading && root.errorMessage === "" && !root.searchActive && !root.showTransfers
             selectedItems: root.selectedItems
             selectionAnchor: root.selectionAnchor
+            onSortChanged: root.onSortChanged
             onSelectionToggle: root.onToggleSelection
             onSelectionRange: root.onSelectRange
             onSelectOnly: root.onSelectOnly

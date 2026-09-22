@@ -746,8 +746,8 @@ test("favorites scope is set on manual login",
 test("favorites scope is set on auto-login",
      "Favorites.setAccountKey(serverUrl, Auth.getEmail())" in panel, kind="STATIC")
 test("favorites use explicit store + legacy + marker keys",
-     'setting("favoritesStore", Favorites.saveToSettings())' in panel
-     and 'setting("favoritesLegacyMigrated", Favorites.saveMigratedKeys())' in panel
+     'setSetting("favoritesStore", Favorites.saveToSettings())' in panel
+     and 'setSetting("favoritesLegacyMigrated", Favorites.saveMigratedKeys())' in panel
      and 'setting("favoritesLegacy", "[]")' in panel
      and 'setting("favoritesStore", "{}")' in panel
      and 'setting("favoritesLegacyMigrated", "[]")' in panel, kind="STATIC")
@@ -932,7 +932,7 @@ test("foldersFirst switch is enabled",
      re.search(r"id: foldersFirstSwitch(?:(?!Switch \{)[\s\S])*?checked: root\.foldersFirst", sd) is not None
      and "enabled: false" not in sd.split("id: foldersFirstSwitch")[1].split("}")[0], kind="STATIC")
 test("foldersFirst is persisted",
-     'setting("foldersFirst", enabled)' in panel and 'setting("foldersFirst", true)' in panel,
+     'setSetting("foldersFirst", enabled)' in panel and 'setting("foldersFirst", true)' in panel,
      kind="STATIC")
 test("foldersFirst reaches the FileList", "foldersFirst: root.foldersFirst" in browser,
      kind="STATIC")

@@ -37,6 +37,7 @@ BarWidget {
     function injectPanel() {
         if (!panelLoader.item) return
         panelLoader.item.bar = root.bar
+        panelLoader.item.settings = root.settings
         panelLoader.item.anchorItem = button
         panelLoader.item.hostWidget = root
     }
@@ -45,6 +46,7 @@ BarWidget {
     implicitHeight: button.implicitHeight
 
     onBarChanged: injectPanel()
+    onSettingsChanged: injectPanel()
 
     Loader {
         id: panelLoader

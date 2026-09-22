@@ -47,6 +47,7 @@ Item {
     required property var onDeleteClicked
     required property var onShareClicked
     required property var onHistoryClicked
+    required property var onSortChanged
 
     width: parent.width
     implicitHeight: content.implicitHeight
@@ -382,6 +383,7 @@ Item {
                 visible: !root.loading && root.errorMessage === ""
                 selectedItems: root.selectedItems
                 selectionAnchor: root.selectionAnchor
+                onSortChanged: root.onSortChanged
                 onSelectionToggle: root.destinationMode || !root.currentRepo ? root.onToggleSelection : function() {}
                 onSelectionRange: root.destinationMode || !root.currentRepo ? root.onSelectRange : function() {}
                 onSelectOnly: root.destinationMode ? function() {} : root.onSelectOnly

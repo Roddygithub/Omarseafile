@@ -88,6 +88,16 @@ Panel {
 
     // ===== UX PREFERENCES =====
     property bool singleClickOpen: setting("singleClickOpen", false)
+
+    function setSetting(name, value) {
+        var next = Object.assign({}, root.settings)
+        next[name] = value
+        root.settings = next
+        if (root.hostWidget && "settings" in root.hostWidget) root.hostWidget.settings = next
+        if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+            root.bar.shell.updateEntryInline(root.moduleName, next)
+    }
+
     // Directories before files when sorting by Name/Size/Modified. Type sorting
     // keeps its own logical semantics regardless of this switch.
     property bool foldersFirst: setting("foldersFirst", true)
@@ -158,11 +168,11 @@ Panel {
     // (plus the one-time legacy-migration markers) back to settings. The legacy
     // pre-1.1 blob is kept under its own key so it can be imported exactly once.
     function persistFavorites() {
-        setting("favoritesStore", Favorites.saveToSettings())
-        setting("favoritesLegacyMigrated", Favorites.saveMigratedKeys())
+        root.setSetting("favoritesStore", Favorites.saveToSettings())
+        root.setSetting("favoritesLegacyMigrated", Favorites.saveMigratedKeys())
         // GLOBAL migration-complete marker: once set, no other account ever
         // imports the pre-1.1 legacy blob on a later startup.
-        setting("favoritesLegacyMigratedGlobally", Favorites.saveGloballyMigrated())
+        root.setSetting("favoritesLegacyMigratedGlobally", Favorites.saveGloballyMigrated())
     }
 
     // Quick Access targets in v1.1 are libraries (from the Libraries root) and
@@ -349,11 +359,10 @@ Panel {
         if (!root.libraries || root.libraries.length === 0) {
             root.loadLibraries()
         }
-        panelController.show()
+        root.controller.show()
     }
-    function close() { panelController.hide() }
-    function toggle() { panelController.open ? close() : open() }
-    function closeForPopoutSwitch() { if (panelController.open) panelController.hide() }
+    function close() { root.controller.hide() }
+    function toggle() { root.opened ? close() : open() }
     function toggleTransfersView() {
         root.showTransfers = !root.showTransfers
     }
@@ -361,8 +370,6 @@ Panel {
     function showToast(message, type) {
         toast.show(message, type || "success")
     }
-
-    PanelController { id: panelController }
 
     // Own the IPC target (manageIpc:false above) — same pattern as the
     // shell's dropbox/network panels: base-Panel handlers plus extras.
@@ -433,7 +440,7 @@ Panel {
         anchorItem: root.anchorItem
         owner: root.hostWidget || root
         bar: root.bar
-        open: panelController.open
+        open: root.opened
         focusTarget: keyCatcher
         contentWidth: panel.fittedContentWidth(Style.space(480))
         contentHeight: panel.fittedContentHeight(content.implicitHeight)
@@ -724,6 +731,10 @@ Panel {
                         onDeleteClicked: function(item) { root.destinationMode ? null : root.pickDelete(item) }
                         onShareClicked: function(item) { root.destinationMode ? null : root.pickShare(item) }
                         onHistoryClicked: root.openHistory
+                        onSortChanged: function(column, ascending) {
+                            root.setSetting("sortColumn", column)
+                            root.setSetting("sortAscending", ascending)
+                        }
                         onAddToFavorites: function(item) { root.addToFavorites(item) }
                         onRemoveFromFavorites: function(item) { root.removeFromFavorites(item) }
                         onFavoriteClicked: function(entry) { root.openFavorite(entry) }
@@ -776,6 +787,10 @@ Panel {
                         onSelectOnly: root.destinationMode ? function() {} : root.selectOnly
                         onPositionClicked: root.positionOn
                         onContextMenuRequested: root.showItemContextMenu
+                        onSortChanged: function(column, ascending) {
+                            root.setSetting("sortColumn", column)
+                            root.setSetting("sortAscending", ascending)
+                        }
                         onSearchRetry: function() { root.executeSearch() }
                         singleClickOpen: root.singleClickOpen
                         foldersFirst: root.foldersFirst
@@ -1005,15 +1020,15 @@ Panel {
             onClearCache: function() { root.clearCache() }
             onChangeServer: root.changeServerUrl
             onTestConnection: root.testConnection
-            onAutoLoginToggled: function(enabled) { setting("autoLogin", enabled) }
-            onSingleClickOpenToggled: function(enabled) { setting("singleClickOpen", enabled) }
-            onSortColumnChange: function(col) { setting("sortColumn", col) }
-            onSortAscendingChange: function(asc) { setting("sortAscending", asc) }
+            onAutoLoginToggled: function(enabled) { root.setSetting("autoLogin", enabled) }
+            onSingleClickOpenToggled: function(enabled) { root.setSetting("singleClickOpen", enabled) }
+            onSortColumnChange: function(col) { root.setSetting("sortColumn", col) }
+            onSortAscendingChange: function(asc) { root.setSetting("sortAscending", asc) }
             onFoldersFirstToggled: function(enabled) {
-                setting("foldersFirst", enabled)
+                root.setSetting("foldersFirst", enabled)
                 root.foldersFirst = enabled
             }
-            onNotifyToggled: function(enabled) { setting("notifyEnabled", enabled) }
+            onNotifyToggled: function(enabled) { root.setSetting("notifyEnabled", enabled) }
         }
     }
 
