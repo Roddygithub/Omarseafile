@@ -219,7 +219,10 @@ Item {
             }
 
             // Ensure keyboard focus follows click
-            if (root._listView && root._listView.view) root._listView.view.currentIndex = root.itemIndex
+            if (root._listView && root._listView.view) {
+                root._listView.view.currentIndex = root.itemIndex
+                root._listView.view.forceActiveFocus()
+            }
 
             var accel = Qt.ControlModifier | Qt.MetaModifier
             if (mouse.modifiers & accel) {

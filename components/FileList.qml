@@ -39,6 +39,7 @@ ListView {
     clip: true
     spacing: Style.space(2)
     keyNavigationEnabled: true
+    activeFocusOnTab: true
     highlightFollowsCurrentItem: true
 
     // Sorted model for display.

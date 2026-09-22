@@ -822,6 +822,12 @@ Panel {
         return (list === undefined || list === null) ? null : list
     }
 
+    function focusActiveFileList() {
+        var list = null
+        try { list = root.activeFileList() } catch (e) { return }
+        if (list && typeof list.forceActiveFocus === "function") list.forceActiveFocus()
+    }
+
     readonly property bool settingsOpen: settingsLoader.item !== null
     readonly property bool dialogOpen: settingsLoader.item !== null || createFolderLoader.item !== null || renameLoader.item !== null || confirmLoader.item !== null || shareLoader.item !== null || uploadLoader.item !== null || historyLoader.item !== null || trashLoader.item !== null
 
@@ -1168,6 +1174,7 @@ Panel {
         if (cached && !root.forceRefresh) {
             root.currentItems = root.enrichItems(repoId, path, cached)
             root.pruneSelection()
+            root.focusActiveFileList()
             root.navigationPhase("model", startedAt)
             root.currentPath = path
             root.loading = false
@@ -1186,6 +1193,7 @@ Panel {
             if (success) {
                 root.currentItems = root.enrichItems(repoId, path, data)
                 root.pruneSelection()
+                root.focusActiveFileList()
                 root.navigationPhase("model", startedAt)
                 root.currentPath = path
                 root.navigationComplete(startedAt, data.length)
