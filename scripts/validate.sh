@@ -266,6 +266,7 @@ else
 fi
 if command -v qs >/dev/null; then
     check "Open Local lifecycle suite passes" python3 scripts/test_open_lifecycle.py
+    check "ConnectionService race suite passes" python3 scripts/test_connection_service.py
     check "Quickshell runtime remediation suite passes" python3 scripts/test_runtime_remediation.py
     check "HTTP transport integration suite passes" python3 scripts/test_http_integration.py
 else

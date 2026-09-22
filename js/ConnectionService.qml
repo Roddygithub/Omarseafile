@@ -12,6 +12,7 @@ QtObject {
     property int maxConsecutiveFailures: 3
 
     property int consecutiveFailures: 0
+    property int probeGeneration: 0
 
     property Timer connectionCheckTimer: Timer {
         interval: root.checkInterval
@@ -21,7 +22,9 @@ QtObject {
     }
 
     function setServerUrl(url) {
-        root.serverUrl = url.replace(/\/+$/, "")
+        var nextUrl = url.replace(/\/+$/, "")
+        if (nextUrl !== root.serverUrl) root.probeGeneration++
+        root.serverUrl = nextUrl
     }
 
     function start() {
@@ -36,34 +39,39 @@ QtObject {
     function checkConnectivity() {
         if (!root.serverUrl) return
 
+        var generation = ++root.probeGeneration
         var xhr = new XMLHttpRequest()
         var url = root.serverUrl.replace(/\/+$/, "") + "/api2/ping/"
         xhr.open("GET", url, true)
         xhr.timeout = 5000
         xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                var wasOnline = root.online
-                if (xhr.status >= 200 && xhr.status < 500) {
-                    root.consecutiveFailures = 0
-                    if (!root.online) {
-                        root.online = true
-                        onlineChanged()
-                    }
-                } else {
-                    root.handleFailure()
-                }
-            }
+            if (xhr.readyState === XMLHttpRequest.DONE)
+                root.handleResponse(generation, xhr.status)
         }
         xhr.ontimeout = function() {
-            root.handleFailure()
+            root.handleFailure(generation)
         }
         xhr.onerror = function() {
-            root.handleFailure()
+            root.handleFailure(generation)
         }
         xhr.send()
     }
 
-    function handleFailure() {
+    function handleResponse(generation, status) {
+        if (generation !== root.probeGeneration) return
+        if (status >= 200 && status < 500) {
+            root.consecutiveFailures = 0
+            if (!root.online) {
+                root.online = true
+                onlineChanged()
+            }
+        } else {
+            root.handleFailure(generation)
+        }
+    }
+
+    function handleFailure(generation) {
+        if (generation !== root.probeGeneration) return
         root.consecutiveFailures++
         if (root.consecutiveFailures >= root.maxConsecutiveFailures && root.online) {
             root.online = false
