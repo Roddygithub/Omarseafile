@@ -24,4 +24,8 @@ bar = (ROOT / "components/BatchActionBar.qml").read_text()
 assert 'text: "More"' in bar and 'text: "Copy"' in bar
 assert 'text: "Delete"' in bar and 'text: "Clear"' in bar
 print("PASS compact selection action hierarchy")
+menu = (ROOT / "components/ContextMenu.qml").read_text()
+assert menu.count("height: visible ? Style.spacing.hairline : 0") == 3
+assert "color: Color.urgent" in menu
+print("PASS grouped context actions and destructive emphasis")
 print("=== UI/UX list checks passed ===")

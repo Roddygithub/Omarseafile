@@ -77,6 +77,14 @@ Popup {
             }
         }
 
+        Rectangle {
+            width: parent.width
+            height: visible ? Style.spacing.hairline : 0
+            color: root.bar ? root.bar.foreground : Color.foreground
+            opacity: 0.14
+            visible: !root.libraryMode && !root.batchMode
+        }
+
         Button {
             width: parent.width
             text: "Rename"
@@ -107,6 +115,14 @@ Popup {
             }
         }
 
+        Rectangle {
+            width: parent.width
+            height: visible ? Style.spacing.hairline : 0
+            color: root.bar ? root.bar.foreground : Color.foreground
+            opacity: 0.14
+            visible: !root.libraryMode && !root.batchMode
+        }
+
         Button {
             width: parent.width
             text: "History"
@@ -135,9 +151,18 @@ Popup {
             }
         }
 
+        Rectangle {
+            width: parent.width
+            height: visible ? Style.spacing.hairline : 0
+            color: root.bar ? root.bar.foreground : Color.foreground
+            opacity: 0.14
+            visible: !root.libraryMode
+        }
+
         Button {
             width: parent.width
             text: "Delete"
+            color: Color.urgent
             visible: !root.libraryMode
             onClicked: {
                 root.deleteClicked(root.item)
