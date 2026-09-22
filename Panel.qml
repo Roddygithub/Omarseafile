@@ -527,6 +527,10 @@ Panel {
             Column {
                 id: content
                 width: parent.width
+                // Keep the content viewport bounded by KeyboardPanel's card;
+                // FileList/ListView handles scrolling inside this clipped area.
+                height: parent.height
+                clip: true
                 spacing: 0
 
                 Toast {
