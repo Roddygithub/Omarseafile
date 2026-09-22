@@ -40,6 +40,7 @@ Item {
     // the service exposes no notifyable property to depend on.
     required property var activeTransfers
     required property int activeCount
+    required property int transferRevision
     required property var onDownloadClicked
     required property var onOpenClicked
     required property var onRenameClicked
@@ -371,7 +372,7 @@ Item {
                 items: root.libraries
                 focus: true
                 findTransfer: TransferService.findTransfer
-                transferRevision: 0
+                transferRevision: root.transferRevision
                 onItemClicked: root.onItemClicked
                 onDownloadClicked: function(item) { root.destinationMode ? null : root.onDownloadClicked(item) }
                 onOpenClicked: function(item) { root.destinationMode ? null : root.onOpenClicked(item) }

@@ -666,7 +666,10 @@ test("browser actions are hidden while Transfers is active",
 test("intentional global actions stay while Transfers is active",
      all("!root.showTransfers" not in line
          for line in panel.split("\n")
-         if "showLogout:" in line or "showSettings:" in line or "showTransfers:" in line),
+         if "showLogout:" in line or "showSettings:" in line),
+     kind="STATIC")
+test("Transfers action is hidden on the Transfers page",
+     "showTransfers: root.state === \"browse\" && !root.dialogOpen && !root.destinationMode && !root.showTransfers" in panel,
      kind="STATIC")
 test("TransferManager keeps retry/cancel/clear/open/show-in-folder",
      all(k in panel for k in ("onRetry:", "onCancel:", "onClearCompleted:", "onClearFailed:",

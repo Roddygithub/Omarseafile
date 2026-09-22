@@ -73,7 +73,14 @@ Item {
             id: backButton
             text: Icons.chevronLeft
             visible: root.showBack
-            tooltipText: "Back"
+            tooltipText: ""
+            HoverHandler { id: backHover }
+            ToolbarToolTip {
+                target: backButton
+                overlay: root.overlay
+                visible: backHover.hovered
+                text: "Back"
+            }
             onClicked: {
                 if (root.onBackClicked) root.onBackClicked()
             }
@@ -141,7 +148,14 @@ Item {
             id: searchButton
             text: root.searchActive ? Icons.times : Icons.search
             visible: root.showSearch
-            tooltipText: root.searchActive ? "Close search" : "Search"
+            tooltipText: ""
+            HoverHandler { id: searchHover }
+            ToolbarToolTip {
+                target: searchButton
+                overlay: root.overlay
+                visible: searchHover.hovered
+                text: root.searchActive ? "Close search" : "Search"
+            }
             onClicked: {
                 root.searchActive = !root.searchActive
                 if (root.onSearchActiveToggled) root.onSearchActiveToggled(root.searchActive)
@@ -154,7 +168,14 @@ Item {
             id: uploadButton
             text: Icons.upload
             visible: root.showUpload && !root.searchActive && root.selectionCount === 0
-            tooltipText: "Upload file"
+            tooltipText: ""
+            HoverHandler { id: uploadHover }
+            ToolbarToolTip {
+                target: uploadButton
+                overlay: root.overlay
+                visible: uploadHover.hovered
+                text: "Upload file"
+            }
             onClicked: {
                 if (root.onUploadClicked) root.onUploadClicked()
             }
@@ -201,8 +222,12 @@ Item {
                 anchors.centerIn: transfersBadge
             }
 
-            ToolTip.visible: mouseArea.containsMouse
-            ToolTip.text: "Transfers"
+            ToolbarToolTip {
+                target: transferIndicator
+                overlay: root.overlay
+                visible: mouseArea.containsMouse
+                text: "Transfers"
+            }
 
             MouseArea {
                 id: mouseArea
@@ -228,8 +253,12 @@ Item {
                 font.pixelSize: Style.font.title
                 anchors.centerIn: parent
             }
-            ToolTip.visible: offlineMouseArea.containsMouse
-            ToolTip.text: "Offline — retrying connection"
+            ToolbarToolTip {
+                target: offlineIndicator
+                overlay: root.overlay
+                visible: offlineMouseArea.containsMouse
+                text: "Offline — retrying connection"
+            }
             MouseArea {
                 id: offlineMouseArea
                 anchors.fill: parent
@@ -242,14 +271,13 @@ Item {
             id: overflowButton
             text: Icons.ellipsisV
             visible: root.overflowAvailable
-            // Use the attached ToolTip so Qt Quick Controls anchors it to this
-            // button instead of treating it as a child Popup.
             tooltipText: ""
-            ToolTip.visible: overflowHover.hovered
-            ToolTip.text: "More"
-            ToolTip.delay: 400
-            HoverHandler {
-                id: overflowHover
+            HoverHandler { id: overflowHover }
+            ToolbarToolTip {
+                target: overflowButton
+                overlay: root.overlay
+                visible: overflowHover.hovered
+                text: "More"
             }
             onClicked: {
                 if (root.overflowAvailable) root.overflowOpen = !root.overflowOpen

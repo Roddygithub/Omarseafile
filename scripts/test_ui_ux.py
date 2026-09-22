@@ -29,8 +29,10 @@ assert "hoverEnabled: true" in toolbar
 assert "readonly property bool overflowAvailable: overflowMenu.itemCount > 0" in toolbar
 assert "visible: root.overflowAvailable" in toolbar
 assert "if (root.overflowAvailable) root.overflowOpen = !root.overflowOpen" in toolbar
-assert 'ToolTip.text: "More"' in toolbar and 'tooltipText: ""' in toolbar
+assert 'text: "More"' in toolbar and 'ToolbarToolTip {' in toolbar
+assert 'ToolTip.visible:' not in toolbar
 assert 'showUpload: root.state === "browse" && root.currentRepo !== null' in panel
+assert 'showTransfers: root.state === "browse" && !root.dialogOpen && !root.destinationMode && !root.showTransfers' in panel
 print("PASS compact selection action hierarchy")
 selection_bar = (ROOT / "components/BatchActionBar.qml").read_text()
 assert "mapToItem(root.overlay" in selection_bar

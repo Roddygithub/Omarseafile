@@ -57,6 +57,7 @@ Panel {
         console.log("SEAFILE_TIMING navigation_complete rows=" + rows + " total_ms=" + Math.max(0, Date.now() - startedAt))
     }
 
+    property var activeTransfers: []
     property int activeTransferCount: 0
     property bool hasTransferFailures: false
     property var fileTransfers: ({})
@@ -318,9 +319,10 @@ Panel {
     }
 
     function refreshTransferBindings() {
-        root.activeTransferCount = TransferService.getActiveCount()
-        root.hasTransferFailures = TransferService.hasFailures()
         var active = TransferService.getActiveTransfers()
+        root.activeTransfers = active
+        root.activeTransferCount = active.length
+        root.hasTransferFailures = TransferService.hasFailures()
         var map = {}
         for (var i = 0; i < active.length; i++) {
             var t = active[i]
@@ -565,7 +567,7 @@ Panel {
                     showCreateFolder: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.destinationMode && !root.showTransfers && root.currentRepo !== null
                     showSearch: root.state === "browse" && !root.dialogOpen && !root.destinationMode && !root.showTransfers
                     showLogout: root.state === "browse" && !root.dialogOpen && !root.destinationMode
-                    showTransfers: root.state === "browse" && !root.dialogOpen && !root.destinationMode
+                    showTransfers: root.state === "browse" && !root.dialogOpen && !root.destinationMode && !root.showTransfers
                     showTrash: root.state === "browse" && !root.dialogOpen && !root.destinationMode && !root.showTransfers
                     showSettings: root.state === "browse" && !root.dialogOpen && !root.destinationMode
                     activeTransferCount: root.activeTransferCount
@@ -746,8 +748,9 @@ Panel {
                         onFavoriteClicked: function(entry) { root.openFavorite(entry) }
                         onRemoveFavorite: function(entry) { root.removeFromFavorites(entry) }
                         onTransferCancel: function(transfer) { TransferService.cancelTransfer(transfer.id) }
-                        activeTransfers: TransferService.getActiveTransfers()
+                        activeTransfers: root.activeTransfers
                         activeCount: root.activeTransferCount
+                        transferRevision: root.transferRevision
                     }
                 }
 
@@ -2127,7 +2130,6 @@ Panel {
             })
         })
 
-        root.activeTransferCount = TransferService.getActiveCount()
-        root.hasTransferFailures = TransferService.hasFailures()
+        root.refreshTransferBindings()
     }
 }
