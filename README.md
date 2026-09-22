@@ -2,7 +2,7 @@
 
 Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing and managing a self-hosted [Seafile](https://www.seafile.com/) account from a Quickshell panel.
 
-## Features (v1.1)
+## Features (v1.2.0)
 
 - **Home / Quick Access**: Pin libraries and folders for instant access. See active transfers at a glance.
 - Browse accessible Seafile libraries and folders with breadcrumbs.

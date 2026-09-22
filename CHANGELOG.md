@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-09-22
+
+### Added
+- File-type recognition for common documents, images, archives, and code, with a generic fallback.
+- Hover discovery for truncated file names and paths.
+
+### Changed
+- Hardened session, connectivity, mutation, transfer, login, and stale-response handling.
+- Search now validates file/folder result types and ignores stale callbacks after navigation.
+- Selection actions use a compact toolbar with secondary actions grouped under More.
+- Context actions are grouped by intent and Delete is clearly destructive.
+- Keyboard focus, selected-row contrast, loading states, and transfer presentation are improved for compact Omarchy panels.
+- Transfer history is bounded and the transfer surface remains scrollable for longer lists.
+
+### Fixed
+- Batch selection is pruned after refreshed mutation results.
+- Enter/Return login submission and busy/error feedback are consistent.
+- Stale connectivity probes, mutation confirmations, and transfer retries cannot act on obsolete session state.
+
 ## [1.1.0] - 2026-09-20
 
 ### Added

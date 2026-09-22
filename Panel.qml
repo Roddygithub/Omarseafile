@@ -104,7 +104,7 @@ Panel {
 
     // Single source of truth for the displayed version, kept in step with
     // manifest.json by scripts/test_v11_remediation.py.
-    readonly property string pluginVersion: "1.1.0"
+    readonly property string pluginVersion: "1.2.0"
 
     function selectionKeyForItem(item) {
         return SelectionHelper.makeKey(item)

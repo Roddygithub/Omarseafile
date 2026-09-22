@@ -975,15 +975,15 @@ print("\n--- 10. Release metadata consistency (STATIC) ---")
 # =====================================================================
 import json
 manifest = json.loads(read("manifest.json"))
-test("manifest version is 1.1.0", manifest.get("version") == "1.1.0", manifest.get("version"),
+test("manifest version is 1.2.0", manifest.get("version") == "1.2.0", manifest.get("version"),
      kind="STATIC")
 test("Settings About derives from the same version",
-     'readonly property string pluginVersion: "1.1.0"' in panel
+     'readonly property string pluginVersion: "1.2.0"' in panel
      and "pluginVersion: root.pluginVersion" in panel, kind="STATIC")
 test("foldersFirst is declared in the manifest schema",
      any(f.get("key") == "foldersFirst" for f in manifest["barWidget"]["schema"]), kind="STATIC")
 changelog = read("CHANGELOG.md")
-test("CHANGELOG has a 1.1.0 section", "[1.1.0]" in changelog, kind="STATIC")
+test("CHANGELOG has a 1.2.0 section", "[1.2.0]" in changelog, kind="STATIC")
 readme = read("README.md")
 test("README documents the zenity picker", "zenity" in readme.lower(), kind="STATIC")
 test("README no longer claims Qt FileDialog",

@@ -35,7 +35,7 @@ Item {
 
     property string serverUrl: ""
     property string accountEmail: ""
-    property string pluginVersion: "1.1.0"
+    property string pluginVersion: "1.2.0"
     property bool autoLogin: true
     property bool singleClickOpen: false
     property string sortColumn: "name"
