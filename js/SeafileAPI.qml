@@ -13,10 +13,17 @@ QtObject {
     property string token: ""
 
     function setBaseUrl(url) {
-        baseUrl = url.replace(/\/+$/, "")
+        var normalized = url.replace(/\/+$/, "")
+        if (normalized !== baseUrl) {
+            HttpTransport.invalidateSession()
+            token = ""
+            baseUrl = normalized
+        }
     }
 
     function setToken(t) {
+        // Even an empty-to-empty logout must invalidate an in-flight login.
+        HttpTransport.invalidateSession()
         token = t
     }
 

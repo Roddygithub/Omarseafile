@@ -7,10 +7,11 @@ QtObject {
     property var cache: ({})
     property int defaultTtl: 30000
     property int maxEntries: 100
-    // Cache is memory-only and scoped to the authenticated server/account.
-    // The scope is intentionally not persisted and is cleared on logout.
+    // JSON tuples preserve server/account/resource/path boundaries; the local
+    // generation prevents reuse across logins, even for the same account.
     property string scope: "anonymous"
-    function scopedKey(key) { return root.scope + ":" + key }
+    property double sessionGeneration: 0
+    function scopedKey(key) { return JSON.stringify([root.sessionGeneration, root.scope, key]) }
 
     function get(key) {
         var entry = root.cache[root.scopedKey(key)]
@@ -25,7 +26,7 @@ QtObject {
     function set(key, data, ttl) {
         if (Object.keys(root.cache).length >= root.maxEntries) {
             var oldestKey = null
-            var oldestTime = Date.now()
+            var oldestTime = Infinity
             for (var k in root.cache) {
                 if (root.cache[k].timestamp < oldestTime) {
                     oldestTime = root.cache[k].timestamp
@@ -45,49 +46,52 @@ QtObject {
         delete root.cache[root.scopedKey(key)]
     }
 
-    function invalidatePrefix(prefix) {
-        var scopedPrefix = root.scopedKey(prefix)
-        for (var k in root.cache) {
-            if (k.startsWith(scopedPrefix)) delete root.cache[k]
-        }
-    }
-
     function invalidateRepo(repoId) {
-        root.invalidatePrefix("repo:" + repoId + ":")
-        root.remove("repo:" + repoId + ":libs")
+        root.invalidatePath(repoId, "/")
+        if (repoId === "global") root.remove(JSON.stringify(["libraries"]))
     }
 
     function invalidatePath(repoId, path) {
-        root.invalidatePrefix("repo:" + repoId + ":" + path.replace(/\//g, ":"))
+        for (var k in root.cache) {
+            var scoped = JSON.parse(k)
+            if (scoped[0] !== root.sessionGeneration || scoped[1] !== root.scope) continue
+            // Generic get/set keys are also supported; only folder tuples
+            // participate in path invalidation.
+            var resource
+            try { resource = JSON.parse(scoped[2]) } catch (e) { continue }
+            if (!Array.isArray(resource)) continue
+            if (resource[0] === "folder" && resource[1] === repoId
+                && (path === "/" || resource[2] === path || resource[2].startsWith(path + "/"))) {
+                delete root.cache[k]
+            }
+        }
     }
 
     function clear() {
         root.cache = ({})
-        root.scope = "anonymous"
+        root.sessionGeneration++
     }
 
     function setScope(serverUrl, account) {
-        var next = String(serverUrl || "") + "|" + String(account || "")
-        // Scope is an opaque in-memory key; no credentials are persisted.
-        root.scope = next
+        root.clear()
+        // No credentials are included or persisted.
+        root.scope = JSON.stringify([String(serverUrl || ""), String(account || "")])
     }
 
     function getLibraries() {
-        return root.get("repo:global:libs")
+        return root.get(JSON.stringify(["libraries"]))
     }
 
     function setLibraries(data) {
-        root.set("repo:global:libs", data)
+        root.set(JSON.stringify(["libraries"]), data)
     }
 
     function getFolder(repoId, path) {
-        var key = "repo:" + repoId + ":" + (path === "/" ? "root" : path.replace(/\//g, ":"))
-        return root.get(key)
+        return root.get(JSON.stringify(["folder", repoId, path]))
     }
 
     function setFolder(repoId, path, data) {
-        var key = "repo:" + repoId + ":" + (path === "/" ? "root" : path.replace(/\//g, ":"))
-        root.set(key, data)
+        root.set(JSON.stringify(["folder", repoId, path]), data)
     }
 
     function hasValidCache(key) {

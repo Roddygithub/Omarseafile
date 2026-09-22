@@ -23,6 +23,7 @@ tests = [
     "test_finding6.py",
     "test_finding7.py",
     "test_security_fixes.py",
+    "test_session_cache.py",
     "test_remediation.py",
     # QML structural / runtime-warning regressions. These were previously only
     # runnable manually, which is how a green gate coexisted with a panel that

@@ -14,6 +14,10 @@ QtObject {
     property int maxStderrBytes: 65536
     property int maxValidationDepth: 32
     property int timingSequence: 0
+    // Logical cancellation: suppress old callbacks and revoke not-yet-launched
+    // requests, while allowing already-running processes to clean up normally.
+    property double sessionGeneration: 0
+    function invalidateSession() { root.sessionGeneration++ }
     readonly property string _transferOutputHelper: Qt.resolvedUrl("../scripts/transfer_output.py").toString().replace(/^file:\/\//, "")
 
     property Component _requestFactory: Component {
@@ -87,12 +91,13 @@ QtObject {
     }
 
     function request(method, url, headers, body, callback) {
+        var session = root.sessionGeneration
         var finished = false
         // The 4th argument is the real HTTP status (0 == no HTTP response was
         // observed, i.e. a transport failure). Callers written against the old
         // 3-argument contract simply ignore it.
         function finish(success, data, error, status) {
-            if (finished) return
+            if (finished || session !== root.sessionGeneration) return
             finished = true
             callback(success, data, error, typeof status === "number" ? status : 0)
         }
@@ -112,6 +117,7 @@ QtObject {
         var hasBody = config.body !== undefined && config.body !== null && config.body !== ""
 
         SafePath.getRuntimeSubdir("http", function(httpResult) {
+            if (session !== root.sessionGeneration) return
             if (!httpResult.valid) { finish(false, null, "Runtime dir unavailable: " + httpResult.error, 0); return }
 
             // curl semantics:
@@ -124,6 +130,7 @@ QtObject {
             SafePath.createSecureFile("http", "curl_resp", "", function(respResult) {
                 if (!respResult.valid) { finish(false, null, "Response file failed: " + respResult.error, 0); return }
                 var responseBodyFile = respResult.path
+                if (session !== root.sessionGeneration) { cleanup(responseBodyFile); return }
 
                 var curlArgs = [
                     "curl", "-q", "-f", "-s", "-S",
@@ -154,6 +161,11 @@ QtObject {
                 }
 
                 function runRequest(headerFile) {
+                    if (session !== root.sessionGeneration) {
+                        cleanup(headerFile)
+                        cleanup(responseBodyFile)
+                        return
+                    }
                     if (hasBody) {
                         SafePath.createSecureFile("http", "curl_body", config.body, function(bodyResult) {
                             if (!bodyResult.valid) {
@@ -169,6 +181,12 @@ QtObject {
                 }
 
                 function execute(hdrFile, reqBodyFile, args) {
+                    if (session !== root.sessionGeneration) {
+                        cleanup(hdrFile)
+                        cleanup(reqBodyFile)
+                        cleanup(responseBodyFile)
+                        return
+                    }
                     if (hdrFile) {
                         args.push("--config", hdrFile)
                     }

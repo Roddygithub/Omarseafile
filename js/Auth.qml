@@ -13,6 +13,7 @@ QtObject {
     readonly property string keyServer: "server-url"
     readonly property string keyEmail: "user-email"
     property var _sessionMutationTail: null
+    property double sessionGeneration: 0
     readonly property string _wrapperPath: Qt.resolvedUrl("../scripts/secret_tool_wrapper.py").toString().replace(/^file:\/\//, "")
     readonly property int _maxSecretBytes: 4096
 
@@ -84,6 +85,10 @@ QtObject {
     }
 
     function storeToken(token, serverUrl, email) {
+        root.sessionGeneration++
+        root.cachedToken = token
+        root.cachedServerUrl = serverUrl
+        root.cachedEmail = email
         var steps = [
             { cmd: ["secret-tool", "store", "--label=Seafile Auth Token", root.attrService, root.valService, root.attrKey, root.keyToken], input: token },
             { cmd: ["secret-tool", "store", "--label=Seafile Server URL", root.attrService, root.valService, root.attrKey, root.keyServer], input: serverUrl },
@@ -91,9 +96,6 @@ QtObject {
         ]
         var index = 0
         return root._queueSessionMutation(function() {
-            root.cachedToken = token
-            root.cachedServerUrl = serverUrl
-            root.cachedEmail = email
             return new Promise(function(resolve, reject) {
                 function next() {
                     if (index >= steps.length) { resolve(); return }
@@ -130,12 +132,15 @@ QtObject {
     }
 
     function clearSession() {
+        // Memory revocation cannot wait behind keyring IO. Serialized writes
+        // still finish in order, so the queued clear removes any earlier store.
+        root.sessionGeneration++
+        root.cachedToken = ""
+        root.cachedServerUrl = ""
+        root.cachedEmail = ""
         var keys = [root.keyToken, root.keyServer, root.keyEmail]
         var index = 0
         return root._queueSessionMutation(function() {
-            root.cachedToken = ""
-            root.cachedServerUrl = ""
-            root.cachedEmail = ""
             return new Promise(function(resolve, reject) {
                 var firstError = null
                 function next() {
@@ -158,13 +163,17 @@ QtObject {
 
     function isAuthenticated() {
         if (root.cachedToken !== "" && root.cachedServerUrl !== "" && root.cachedEmail !== "") return Promise.resolve(true)
+        var session = root.sessionGeneration
         return root._queueSessionMutation(function() {
+            if (session !== root.sessionGeneration) return false
             return root._lookup(root.keyToken).then(function(token) {
-                root.cachedToken = token
-                if (token === "") return false
+                if (session !== root.sessionGeneration || token === "") return false
                 return root._lookup(root.keyServer).then(function(u) {
-                    root.cachedServerUrl = u
+                    if (session !== root.sessionGeneration) return false
                     return root._lookup(root.keyEmail).then(function(e) {
+                        if (session !== root.sessionGeneration) return false
+                        root.cachedToken = token
+                        root.cachedServerUrl = u
                         root.cachedEmail = e
                         return u !== "" && e !== ""
                     })

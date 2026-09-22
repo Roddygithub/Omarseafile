@@ -539,7 +539,9 @@ QtObject {
     // ===== DOWNLOAD =====
 
     function startDownload(fileItem, token, baseUrl, repoId, destDir, fullPath, downloadLink) {
+        var epoch = root.sessionEpoch
         SafePath.secureJoin(destDir, fileItem.name, function(destResult) {
+            if (epoch !== root.sessionEpoch) return
             if (!destResult.valid) {
                 var errTransfer = { error: destResult.error, state: "failed" }
                 root.reportError("Invalid destination: " + destResult.error)
@@ -569,7 +571,7 @@ QtObject {
                 endTime: null,
                 authHeaderFile: null,
                 curlConfigFile: null,
-                epoch: root.sessionEpoch
+                epoch: epoch
             }
 
             var downloads = root.transfers.slice()

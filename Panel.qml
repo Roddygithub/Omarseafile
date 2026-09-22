@@ -1075,6 +1075,8 @@ Panel {
     // ===== BROWSING =====
 
     function loadLibraries() {
+        var session = root.sessionGeneration
+        var cacheSession = Cache.sessionGeneration
         var generation = ++root.navigationGeneration
         var startedAt = Date.now()
         var cached = Cache.getLibraries()
@@ -1094,7 +1096,8 @@ Panel {
         root.currentPath = "/"
         root.pathHistory = []
         SeafileAPI.listLibraries(function(success, data, error) {
-            if (success) {
+            if (session !== root.sessionGeneration) return
+            if (success && cacheSession === Cache.sessionGeneration) {
                 Cache.setLibraries(data)
             }
             if (generation !== root.navigationGeneration) return
@@ -1132,6 +1135,8 @@ Panel {
     }
 
     function loadFolder(repoId, path) {
+        var session = root.sessionGeneration
+        var cacheSession = Cache.sessionGeneration
         var generation = ++root.navigationGeneration
         var startedAt = Date.now()
         root.currentPath = path
@@ -1149,7 +1154,8 @@ Panel {
         root.loading = true
         root.errorMessage = ""
         SeafileAPI.listFolder(repoId, path, function(success, data, error) {
-            if (success) {
+            if (session !== root.sessionGeneration) return
+            if (success && cacheSession === Cache.sessionGeneration) {
                 Cache.setFolder(repoId, path, data)
             }
             if (generation !== root.navigationGeneration) return
@@ -1489,6 +1495,7 @@ Panel {
     }
 
     function handleTransferCompletion(transfer) {
+        if (transfer.epoch !== TransferService.sessionEpoch) return
         if (transfer.state === "completed") {
             if (transfer.type === "upload") {
                 Cache.invalidatePath(transfer.repoId, transfer.destUploadPath)
@@ -1513,7 +1520,9 @@ Panel {
         root.historyGeneration++
         searchDebounceTimer.stop()
         TransferService.logoutCleanup()
+        var logoutGeneration = root.loginGeneration
         Auth.clearSession().catch(function(error) {
+            if (logoutGeneration !== root.loginGeneration) return
             root.showToast("Signed out, but stored credentials could not be fully cleared: " + error, "error")
         })
         SeafileAPI.setToken("")
@@ -1566,8 +1575,10 @@ Panel {
     }
 
     function clearCache() {
+        var session = root.sessionGeneration
         Cache.clear()
         SafePath.clearPersistentCache(function(result) {
+            if (session !== root.sessionGeneration) return
             if (result.complete) {
                 root.showToast("Cache cleared", "success")
             } else if (result.protected) {
