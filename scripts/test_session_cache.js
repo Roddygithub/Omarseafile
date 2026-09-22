@@ -42,7 +42,8 @@ function panelFixture() {
     const cache = load('js/Cache.qml');
     const auth = load('js/Auth.qml', {Qt}); auth._run = () => Promise.resolve('');
     const transfer = load('js/TransferService.qml', {Qt}); transfer.transfersChanged = () => {};
-    const env = {console: quiet, Cache: cache, SeafileAPI: api, Auth: auth, TransferService: transfer,
+    const selection = load('js/SelectionHelper.qml');
+    const env = {console: quiet, Cache: cache, SeafileAPI: api, Auth: auth, TransferService: transfer, SelectionHelper: selection,
         UrlPolicy: policy, searchDebounceTimer: {stop() {}}, contextMenu: {close() {}},
         panelConnectionService: {setServerUrl() {}}, Favorites: {clearActiveScope() {}}};
     for (const name of ['createFolder', 'rename', 'confirm', 'share', 'upload', 'history', 'trash', 'settings']) env[name + 'Loader'] = {};
