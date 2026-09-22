@@ -344,7 +344,7 @@ QtObject {
             function(success, data, error) {
                 if (success) {
             _recordConnectionSuccess()
-                    if (confirmedMutation({ responseText: JSON.stringify(data) })) callback(true, null)
+                    if (confirmedMutation(data)) callback(true, null)
                     else callback(false, "Server did not confirm move")
                 } else {
                     callback(false, error || "Move failed")
