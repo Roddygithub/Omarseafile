@@ -34,7 +34,8 @@ assert menu.count("height: visible ? Style.spacing.hairline : 0") == 3
 assert "color: Color.urgent" in menu
 print("PASS grouped context actions and destructive emphasis")
 details = (ROOT / "components/DetailsPanel.qml").read_text()
-assert "ToolTip.visible: truncated" in details
+assert "ToolTip.visible: nameHover.containsMouse && truncated" in details
+assert "ToolTip.visible: pathHover.containsMouse && truncated" in details
 assert 'visible: root.item && root.item.type === "file"' in details
 print("PASS details long-name and action visibility")
 print("=== UI/UX list checks passed ===")
