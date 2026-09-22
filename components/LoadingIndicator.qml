@@ -22,7 +22,7 @@ Item {
         Text {
             id: spinner
             text: Icons.spinner
-            color: root.bar.foreground
+            color: root.bar ? root.bar.foreground : Color.foreground
             font.family: Icons.family
             font.pixelSize: Style.font.title
             visible: root.indeterminate
@@ -38,7 +38,7 @@ Item {
             width: parent.width
             height: Style.space(4)
             radius: Style.space(2)
-            color: Qt.darker(root.bar.foreground, 1.3)
+            color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.3)
             visible: !root.indeterminate
 
             Rectangle {
@@ -51,8 +51,8 @@ Item {
 
         Text {
             text: root.message
-            color: root.bar.foreground
-            font.family: root.bar.fontFamily
+            color: root.bar ? root.bar.foreground : Color.foreground
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.body
             textFormat: Text.PlainText
         }

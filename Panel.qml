@@ -986,9 +986,19 @@ Panel {
 
     Component {
         id: transfersComponent
-        TransferManager {
-            bar: root.bar
-            transferRevision: root.transferRevision
+        ScrollView {
+            id: transferScroll
+            width: parent.width
+            height: Style.space(360)
+            implicitHeight: height
+            contentWidth: width
+            clip: true
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+            TransferManager {
+                width: transferScroll.width
+                bar: root.bar
+                transferRevision: root.transferRevision
             onCancel: function(transfer) { TransferService.cancelTransfer(transfer.id) }
             onRetry: function(transfer) {
                 TransferService.retryTransfer(transfer.id, Auth.getToken(), Auth.getServerUrl())
@@ -1013,6 +1023,7 @@ Panel {
             onShowInFolder: function(transfer) {
                 var url = Models.toParentFileUrl(transfer.destPath)
                 if (!Qt.openUrlExternally(url)) root.showToast("Could not open folder", "error")
+            }
             }
         }
     }
