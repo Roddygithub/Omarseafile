@@ -17,6 +17,8 @@ Item {
     required property var onRename
     required property var onMove
     required property var onDelete
+    required property var onMoveBatch
+    required property var onDeleteBatch
     required property var onItemClicked
 
     width: parent.width
@@ -509,7 +511,7 @@ Item {
                         width: parent.width / 3 - Style.space(5)
                         height: Style.space(28)
                         onClicked: {
-                            if (root.onMove) root.onMove(root.selectedItems[0])
+                            if (root.onMoveBatch) root.onMoveBatch()
                         }
                     }
 
@@ -519,7 +521,7 @@ Item {
                         height: Style.space(28)
                         color: Color.urgent
                         onClicked: {
-                            if (root.onDelete) root.onDelete(root.selectedItems[0])
+                            if (root.onDeleteBatch) root.onDeleteBatch()
                         }
                     }
                 }

@@ -36,6 +36,8 @@ Item {
     required property var onRenameClicked
     required property var onMoveClicked
     required property var onDeleteClicked
+    required property var onMoveBatch
+    required property var onDeleteBatch
     required property var onShareClicked
     required property var onHistoryClicked
     required property var onSearchResultClicked
@@ -104,7 +106,7 @@ Item {
             height: visible ? contentHeight + topPadding : 0
             visible: root.searchActive && (root.searchState === "loading" || root.searchState === "results" || root.searchState === "empty")
             text: root.searchState === "loading"
-                ? ("Searching " + (root.libraries.length - root.searchPendingCount) + " of " + root.libraries.length + " libraries...")
+                ? ("Searching " + (root.searchableLibraryCount - root.searchPendingCount) + " of " + root.searchableLibraryCount + " libraries...")
                 : (root.searchState === "results"
                     ? (root.searchTruncated
                         ? "Showing first " + root.maxSearchResults + " results. Refine your search."
@@ -188,6 +190,8 @@ Item {
             onRename: function(item) { root.onRenameClicked(item) }
             onMove: function(item) { root.onMoveClicked(item) }
             onDelete: function(item) { root.onDeleteClicked(item) }
+            onMoveBatch: root.onMoveBatch
+            onDeleteBatch: root.onDeleteBatch
             onItemClicked: function(item) { root.onItemClicked(item) }
         }
     }
@@ -198,5 +202,10 @@ Item {
     }
 
     required property int searchPendingCount
+    readonly property int searchableLibraryCount: {
+        var count = 0
+        for (var i = 0; i < root.libraries.length; i++) if (root.libraries[i].encrypted !== true) count++
+        return count
+    }
     required property var onSearchRetry
 }

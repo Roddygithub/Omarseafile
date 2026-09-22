@@ -36,6 +36,7 @@ Item {
     property var onUploadClicked: null
     property var onCreateFolderClicked: null
     property var onSearchChanged: null
+    property var onSearchSubmitted: null
     property var onSearchActiveToggled: null
     property var onLogoutClicked: null
     property var onSettingsClicked: null
@@ -123,6 +124,9 @@ Item {
                 root.searchQuery = text
                 if (root.onSearchChanged) root.onSearchChanged(text)
             }
+            onAccepted: {
+                if (root.onSearchSubmitted) root.onSearchSubmitted()
+            }
             Keys.onEscapePressed: {
                 root.searchActive = false
                 root.searchQuery = ""
@@ -133,12 +137,12 @@ Item {
         Button {
             id: searchButton
             text: root.searchActive ? Icons.times : Icons.search
-            visible: root.showSearch && !root.searchActive
-            tooltipText: "Search"
+            visible: root.showSearch
+            tooltipText: root.searchActive ? "Close search" : "Search"
             onClicked: {
-                root.searchActive = true
-                if (root.onSearchActiveToggled) root.onSearchActiveToggled(true)
-                searchField.forceActiveFocus()
+                root.searchActive = !root.searchActive
+                if (root.onSearchActiveToggled) root.onSearchActiveToggled(root.searchActive)
+                if (root.searchActive) searchField.forceActiveFocus()
             }
         }
 

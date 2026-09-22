@@ -584,6 +584,7 @@ Panel {
                     onUploadClicked: root.pickFileForUpload
                     onCreateFolderClicked: root.pickCreateFolder
                     onSearchChanged: root.onSearchQueryChanged
+                    onSearchSubmitted: root.executeSearch
                     onSearchActiveToggled: root.onSearchActiveToggle
                     onLogoutClicked: root.doLogout
                     onTransfersClicked: root.toggleTransfersView
@@ -785,6 +786,8 @@ Panel {
                         onShareClicked: function(item) { root.destinationMode ? null : root.pickShare(item) }
                         onHistoryClicked: root.openHistory
                         onSearchResultClicked: function(result) { root.onSearchResultClicked(result) }
+                        onMoveBatch: root.moveItems
+                        onDeleteBatch: root.deleteItems
                         onNavigateToPath: function(index) { root.navigateToPath(index) }
                         onRefresh: function() { root.refresh() }
                         onToggleSelection: root.destinationMode || !root.currentRepo ? function() {} : root.toggleSelection
