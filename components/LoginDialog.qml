@@ -12,6 +12,8 @@ Item {
     property alias loginButton: loginButton
     property alias errorText: errorText
     property string depErrorMessage: ""
+    property string errorMessage: ""
+    property bool loading: false
     property var onLogin: null
     property var onDismiss: null
 
@@ -19,6 +21,12 @@ Item {
         var email = Auth.getEmail()
         if (email) emailField.text = email
         serverField.forceActiveFocus()
+    }
+
+    function submit() {
+        if (root.loading) return
+        if (!serverField.text.trim() || !emailField.text.trim() || !passwordField.text) return
+        if (root.onLogin) root.onLogin(serverField.text, emailField.text, passwordField.text)
     }
 
     // True while any login field owns keyboard focus. The panel's key catcher
@@ -73,6 +81,7 @@ Item {
             // Escape from the login form closes the whole panel — no dialog
             // sits above the form. Same pattern as the shell network panel's
             // credential fields.
+            onAccepted: root.submit()
             Keys.onEscapePressed: function(event) {
                 event.accepted = true
                 if (root.onDismiss) root.onDismiss()
@@ -86,6 +95,7 @@ Item {
             text: ""
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
+            onAccepted: root.submit()
             Keys.onEscapePressed: function(event) {
                 event.accepted = true
                 if (root.onDismiss) root.onDismiss()
@@ -99,6 +109,7 @@ Item {
             echoMode: TextField.Password
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
+            onAccepted: root.submit()
             Keys.onEscapePressed: function(event) {
                 event.accepted = true
                 if (root.onDismiss) root.onDismiss()
@@ -115,16 +126,15 @@ Item {
             wrapMode: Text.WordWrap
             textFormat: Text.PlainText
             text: Models.boundedDisplayText(errorText._raw, 4096)
-            property string _raw: ""
+            property string _raw: root.errorMessage
         }
 
         Button {
             id: loginButton
             width: parent.width
-            text: "Connect"
-            onClicked: {
-                if (root.onLogin) root.onLogin(serverField.text, emailField.text, passwordField.text)
-            }
+            text: root.loading ? "Connecting…" : "Connect"
+            enabled: !root.loading
+            onClicked: root.submit()
         }
     }
 }

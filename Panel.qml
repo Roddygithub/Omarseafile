@@ -639,6 +639,8 @@ Panel {
                         bar: root.bar
                         serverField.text: root.serverUrl
                         depErrorMessage: root.depErrorMessage
+                        errorMessage: root.errorMessage
+                        loading: root.loading
                         onLogin: function(url, email, pass) { root.doLogin(url, email, pass) }
                         onDismiss: function() { root.close() }
                     }
