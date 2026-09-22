@@ -470,9 +470,10 @@ QtObject {
     // ===== PROGRESS PARSING =====
 
     function parseProgress(line, transfer) {
-        var match = line.match(/(\d+\.?\d*)%/)
-        if (match) {
-            transfer.progress = parseFloat(match[1]) / 100.0
+        var matches = line.match(/(\d+\.?\d*)%/g)
+        if (matches && matches.length > 0) {
+            var value = parseFloat(matches[matches.length - 1]) / 100.0
+            transfer.progress = Math.max(0, Math.min(1, value))
         }
         var speedMatch = line.match(/(\d+\.?\d*)\s*([KMGT]?B\/s)/)
         if (speedMatch) {
@@ -829,7 +830,7 @@ QtObject {
                 return
             }
         } else {
-            if (download.retryCount < root.maxRetries) {
+            if (exitCode !== 22 && download.retryCount < root.maxRetries) {
                 download.retryCount++
                 var delay = Math.min(root.retryBaseDelay * Math.pow(2, download.retryCount - 1), root.maxRetryDelay)
                 download.state = "pending"
@@ -1355,13 +1356,14 @@ function executeCurlUploadNoAuth(upload) {
                 var type = t.type
                 var fileName = t.fileName
                 var repoId = t.repoId
+                if (!token || !baseUrl) return false
+                if (type === "upload" && root.getQueuedUploads().length >= root.maxQueuedUploads) return false
+                if (type === "upload" && (!t.srcPath || !t.srcPath.startsWith("/"))) return false
 
                 cleanupTransferAuthFile(t)
 
                 root.transfers.splice(i, 1)
                 root.transfersChanged()
-
-                if (!token || !baseUrl) return false
 
                 if (type === "download") {
                     root.startDownload(

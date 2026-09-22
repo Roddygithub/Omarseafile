@@ -317,23 +317,26 @@ Panel {
         })
     }
 
+    function refreshTransferBindings() {
+        root.activeTransferCount = TransferService.getActiveCount()
+        root.hasTransferFailures = TransferService.hasFailures()
+        var active = TransferService.getActiveTransfers()
+        var map = {}
+        for (var i = 0; i < active.length; i++) {
+            var t = active[i]
+            if (t.repoId === (root.currentRepo ? root.currentRepo.id : "")) {
+                map[t.id] = t
+                if (t.fileName) map["name:" + t.fileName] = t
+            }
+        }
+        root.fileTransfers = map
+        root.transferRevision++
+    }
+
     Connections {
         target: TransferService
-        function onTransfersChanged() {
-            root.activeTransferCount = TransferService.getActiveCount()
-            root.hasTransferFailures = TransferService.hasFailures()
-            var active = TransferService.getActiveTransfers()
-            var map = {}
-            for (var i = 0; i < active.length; i++) {
-                var t = active[i]
-                if (t.repoId === (root.currentRepo ? root.currentRepo.id : "")) {
-                    map[t.id] = t
-                    if (t.fileName) map["name:" + t.fileName] = t
-                }
-            }
-            root.fileTransfers = map
-            root.transferRevision++
-        }
+        function onTransfersChanged() { root.refreshTransferBindings() }
+        function onTransferProgressChanged(transfer) { root.refreshTransferBindings() }
         function onTransferStateChanged(transfer) {
             if (transfer.state === "completed" || transfer.state === "failed" || transfer.state === "cancelled" || transfer.state === "auth_failed") {
                 root.handleTransferCompletion(transfer)
