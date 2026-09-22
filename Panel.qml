@@ -1026,7 +1026,6 @@ Panel {
             onSortAscendingChange: function(asc) { root.setSetting("sortAscending", asc) }
             onFoldersFirstToggled: function(enabled) {
                 root.setSetting("foldersFirst", enabled)
-                root.foldersFirst = enabled
             }
             onNotifyToggled: function(enabled) { root.setSetting("notifyEnabled", enabled) }
         }
