@@ -82,6 +82,11 @@ if __name__ == "__main__":
     test("DetailsPanel: root.item.name null guard (path)",
          "root.item ? Models.boundedDisplayText(root.currentPath === \"/\" ? \"/\" + root.item.name : root.currentPath + \"/\" + root.item.name, 1024) : \"\"" in read_file("components/DetailsPanel.qml"))
 
+    test("DetailsPanel: action buttons guard cleared item", "root.item ? (root.item.type === \"dir\" ? \"Open\" : \"Download\") : \"\"" in details_src)
+    test("LoadingIndicator imports Icons singleton module", 'import "../js"' in read_file("components/LoadingIndicator.qml"))
+    test("Panel passes root connection service explicitly", "connectionService: root.connectionService" in read_file("Panel.qml"))
+    test("ToolBar Row has explicit parent width", "id: row\n        width: parent.width" in read_file("components/ToolBar.qml"))
+
     # --- FileItem tests ---
     fileitem_src = read_file("components/FileItem.qml")
     

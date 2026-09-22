@@ -410,11 +410,11 @@ Item {
                     spacing: Style.space(8)
 
                     Button {
-                        text: root.item.type === "dir" ? "Open" : "Download"
+                        text: root.item ? (root.item.type === "dir" ? "Open" : "Download") : ""
                         width: parent.width / 3 - Style.space(5)
                         height: Style.space(28)
                         onClicked: {
-                            if (root.item.type === "dir") {
+                            if (root.item && root.item.type === "dir") {
                                 if (root.onItemClicked) root.onItemClicked(root.item)
                             } else {
                                 if (root.onDownload) root.onDownload(root.item)
@@ -432,7 +432,7 @@ Item {
                     }
 
                     Button {
-                        text: root.item.type === "dir" ? "History" : "History"
+                        text: "History"
                         width: parent.width / 3 - Style.space(5)
                         height: Style.space(28)
                         onClicked: {

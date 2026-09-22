@@ -758,7 +758,7 @@ Panel {
                         currentRepo: root.currentRepo
                         currentPath: root.currentPath
                         destinationMode: root.destinationMode
-                        connectionService: connectionService
+                        connectionService: root.connectionService
                         searchPendingCount: root.searchPendingCount
                         onItemClicked: function(item) { root.onItemClicked(item) }
                         onDownloadClicked: function(item) { root.destinationMode ? null : root.downloadFile(item) }

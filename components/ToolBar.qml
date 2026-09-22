@@ -54,6 +54,7 @@ Item {
 
     Row {
         id: row
+        width: parent.width
         spacing: Style.space(5)
 
         // Fixed buttons that must always be accessible
