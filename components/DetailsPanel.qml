@@ -109,7 +109,7 @@ Item {
                         textFormat: Text.PlainText
                         ToolTip.visible: truncated
                         ToolTip.delay: 500
-                        ToolTip.text: root.item ? root.item.name : ""
+                        ToolTip.text: root.item ? Models.boundedDisplayText(root.item.name, 1024) : ""
                     }
                 }
 
@@ -282,7 +282,7 @@ Item {
                         textFormat: Text.PlainText
                         ToolTip.visible: truncated
                         ToolTip.delay: 500
-                        ToolTip.text: root.item ? (root.currentPath === "/" ? "/" + root.item.name : root.currentPath + "/" + root.item.name) : ""
+                        ToolTip.text: root.item ? Models.boundedDisplayText(root.currentPath === "/" ? "/" + root.item.name : root.currentPath + "/" + root.item.name, 1024) : ""
                     }
                 }
             }
