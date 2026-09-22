@@ -561,7 +561,7 @@ Panel {
                     // browser view is hidden, so only intentional global actions
                     // (Back, Logout, Settings, the Transfers indicator) stay on.
                     showRefresh: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.destinationMode && !root.showTransfers
-                    showUpload: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.destinationMode && !root.showTransfers
+                    showUpload: root.state === "browse" && root.currentRepo !== null && !root.searchActive && !root.dialogOpen && !root.destinationMode && !root.showTransfers
                     showCreateFolder: root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.destinationMode && !root.showTransfers && root.currentRepo !== null
                     showSearch: root.state === "browse" && !root.dialogOpen && !root.destinationMode && !root.showTransfers
                     showLogout: root.state === "browse" && !root.dialogOpen && !root.destinationMode

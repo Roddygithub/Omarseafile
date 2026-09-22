@@ -22,9 +22,15 @@ assert "border.width: root.isCurrent ? Style.spacing.hairline : 0" in file_item
 print("PASS long-name tooltip and focus styling")
 bar = (ROOT / "components/BatchActionBar.qml").read_text()
 toolbar = (ROOT / "components/ToolBar.qml").read_text()
+panel = (ROOT / "Panel.qml").read_text()
 assert 'text: "More"' in bar and 'text: "Copy"' in bar
 assert 'text: "Delete"' in bar and 'text: "Clear"' in bar
 assert "hoverEnabled: true" in toolbar
+assert "readonly property bool overflowAvailable: overflowMenu.itemCount > 0" in toolbar
+assert "visible: root.overflowAvailable" in toolbar
+assert "if (root.overflowAvailable) root.overflowOpen = !root.overflowOpen" in toolbar
+assert 'ToolTip.text: "More"' in toolbar and 'tooltipText: ""' in toolbar
+assert 'showUpload: root.state === "browse" && root.currentRepo !== null' in panel
 print("PASS compact selection action hierarchy")
 selection_bar = (ROOT / "components/BatchActionBar.qml").read_text()
 assert "mapToItem(root.overlay" in selection_bar

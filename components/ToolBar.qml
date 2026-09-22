@@ -52,6 +52,7 @@ Item {
 
     // Overflow menu state
     property bool overflowOpen: false
+    readonly property bool overflowAvailable: overflowMenu.itemCount > 0
 
     Row {
         id: row
@@ -64,8 +65,9 @@ Item {
             + (selectionCount > 0 ? batchActionBar.implicitWidth : 0)
             + transferIndicator.implicitWidth
             + offlineIndicator.implicitWidth
-            + overflowButton.implicitWidth
-            + Style.space(8) * 6
+            + (root.overflowAvailable ? overflowButton.implicitWidth : 0)
+            + Style.space(8) * 5
+            + (root.overflowAvailable ? Style.space(8) : 0)
 
         Button {
             id: backButton
@@ -235,13 +237,22 @@ Item {
             }
         }
 
-        // Overflow menu button - always visible as the last fixed button
+        // Overflow menu button - visible only when it has available actions
         Button {
             id: overflowButton
             text: Icons.ellipsisV
-            tooltipText: "More"
+            visible: root.overflowAvailable
+            // Use the attached ToolTip so Qt Quick Controls anchors it to this
+            // button instead of treating it as a child Popup.
+            tooltipText: ""
+            ToolTip.visible: overflowHover.hovered
+            ToolTip.text: "More"
+            ToolTip.delay: 400
+            HoverHandler {
+                id: overflowHover
+            }
             onClicked: {
-                root.overflowOpen = !root.overflowOpen
+                if (root.overflowAvailable) root.overflowOpen = !root.overflowOpen
             }
         }
 
@@ -276,8 +287,12 @@ Item {
         onClosed: root.overflowOpen = false
     }
 
+    onOverflowAvailableChanged: {
+        if (!root.overflowAvailable) root.overflowOpen = false
+    }
+
     onOverflowOpenChanged: {
-        if (root.overflowOpen) overflowMenu.open()
+        if (root.overflowOpen && root.overflowAvailable) overflowMenu.open()
         else overflowMenu.close()
     }
 }
