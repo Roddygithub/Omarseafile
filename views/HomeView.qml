@@ -60,11 +60,20 @@ Item {
         width: parent.width
         spacing: 0
 
+        ErrorOverlay {
+            id: errorOverlay
+            width: parent.width
+            showError: root.errorMessage !== ""
+            message: root.errorMessage
+            bar: root.bar
+            onRetry: root.onRefresh
+        }
+
         // Quick Access Section
         Column {
             id: quickAccessSection
             width: parent.width
-            visible: Favorites.getLibraries().length > 0 || Favorites.getFolders().length > 0
+            visible: root.errorMessage === "" && (Favorites.getLibraries().length > 0 || Favorites.getFolders().length > 0)
             spacing: Style.space(4)
 
             Row {
@@ -350,7 +359,7 @@ Item {
         Column {
             id: librariesSection
             width: parent.width
-            visible: root.libraries && root.libraries.length > 0 && !root.currentRepo
+            visible: root.errorMessage === "" && root.libraries && root.libraries.length > 0 && !root.currentRepo
             spacing: Style.space(4)
 
             FileList {
@@ -390,7 +399,7 @@ Item {
             title: "Quick Access"
             subtitle: "Pin libraries and folders for quick access\nRight-click an item in the browser and select \"Add to Quick Access\""
             width: parent.width
-            visible: Favorites.getLibraries().length === 0 && Favorites.getFolders().length === 0 && root.activeCount === 0 && !(root.libraries && root.libraries.length > 0)
+            visible: root.errorMessage === "" && Favorites.getLibraries().length === 0 && Favorites.getFolders().length === 0 && root.activeCount === 0 && !(root.libraries && root.libraries.length > 0)
         }
     }
 }

@@ -86,6 +86,8 @@ if __name__ == "__main__":
     test("LoadingIndicator imports Icons singleton module", 'import "../js"' in read_file("components/LoadingIndicator.qml"))
     test("Panel passes named connection service explicitly", "connectionService: panelConnectionService" in read_file("Panel.qml"))
     test("ToolBar Row has explicit parent width", "id: row\n        width: parent.width" in read_file("components/ToolBar.qml"))
+    home_src = read_file("views/HomeView.qml")
+    test("HomeView exposes network errors with retry", "showError: root.errorMessage !== \"\"" in home_src and "onRetry: root.onRefresh" in home_src)
 
     # --- FileItem tests ---
     fileitem_src = read_file("components/FileItem.qml")
