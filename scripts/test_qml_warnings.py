@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
     test("DetailsPanel: action buttons guard cleared item", "root.item ? (root.item.type === \"dir\" ? \"Open\" : \"Download\") : \"\"" in details_src)
     test("LoadingIndicator imports Icons singleton module", 'import "../js"' in read_file("components/LoadingIndicator.qml"))
-    test("Panel passes root connection service explicitly", "connectionService: root.connectionService" in read_file("Panel.qml"))
+    test("Panel passes named connection service explicitly", "connectionService: panelConnectionService" in read_file("Panel.qml"))
     test("ToolBar Row has explicit parent width", "id: row\n        width: parent.width" in read_file("components/ToolBar.qml"))
 
     # --- FileItem tests ---

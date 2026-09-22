@@ -344,7 +344,7 @@ Panel {
     function open() {
         // Refresh connectivity state immediately so a stale "Offline" banner
         // clears as soon as the panel is shown (server reachable).
-        connectionService.forceCheck()
+        panelConnectionService.forceCheck()
         // Load libraries if empty (e.g., panel was recreated after being closed).
         if (!root.libraries || root.libraries.length === 0) {
             root.loadLibraries()
@@ -420,12 +420,12 @@ Panel {
     }
 
     ConnectionService {
-        id: connectionService
+        id: panelConnectionService
         serverUrl: root.serverUrl
     }
 
     function updateConnectionServiceUrl() {
-        connectionService.setServerUrl(root.serverUrl)
+        panelConnectionService.setServerUrl(root.serverUrl)
     }
 
     KeyboardPanel {
@@ -560,7 +560,7 @@ Panel {
                     showSettings: root.state === "browse" && !root.dialogOpen && !root.destinationMode
                     activeTransferCount: root.activeTransferCount
                     hasTransferFailures: root.hasTransferFailures
-                    showOffline: !connectionService.online
+                    showOffline: !panelConnectionService.online
                     searchActive: root.searchActive
                     searchQuery: root.searchQuery
                     selectionCount: root.selectedItems.length
@@ -758,7 +758,7 @@ Panel {
                         currentRepo: root.currentRepo
                         currentPath: root.currentPath
                         destinationMode: root.destinationMode
-                        connectionService: root.connectionService
+                        connectionService: panelConnectionService
                         searchPendingCount: root.searchPendingCount
                         onItemClicked: function(item) { root.onItemClicked(item) }
                         onDownloadClicked: function(item) { root.destinationMode ? null : root.downloadFile(item) }
@@ -1050,8 +1050,8 @@ Panel {
                     root.loading = false
                     root.serverUrl = normalized
                     Cache.setScope(normalized, email)
-                    connectionService.setServerUrl(normalized)
-                    connectionService.forceCheck()
+                    panelConnectionService.setServerUrl(normalized)
+                    panelConnectionService.forceCheck()
                     // Activate this account's Quick Access scope and persist the
                     // migration marker in case a legacy blob was absorbed.
                     Favorites.setAccountKey(normalized, email)
@@ -1530,7 +1530,7 @@ Panel {
         root.state = "login"
         root.loading = false
         root.serverUrl = ""
-        connectionService.setServerUrl("")
+        panelConnectionService.setServerUrl("")
         // Drop the active Quick Access scope. Persisted entries are untouched,
         // so signing back into this account restores them; another account sees
         // only its own.
@@ -1635,7 +1635,7 @@ Panel {
                     dialog.connectionTestSuccess = true
                     dialog.connectionTestMessage = "Connection successful"
                     // Clear offline state - successful connection means we're online
-                    connectionService.forceCheck()
+                    panelConnectionService.forceCheck()
                 } else if (xhr.status === 0) {
                     dialog.connectionTestSuccess = false
                     dialog.connectionTestMessage = "Connection failed: Network error"
@@ -2002,7 +2002,7 @@ Panel {
     // ===== INIT =====
 
     Component.onCompleted: {
-        SeafileAPI.setConnectionService(connectionService)
+        SeafileAPI.setConnectionService(panelConnectionService)
         updateConnectionServiceUrl()
 
         // Load favorites from settings: the account-scoped store, the legacy
@@ -2058,7 +2058,7 @@ Panel {
                     Cache.setScope(serverUrl, Auth.getEmail())
                     SeafileAPI.setBaseUrl(serverUrl)
                     SeafileAPI.setToken(token)
-                    connectionService.setServerUrl(serverUrl)
+                    panelConnectionService.setServerUrl(serverUrl)
                     // Auto-login activates the same account scope as a manual
                     // login, so Quick Access is identical either way.
                     Favorites.setAccountKey(serverUrl, Auth.getEmail())
