@@ -36,23 +36,32 @@ QtObject {
         root.connectionCheckTimer.stop()
     }
 
+    function finalizeProbe(probe, callback) {
+        if (probe.finalized) return false
+        probe.finalized = true
+        callback()
+        return true
+    }
+
     function checkConnectivity() {
         if (!root.serverUrl) return
 
         var generation = ++root.probeGeneration
+        var probe = { finalized: false }
+        function finalize(callback) { return root.finalizeProbe(probe, callback) }
         var xhr = new XMLHttpRequest()
         var url = root.serverUrl.replace(/\/+$/, "") + "/api2/ping/"
         xhr.open("GET", url, true)
         xhr.timeout = 5000
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE)
-                root.handleResponse(generation, xhr.status)
+                finalize(function() { root.handleResponse(generation, xhr.status) })
         }
         xhr.ontimeout = function() {
-            root.handleFailure(generation)
+            finalize(function() { root.handleFailure(generation) })
         }
         xhr.onerror = function() {
-            root.handleFailure(generation)
+            finalize(function() { root.handleFailure(generation) })
         }
         xhr.send()
     }

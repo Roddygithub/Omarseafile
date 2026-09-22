@@ -17,6 +17,8 @@ def check(name, condition):
 check("search Enter executes immediately", "onAccepted" in toolbar and "onSearchSubmitted" in toolbar and "onSearchSubmitted: root.executeSearch" in panel)
 check("search close button is visible while active", "visible: root.showSearch" in toolbar and "root.searchActive = !root.searchActive" in toolbar)
 check("search opens folders and files", "if (result.type === \"folder\")" in panel and "else if (result.type === \"file\")" in panel)
+check("search navigation invalidates callbacks", "root.searchGeneration++" in panel.split("function onSearchResultClicked", 1)[1])
+check("search parser validates result types", 'item.type !== "file" && item.type !== "folder"' in (ROOT / "js/SeafileAPI.qml").read_text())
 check("search counts searchable libraries", "searchableLibraryCount" in browser and "encrypted !== true" in browser)
 check("details batch move targets full selection", "onMoveBatch" in details and "root.onMoveBatch()" in details)
 check("details batch delete targets full selection", "onDeleteBatch" in details and "root.onDeleteBatch()" in details)

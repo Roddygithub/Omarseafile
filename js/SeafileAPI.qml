@@ -761,8 +761,7 @@ QtObject {
                             if (!vSize.valid) throw new Error("Search result size: " + vSize.error)
                             var vMtime = _safeTimestamp(item.mtime)
                             if (!vMtime.valid) throw new Error("Search result mtime: " + vMtime.error)
-                            var vType = _optionalBoundedString(item.type, 32)
-                            if (!vType.valid) throw new Error("Search result type: " + vType.error)
+                            if (item.type !== "file" && item.type !== "folder") throw new Error("Unsupported search result type")
                             var pathParts = item.path.split("/")
                             var name = pathParts.pop()
                             var parentPath = pathParts.join("/") || "/"

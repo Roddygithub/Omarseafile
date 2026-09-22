@@ -1167,6 +1167,7 @@ Panel {
         root.beginNavigationTiming("folder", !!cached)
         if (cached && !root.forceRefresh) {
             root.currentItems = root.enrichItems(repoId, path, cached)
+            root.pruneSelection()
             root.navigationPhase("model", startedAt)
             root.currentPath = path
             root.loading = false
@@ -1184,6 +1185,7 @@ Panel {
             root.loading = false
             if (success) {
                 root.currentItems = root.enrichItems(repoId, path, data)
+                root.pruneSelection()
                 root.navigationPhase("model", startedAt)
                 root.currentPath = path
                 root.navigationComplete(startedAt, data.length)
@@ -1415,6 +1417,7 @@ Panel {
     }
 
     function onSearchResultClicked(result) {
+        root.searchGeneration++
         root.clearSelection()
         if (result.type === "folder") {
             var repo = null
@@ -1982,7 +1985,10 @@ Panel {
                 Cache.invalidatePath(repoId, parentPath)
                 if (root.currentRepo && root.currentRepo.id === repoId && root.currentPath === parentPath) {
                     root.refresh()
-                    if (results.failed.length > 0) root.selectedItems = results.failed
+                    if (results.failed.length > 0) {
+                        root.selectedItems = results.failed
+                        root.pruneSelection()
+                    }
                 }
                 return
             }
