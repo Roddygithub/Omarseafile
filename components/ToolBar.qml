@@ -95,6 +95,7 @@ Item {
         BatchActionBar {
             id: batchActionBar
             bar: root.bar
+            overlay: root.overlay
             count: root.selectionCount
             visible: root.selectionCount > 0 && root.destinationMode === ""
             onMove: function() { if (root.onMoveBatch) root.onMoveBatch() }
@@ -204,6 +205,7 @@ Item {
             MouseArea {
                 id: mouseArea
                 anchors.fill: parent
+                hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: { if (root.onTransfersClicked) root.onTransfersClicked() }
             }

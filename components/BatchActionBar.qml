@@ -6,6 +6,7 @@ import qs.Ui
 Item {
     id: root
     required property var bar
+    property var overlay: null
     required property int count
     property var onMove: null
     property var onCopy: null
@@ -81,10 +82,15 @@ Item {
         id: moreMenu
         width: Style.space(140)
         padding: Style.space(4)
-        x: moreBtn.x + moreBtn.width - width
-        y: moreBtn.y + moreBtn.height + Style.space(2)
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        onAboutToShow: {
+            if (!root.overlay) return
+            var point = moreBtn.mapToItem(root.overlay, 0, 0)
+            moreMenu.x = point.x + moreBtn.width - moreMenu.width
+            moreMenu.y = point.y + moreBtn.height + Style.space(2)
+        }
+
         background: Rectangle {
             color: Qt.darker(root.bar.background, 1.1)
             border.color: Color.accent

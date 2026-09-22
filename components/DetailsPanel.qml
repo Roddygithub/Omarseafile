@@ -107,6 +107,9 @@ Item {
                         elide: Text.ElideRight
                         width: parent.width - labelText.width - Style.space(8)
                         textFormat: Text.PlainText
+                        ToolTip.visible: truncated
+                        ToolTip.delay: 500
+                        ToolTip.text: root.item ? root.item.name : ""
                     }
                 }
 
@@ -277,6 +280,9 @@ Item {
                         elide: Text.ElideRight
                         width: parent.width - labelText6.width - Style.space(8)
                         textFormat: Text.PlainText
+                        ToolTip.visible: truncated
+                        ToolTip.delay: 500
+                        ToolTip.text: root.item ? (root.currentPath === "/" ? "/" + root.item.name : root.currentPath + "/" + root.item.name) : ""
                     }
                 }
             }
@@ -435,6 +441,7 @@ Item {
 
                     Button {
                         text: "History"
+                        visible: root.item && root.item.type === "file"
                         width: parent.width / 3 - Style.space(5)
                         height: Style.space(28)
                         onClicked: {

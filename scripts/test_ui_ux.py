@@ -21,11 +21,20 @@ assert "ToolTip.visible: mouseArea.containsMouse && truncated" in file_item
 assert "border.width: root.isCurrent ? Style.spacing.hairline : 0" in file_item
 print("PASS long-name tooltip and focus styling")
 bar = (ROOT / "components/BatchActionBar.qml").read_text()
+toolbar = (ROOT / "components/ToolBar.qml").read_text()
 assert 'text: "More"' in bar and 'text: "Copy"' in bar
 assert 'text: "Delete"' in bar and 'text: "Clear"' in bar
+assert "hoverEnabled: true" in toolbar
 print("PASS compact selection action hierarchy")
+selection_bar = (ROOT / "components/BatchActionBar.qml").read_text()
+assert "mapToItem(root.overlay" in selection_bar
+print("PASS selection popup uses overlay coordinates")
 menu = (ROOT / "components/ContextMenu.qml").read_text()
 assert menu.count("height: visible ? Style.spacing.hairline : 0") == 3
 assert "color: Color.urgent" in menu
 print("PASS grouped context actions and destructive emphasis")
+details = (ROOT / "components/DetailsPanel.qml").read_text()
+assert "ToolTip.visible: truncated" in details
+assert 'visible: root.item && root.item.type === "file"' in details
+print("PASS details long-name and action visibility")
 print("=== UI/UX list checks passed ===")
