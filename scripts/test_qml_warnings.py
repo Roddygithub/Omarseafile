@@ -94,6 +94,9 @@ if __name__ == "__main__":
     # while the view was being created. The attached property is now captured
     # once into a nullable `var` and every use is null-guarded, which subsumes
     # the per-site `root.ListView &&` repetition these checks used to pin.
+    test("FileItem: delegate width tolerates temporary null parent",
+         "width: parent ? parent.width : 0" in fileitem_src)
+
     test("FileItem: ListView attached property captured into a nullable var",
          "readonly property var _listView: root.ListView" in fileitem_src)
 

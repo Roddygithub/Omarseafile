@@ -48,7 +48,7 @@ Item {
     onTransferRevisionChanged: root.activeTransfer = root.findTransfer(root.item)
 
     implicitHeight: row.implicitHeight
-    width: parent.width
+    width: parent ? parent.width : 0
 
     // Keyboard cursor highlight
     Rectangle {
