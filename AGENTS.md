@@ -1,10 +1,8 @@
 # Développement locale
 
 Ce dépôt est un plugin Omarchy/Quickshell écrit en QML/JavaScript.
-Lire `README.md`, `CONTRIBUTING.md` et les notes API/sécurité pertinentes
+Lire `README.md`, `CONTRIBUTING.md`, `SECURITY.md` et `docs/SEAFILE_API.md`
 avant les changements concernés.
-`PANEL_AUDIT.md` et `docs/PHASE*.md` sont des notes historiques; vérifier
-leur contenu dans le code actuel avant de s'y fier.
 
 ## Workflow
 
@@ -27,8 +25,3 @@ leur contenu dans le code actuel avant de s'y fier.
 
 Ce projet ne masque pas les échecs. Si le validateur échoue, la cause
 réelle est corrigée, pas le check.
-
-## Ici, on ne nettoie pas les notes quand elles aident
-
-On peut laisser des notes locales dans `scripts/` si elles expliquent une
-décision 개발의 어려운 부분.

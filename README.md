@@ -235,7 +235,6 @@ See [SECURITY.md](SECURITY.md) for reporting and security boundaries. In brief, 
 - [Keybindings](docs/KEYBINDINGS.md)
 - [Seafile API notes](docs/SEAFILE_API.md)
 - [Roadmap](docs/ROADMAP.md)
-- [v1.0 checklist](docs/V1_DEFINITION_OF_DONE.md)
 - [Changelog](CHANGELOG.md)
 
 ## License
