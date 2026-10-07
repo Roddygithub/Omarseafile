@@ -247,7 +247,7 @@ Item {
             }
         }
         onDoubleClicked: function(mouse) {
-            if (mouse.button !== Qt.LeftButton) return
+            if (mouse.button !== Qt.LeftButton || root.singleClickOpen) return
             if (root.isDir) {
                 if (root.onItemClicked) root.onItemClicked(root.item)
             } else {

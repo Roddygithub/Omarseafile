@@ -42,11 +42,7 @@ Panel {
     property int sessionGeneration: 0
     property int connectionTestGeneration: 0
     property int loginGeneration: 0
-    property var navigationTiming: ({})
-    property int navigationTimingSequence: 0
     function beginNavigationTiming(label, cacheHit) {
-        root.navigationTimingSequence++
-        root.navigationTiming = { label: label, startedAt: Date.now(), cacheHit: cacheHit === true }
         console.log("SEAFILE_TIMING navigation_start label=" + label + " cache=" + (cacheHit ? "hit" : "miss"))
     }
     function navigationPhase(phase, startedAt) {
@@ -77,7 +73,6 @@ Panel {
     // ===== HISTORY / TRASH STATE =====
     property bool showHistory: false
     property bool showTrash: false
-    property var historyFile: null
     property var historyFileName: ""
     property var historyFilePath: ""
     property var historyRepoId: ""
@@ -150,12 +145,6 @@ Panel {
         root.selectionAnchor = item
     }
 
-    function hasTrashItems() {
-        if (!root.currentRepo) return false
-        var trash = TransferService.getFailedTransfers()
-        return trash.length > 0
-    }
-
     function selectAll() {
         root.selectedItems = root.currentItems.slice()
     }
@@ -174,14 +163,6 @@ Panel {
         // GLOBAL migration-complete marker: once set, no other account ever
         // imports the pre-1.1 legacy blob on a later startup.
         root.setSetting("favoritesLegacyMigratedGlobally", Favorites.saveGloballyMigrated())
-    }
-
-    // Quick Access targets in v1.1 are libraries (from the Libraries root) and
-    // folders (inside a library). Files are deliberately not favoriteable.
-    function canAddToFavorites(item) {
-        if (!item) return false
-        if (!root.currentRepo) return true
-        return item.type === "dir"
     }
 
     function addToFavorites(item) {
@@ -361,7 +342,7 @@ Panel {
         // clears as soon as the panel is shown (server reachable).
         panelConnectionService.forceCheck()
         // Load libraries if empty (e.g., panel was recreated after being closed).
-        if (!root.libraries || root.libraries.length === 0) {
+        if (root.state === "browse" && (!root.libraries || root.libraries.length === 0)) {
             root.loadLibraries()
         }
         root.controller.show()
@@ -568,7 +549,7 @@ Panel {
                     showSearch: root.state === "browse" && !root.dialogOpen && !root.destinationMode && !root.showTransfers
                     showLogout: root.state === "browse" && !root.dialogOpen && !root.destinationMode
                     showTransfers: root.state === "browse" && !root.dialogOpen && !root.destinationMode && !root.showTransfers
-                    showTrash: root.state === "browse" && !root.dialogOpen && !root.destinationMode && !root.showTransfers
+                    showTrash: root.state === "browse" && root.currentRepo !== null && !root.dialogOpen && !root.destinationMode && !root.showTransfers
                     showSettings: root.state === "browse" && !root.dialogOpen && !root.destinationMode
                     activeTransferCount: root.activeTransferCount
                     hasTransferFailures: root.hasTransferFailures
@@ -576,7 +557,6 @@ Panel {
                     searchActive: root.searchActive
                     searchQuery: root.searchQuery
                     selectionCount: root.selectedItems.length
-                    hasTrashItems: root.hasTrashItems
                     destinationMode: root.destinationMode
                     destinationOperation: root.destinationOperation
                     destinationCount: root.destinationSources.length
@@ -655,8 +635,6 @@ Panel {
                         id: destBar
                         width: parent.width
                         height: childrenRect.height
-                        property alias cancelButton: cancelBtn
-                        property alias actionButton: actionBtn
                         Column {
                             width: parent.width
                             spacing: 0
@@ -688,21 +666,21 @@ Panel {
                                 width: parent.width
                                 height: implicitHeight
                                 spacing: Style.space(8)
-                        Button {
+                                Button {
                                     id: cancelBtn
-                            text: "Cancel"
+                                    text: "Cancel"
                                     width: parent.width / 2 - Style.space(4)
                                     height: Style.space(32)
                                     enabled: !root.destinationSubmitting
                                     onClicked: root.cancelDestinationMode()
                                 }
-                        Button {
+                                Button {
                                     id: actionBtn
-                            text: root.destinationOperation === "move" ? "Move here" : "Copy here"
+                                    text: root.destinationOperation === "move" ? "Move here" : "Copy here"
                                     width: parent.width / 2 - Style.space(4)
                                     height: Style.space(32)
-                            enabled: !root.destinationSubmitting && !root.loading
-                            onClicked: root.confirmDestination()
+                                    enabled: !root.destinationSubmitting && !root.loading
+                                    onClicked: root.confirmDestination()
                                 }
                             }
                         }
@@ -743,6 +721,15 @@ Panel {
                             root.setSetting("sortColumn", column)
                             root.setSetting("sortAscending", ascending)
                         }
+                        searchActive: root.searchActive
+                        searchState: root.searchState
+                        searchResults: root.searchResults
+                        searchErrorMessage: root.searchErrorMessage
+                        searchPendingCount: root.searchPendingCount
+                        searchTruncated: root.searchTruncated
+                        maxSearchResults: root.maxSearchResults
+                        onSearchRetry: function() { root.executeSearch() }
+                        onSearchResultClicked: root.onSearchResultClicked
                         onAddToFavorites: function(item) { root.addToFavorites(item) }
                         onRemoveFromFavorites: function(item) { root.removeFromFavorites(item) }
                         onFavoriteClicked: function(entry) { root.openFavorite(entry) }
@@ -973,7 +960,6 @@ Panel {
                 })
             }
             onClose: function() { root.historyGeneration++; root.showHistory = false; historyLoader.sourceComponent = undefined }
-            onError: function(message) { root.showToast(message, "error") }
         }
     }
 
@@ -983,7 +969,6 @@ Panel {
             bar: root.bar
             repoId: root.currentRepo ? root.currentRepo.id : ""
             onClose: function() { root.showTrash = false; trashLoader.sourceComponent = undefined }
-            onError: function(message) { root.showToast(message, "error") }
         }
     }
 
@@ -2127,6 +2112,9 @@ Panel {
                     root.state = "browse"
                     root.loadLibraries()
                 }
+            }).catch(function(error) {
+                if (loginAttempt !== root.loginGeneration || root.state !== "login") return
+                root.errorMessage = "Could not restore the saved session: " + (error || "credential lookup failed")
             })
         })
 

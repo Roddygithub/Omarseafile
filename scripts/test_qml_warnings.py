@@ -61,22 +61,22 @@ if __name__ == "__main__":
 
     # --- DetailsPanel tests ---
     details_src = read_file("components/DetailsPanel.qml")
-    
+
     test("DetailsPanel: root.item.name null guard",
          "root.item ? Models.boundedDisplayText(root.item.name, 1024) : \"\"" in read_file("components/DetailsPanel.qml"))
-    
+
     test("DetailsPanel: root.item.type null guard (Folder/File)",
          "root.item ? (root.item.type === \"dir\" ? \"Folder\" : \"File\") : \"\"" in read_file("components/DetailsPanel.qml"))
-    
+
     test("DetailsPanel: root.item.type null guard (Items/Size)",
          "root.item ? (root.item.type === \"dir\" ? \"Items:\" : \"Size:\") : \"\"" in read_file("components/DetailsPanel.qml"))
-    
+
     test("DetailsPanel: root.item.type null guard (size)",
          "root.item ? (root.item.type === \"dir\" ? (root.item.sizeFormatted || \"—\") : Models.formatSize(root.item.size || 0)) : \"\"" in read_file("components/DetailsPanel.qml"))
-    
+
     test("DetailsPanel: root.item.mtime null guard",
          "root.item && root.item.mtime ? Models.formatDate(root.item.mtime) : \"—\"" in read_file("components/DetailsPanel.qml"))
-    
+
     # v1.1: the same null guard, now additionally bounded so a hostile name or
     # path cannot inject an unbounded string.
     test("DetailsPanel: root.item.name null guard (path)",
@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
     # --- FileItem tests ---
     fileitem_src = read_file("components/FileItem.qml")
-    
+
     # v1.1: reading root.ListView.isCurrentItem inline threw once per delegate
     # while the view was being created. The attached property is now captured
     # once into a nullable `var` and every use is null-guarded, which subsumes
@@ -117,28 +117,28 @@ if __name__ == "__main__":
 
     test("FileItem: no unguarded root.ListView.view remains",
          "root.ListView.view" not in strip_comments(fileitem_src))
-    
+
     test("FileItem: root.bar.foreground null guard (|| Color.foreground)",
          "(root.bar.foreground || Color.foreground)" in fileitem_src)
-    
+
     test("FileItem: ListView.view access guard",
          "(root._listView && root._listView.view)" in fileitem_src)
-    
+
     test("FileItem: color property bar.foreground null guard",
          "root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground" in fileitem_src)
-    
+
     test("FileItem: Qt.darker bar.foreground null guard",
          "Qt.darker(root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground" in fileitem_src)
-    
+
     # --- FileList tests ---
     filelist_src = read_file("components/FileList.qml")
-    
+
     test("FileList: Row in Column uses explicit width/height (not anchors.fill)",
          "width: parent.width" in filelist_src and "height: implicitHeight" in filelist_src)
-    
+
     test("FileList: no anchors.fill:parent in Column child",
          "anchors.fill: parent" not in filelist_src or "anchors.fill: parent" not in filelist_src)
-    
+
     # Verify no anchors.fill:parent in Column children
     header_section = filelist_src.split("header: Item {")[1].split("}  // closes header Item")[0] if "header: Item {" in filelist_src else ""
     test("FileList: header Row has explicit width/height",

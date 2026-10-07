@@ -93,10 +93,4 @@ QtObject {
     function setFolder(repoId, path, data) {
         root.set(JSON.stringify(["folder", repoId, path]), data)
     }
-
-    function hasValidCache(key) {
-        var entry = root.cache[root.scopedKey(key)]
-        if (!entry) return false
-        return Date.now() <= entry.expiresAt
-    }
 }

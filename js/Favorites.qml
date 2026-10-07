@@ -374,18 +374,4 @@ QtObject {
     function removeFolder(repoId, fullPath) {
         return root.removeEntry({ type: "folder", repoId: repoId, path: fullPath })
     }
-
-    // Library-root context-menu probe/removal helper (path "" === the library).
-    function removeById(repoId, path) {
-        var normalized = root.normalizePath(path)
-        if (normalized === "") return root.removeLibrary(repoId)
-        return root.removeFolder(repoId, normalized)
-    }
-
-    function clearActive() {
-        if (root.activeKey === "") return { changed: false, error: "Not signed in" }
-        if (root._currentList().length === 0) return { changed: false, error: "" }
-        root._replaceCurrent([])
-        return { changed: true, error: "" }
-    }
 }

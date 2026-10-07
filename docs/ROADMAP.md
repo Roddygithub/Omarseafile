@@ -2,7 +2,7 @@
 
 ## Current State
 
-Version `1.0.0` completes the validated v1 scope. Further items below are post-v1 work.
+The current release is `1.2.0`. The v1 scope is delivered; the items below are future work unless explicitly scheduled.
 
 ## v1 Scope
 
@@ -16,7 +16,7 @@ Version `1.0.0` completes the validated v1 scope. Further items below are post-v
 
 These are not v1 commitments:
 
-- Reliable native graphical local-file picker.
+- Native graphical local-file picker (current upload picker uses optional `zenity`).
 - Cross-library Copy/Move.
 - Chunked or resumable uploads when supported by the target server.
 - File locking, comments, starred items, shared upload links, directory ZIP downloads, library management, and activities.
@@ -27,4 +27,4 @@ The tested Seafile CE 12.0.x environment does not provide confirmable trash rest
 
 ## Release Gate
 
-The final version bump, release tag, public release, and independent GPT-5.6 Sol audit are future work. See [V1_DEFINITION_OF_DONE.md](V1_DEFINITION_OF_DONE.md).
+Release tagging and publication remain separate tasks. `V1_DEFINITION_OF_DONE.md` is a historical v1 audit checklist, not the current release gate.

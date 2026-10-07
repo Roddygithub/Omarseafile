@@ -55,7 +55,7 @@ def test_panel_open_reloads_when_libraries_empty():
     src = read_file("Panel.qml")
     open_func = func_body(src, "open")
     # Check for the conditional loadLibraries call
-    has_check = "if (!root.libraries || root.libraries.length === 0)" in open_func
+    has_check = "if (root.state === \"browse\" && (!root.libraries || root.libraries.length === 0))" in open_func
     has_call = "root.loadLibraries()" in open_func
     test("Panel.open() checks if libraries is empty", has_check)
     test("Panel.open() calls loadLibraries() when empty", has_check and has_call)
@@ -80,10 +80,10 @@ def test_load_libraries_function_exists():
 if __name__ == "__main__":
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    
+
     passed = 0
     failed = 0
-    
+
     def test(name, condition, detail=""):
         global passed, failed
         if condition:
@@ -95,14 +95,14 @@ if __name__ == "__main__":
             if detail:
                 msg += f" — {detail}"
             print(msg)
-    
+
     # Change to repo root for file reading
     import os
     os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    
+
     test_load_libraries_function_exists()
     test_panel_open_reloads_when_libraries_empty()
     test_panel_open_does_not_reload_when_libraries_populated()
-    
+
     print(f"\n=== {passed} passed, {failed} failed ===")
     sys.exit(1 if failed else 0)

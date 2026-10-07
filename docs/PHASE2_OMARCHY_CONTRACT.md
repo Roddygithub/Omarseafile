@@ -2,15 +2,7 @@
 
 ## Evidence
 
-Machine runtime inspected on the Phase 2 branch:
-
-- Omarchy `4.0.4-1` (`omarchy version`)
-- Quickshell `0.3.1`
-- installed host sources: `/usr/share/omarchy/shell`
-- running shell PID at investigation: `4145552` (later shell restarts were observed)
-
-The installed runtime is authoritative for this machine. No arena branch or
-`main` was changed.
+Historical machine-runtime inspection (not a statement about the current host): Omarchy `4.0.4-1`, Quickshell `0.3.1`, host sources under `/usr/share/omarchy/shell`. Recheck the installed runtime before relying on version-specific details.
 
 ## Contract comparison
 
@@ -27,8 +19,7 @@ root.hostWidget.settings = root.settings
 root.bar.shell.updateEntryInline(root.moduleName, root.settings)
 ```
 
-The installed examples are `/usr/share/omarchy/shell/Ui/Panel.qml`,
-`plugins/panels/power/Panel.qml`, and `plugins/panels/clock/Panel.qml`.
+The installed examples are the installed shell's `Ui/Panel.qml` and example panels.
 
 **OMARSEAFILE_ASSUMPTION (baseline):** calls such as
 `setting("autoLogin", enabled)` and `setting("favoritesStore", value)` wrote
@@ -67,8 +58,4 @@ uses the same host-visible controller state and refreshes connectivity.
 
 ## Runtime observations before correction
 
-The running shell log showed the pre-existing unrelated polish-loop warning in
-`components/ToolBar.qml`, plus an installed-plugin warning for an undefined
-`ConnectionService` assignment and duplicate `roddy.seafile` IPC registration
-during reload. These are recorded, not opportunistically fixed here. The
-ConnectionService generation issue remains out of scope.
+Runtime log observations from that investigation are historical and may no longer apply; reproduce against the current process before acting on them.

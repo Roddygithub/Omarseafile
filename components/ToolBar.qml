@@ -22,7 +22,6 @@ Item {
     property int activeTransferCount: 0
     property bool hasTransferFailures: false
     property int selectionCount: 0
-    property bool hasTrashItems: false
     property var onTransfersClicked: null
     property var onTrashClicked: null
     property var onMoveBatch: null
@@ -75,9 +74,7 @@ Item {
             visible: root.showBack
             tooltipText: ""
             HoverHandler { id: backHover }
-            ToolbarToolTip {
-                target: backButton
-                overlay: root.overlay
+            PanelToolTip {
                 visible: backHover.hovered
                 text: "Back"
             }
@@ -150,9 +147,7 @@ Item {
             visible: root.showSearch
             tooltipText: ""
             HoverHandler { id: searchHover }
-            ToolbarToolTip {
-                target: searchButton
-                overlay: root.overlay
+            PanelToolTip {
                 visible: searchHover.hovered
                 text: root.searchActive ? "Close search" : "Search"
             }
@@ -170,9 +165,7 @@ Item {
             visible: root.showUpload && !root.searchActive && root.selectionCount === 0
             tooltipText: ""
             HoverHandler { id: uploadHover }
-            ToolbarToolTip {
-                target: uploadButton
-                overlay: root.overlay
+            PanelToolTip {
                 visible: uploadHover.hovered
                 text: "Upload file"
             }
@@ -222,9 +215,7 @@ Item {
                 anchors.centerIn: transfersBadge
             }
 
-            ToolbarToolTip {
-                target: transferIndicator
-                overlay: root.overlay
+            PanelToolTip {
                 visible: mouseArea.containsMouse
                 text: "Transfers"
             }
@@ -253,9 +244,7 @@ Item {
                 font.pixelSize: Style.font.title
                 anchors.centerIn: parent
             }
-            ToolbarToolTip {
-                target: offlineIndicator
-                overlay: root.overlay
+            PanelToolTip {
                 visible: offlineMouseArea.containsMouse
                 text: "Offline — retrying connection"
             }
@@ -271,14 +260,9 @@ Item {
             id: overflowButton
             text: Icons.ellipsisV
             visible: root.overflowAvailable
+            // The menu labels already identify every available action; an
+            // additional tooltip only obscures the toolbar edge.
             tooltipText: ""
-            HoverHandler { id: overflowHover }
-            ToolbarToolTip {
-                target: overflowButton
-                overlay: root.overlay
-                visible: overflowHover.hovered
-                text: "More"
-            }
             onClicked: {
                 if (root.overflowAvailable) root.overflowOpen = !root.overflowOpen
             }

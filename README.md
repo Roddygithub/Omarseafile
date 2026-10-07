@@ -9,7 +9,7 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 - Search across accessible non-encrypted libraries with type and library filters.
 - Download files to the XDG user download directory (falling back to `~/Downloads`) with progress, cancellation, retry, and no-overwrite collision protection.
 - **Secure download target creation**: temporary files created with exclusive O_CREAT|O_EXCL|O_NOFOLLOW on a held directory FD, mode 0600, curl writes to held FD (no pathname reopen), producer-side byte ceiling (1 GiB default) and disk-space admission check (256 MiB safety margin), automatic cleanup on failure/cancellation, symlink and clobber protection.
-- **Open Local**: download to private `XDG_CACHE_HOME` (or `~/.cache`) cache, same secure creation, bounded cache (1 GiB default, recovery/eviction before use), cached file opened with xdg-open.
+- **Open Local**: download to private `XDG_CACHE_HOME` (or `~/.cache`) cache, same secure creation, bounded cache (1 GiB default, recovery/eviction before use), cached file opened with the configured MIME handler through UWSM, falling back to `xdg-open`.
 - **Graphical file picker** for uploads (an out-of-process `zenity --file-selection --multiple`) with multi-file selection; manual path entry remains as fallback and is the only route when `zenity` is absent.
 - **Upload source hardening**: absolute path required, must be regular file (rejects symlinks, directories, devices, FIFOs, sockets), size precheck (1 GiB default).
 - Create folders, rename items (F2), and delete files or folders (Delete).
@@ -51,8 +51,7 @@ Dependency classification:
 | `zenity` | OPTIONAL_FEATURE | No — graphical upload picker only; the manual path field still uploads, and login is never blocked. |
 | `wl-copy` (wl-clipboard) | OPTIONAL_FEATURE | No — copying share links only. |
 | `notify-send` (libnotify) | OPTIONAL_FEATURE | No — desktop notifications only. |
-| `xdg-open`, `xdg-mime` | OPTIONAL_FEATURE | No — "Open Local" and "Show in folder" only. |
-| `uwsm-app` | OPTIONAL_FEATURE | No — honors MIME-handler desktop entries for "Open Local". |
+| `xdg-open`, `xdg-mime`, `uwsm-app` | OPTIONAL_FEATURE | No — Open Local only; UWSM/MIME resolution falls back to `xdg-open`. |
 
 On Arch/Omarchy:
 
@@ -147,13 +146,8 @@ Search is available from the toolbar. It is debounced and searches each accessib
 | Ctrl+Click | Toggle item selection | Browse mode |
 | Shift+Click | Range selection | Browse mode |
 | Escape | Close the active dialog/view, clear search, or close the panel | Context-dependent |
-| Ctrl+N | New folder | Overflow menu |
-| F5 | Refresh | Overflow menu |
-| Ctrl+T | Open Transfers | Overflow menu |
-| Ctrl+Shift+T | Open Trash | Overflow menu |
-| , (comma) | Open Settings | Overflow menu |
 
-Shortcuts are contextual and are not intercepted while a text field has focus. See [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md).
+The overflow menu also provides New Folder, Refresh, Transfers, Trash, Settings, and Logout without assigning extra keyboard shortcuts. Shortcuts are contextual and are not intercepted while a text field has focus. See [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md).
 
 ## Text Input
 

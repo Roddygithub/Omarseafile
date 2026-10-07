@@ -49,6 +49,15 @@ Item {
     required property var onShareClicked
     required property var onHistoryClicked
     required property var onSortChanged
+    required property bool searchActive
+    required property string searchState
+    required property var searchResults
+    required property string searchErrorMessage
+    required property int searchPendingCount
+    required property bool searchTruncated
+    required property int maxSearchResults
+    required property var onSearchRetry
+    required property var onSearchResultClicked
 
     width: parent.width
     implicitHeight: content.implicitHeight
@@ -65,7 +74,7 @@ Item {
         ErrorOverlay {
             id: errorOverlay
             width: parent.width
-            showError: root.errorMessage !== ""
+            showError: root.errorMessage !== "" && !root.searchActive
             message: root.errorMessage
             bar: root.bar
             onRetry: root.onRefresh
@@ -75,7 +84,7 @@ Item {
         Column {
             id: quickAccessSection
             width: parent.width
-            visible: root.errorMessage === "" && (Favorites.getLibraries().length > 0 || Favorites.getFolders().length > 0)
+            visible: root.errorMessage === "" && !root.searchActive && (Favorites.getLibraries().length > 0 || Favorites.getFolders().length > 0)
             spacing: Style.space(4)
 
             Row {
@@ -231,42 +240,11 @@ Item {
             }
         }
 
-        // Recent Section (placeholder - could be extended with recent files tracking)
-        Column {
-            id: recentSection
-            width: parent.width
-            visible: false  // TODO: implement recent files tracking
-            spacing: Style.space(4)
-
-            Row {
-                height: Style.space(24)
-                Text {
-                    text: "RECENT"
-                    color: Qt.darker(root.bar.foreground, 1.3)
-                    font.family: root.bar.fontFamily
-                    font.pixelSize: Style.font.caption
-                    font.bold: true
-                    font.letterSpacing: 1
-                    height: parent.height
-                    verticalAlignment: Text.AlignVCenter
-                }
-            }
-
-            EmptyState {
-                bar: root.bar
-                icon: Icons.clock
-                title: "No recent items"
-                subtitle: "Recently accessed files will appear here"
-                width: parent.width
-                visible: true
-            }
-        }
-
         // Transfers Section
         Column {
             id: transfersSection
             width: parent.width
-            visible: root.activeCount > 0
+            visible: root.activeCount > 0 && !root.searchActive
             spacing: Style.space(4)
 
             Row {
@@ -299,6 +277,7 @@ Item {
 
                     Row {
                         id: row
+                        width: parent.width
                         spacing: Style.space(12)
                         height: Style.space(28)
 
@@ -356,12 +335,55 @@ Item {
             }
         }
 
+        LoadingIndicator {
+            width: parent.width
+            visible: root.searchActive && root.searchState === "loading"
+            message: "Searching " + root.searchPendingCount + " libraries..."
+            bar: root.bar
+        }
+
+        Text {
+            width: parent.width
+            height: visible ? contentHeight + topPadding : 0
+            visible: root.searchActive && (root.searchState === "results" || root.searchState === "empty")
+            text: root.searchState === "results"
+                ? (root.searchTruncated
+                    ? "Showing first " + root.maxSearchResults + " results. Refine your search."
+                    : root.searchResults.length + " result(s) found")
+                : "No results found"
+            color: Qt.darker(root.bar.foreground, 1.4)
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+            horizontalAlignment: Text.AlignHCenter
+            topPadding: Style.space(4)
+            textFormat: Text.PlainText
+        }
+
+        ErrorOverlay {
+            width: parent.width
+            visible: root.searchActive && root.searchState === "error"
+            showError: root.searchActive && root.searchState === "error"
+            message: root.searchErrorMessage
+            bar: root.bar
+            onRetry: root.onSearchRetry
+        }
+
+        SearchResults {
+            id: rootSearchResults
+            width: parent.width
+            height: visible ? (contentHeight > 0 ? Math.min(contentHeight, Style.space(360)) : Style.space(120)) : 0
+            results: root.searchResults
+            bar: root.bar
+            visible: root.searchActive && root.searchState !== "loading" && root.searchState !== "error"
+            onResultClicked: root.onSearchResultClicked
+        }
+
         // Libraries Section (shown when at root level with no currentRepo)
         // No section header needed - toolbar title shows "Libraries"
         Column {
             id: librariesSection
             width: parent.width
-            visible: root.errorMessage === "" && root.libraries && root.libraries.length > 0 && !root.currentRepo
+            visible: root.errorMessage === "" && root.libraries && root.libraries.length > 0 && !root.currentRepo && !root.searchActive
             spacing: Style.space(4)
 
             FileList {
@@ -402,7 +424,7 @@ Item {
             title: "Quick Access"
             subtitle: "Pin libraries and folders for quick access\nRight-click an item in the browser and select \"Add to Quick Access\""
             width: parent.width
-            visible: root.errorMessage === "" && Favorites.getLibraries().length === 0 && Favorites.getFolders().length === 0 && root.activeCount === 0 && !(root.libraries && root.libraries.length > 0)
+            visible: root.errorMessage === "" && !root.searchActive && Favorites.getLibraries().length === 0 && Favorites.getFolders().length === 0 && root.activeCount === 0 && !(root.libraries && root.libraries.length > 0)
         }
     }
 }

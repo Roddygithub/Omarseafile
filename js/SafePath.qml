@@ -16,6 +16,28 @@ QtObject {
     // Security validation (uid, permissions) runs exactly once per subdir.
     property var _runtimeDirCache: ({})
 
+    // Absolute path of the helper scripts bundled with the plugin. Resolved
+    // once so no call site has to re-run Qt.resolvedUrl() per transfer.
+    readonly property string _scriptsDir: root.toLocalFile(Qt.resolvedUrl("../scripts"))
+
+    // Convert a file:// URL into an absolute filesystem path. Percent-escapes
+    // are decoded so an install path containing spaces, "#" or "%" stays a
+    // single argv value instead of silently splitting or pointing elsewhere.
+    function toLocalFile(url) {
+        var path = String(url).replace(/^file:\/\//, "")
+        try {
+            return decodeURIComponent(path)
+        } catch (e) {
+            // Not a valid percent-encoded URL (a stray '%'): the raw path is
+            // already the right answer, and decoding it would corrupt it.
+            return path
+        }
+    }
+
+    function scriptPath(name) {
+        return root._scriptsDir + "/" + name
+    }
+
     property Component _mkdirFactory: Component {
         Process {
             property var onDone: null
@@ -76,8 +98,8 @@ QtObject {
                 return { valid: false, error: "Control characters not allowed" }
             }
         }
-        if (trimmed.length > 255) {
-            return { valid: false, error: "Filename exceeds maximum length of 255" }
+        if (trimmed.length > root.maxBasenameLength) {
+            return { valid: false, error: "Filename exceeds maximum length of " + root.maxBasenameLength }
         }
         return { valid: true, sanitized: trimmed }
     }
@@ -349,8 +371,7 @@ QtObject {
         }
         getCacheDir(function(cacheResult) {
             if (!cacheResult.valid) { if (callback) callback(false); return }
-            var scriptsBase = Qt.resolvedUrl("../scripts")
-            var helper = scriptsBase + "/cache_evict.py"
+            var helper = root.scriptPath("cache_evict.py")
             var evictProc = _evictCacheFactory.createObject(root, {
                 onDone: function(ok) {
                     if (callback) callback(ok)
@@ -358,7 +379,7 @@ QtObject {
             })
             evictProc.command = [
                 "python3",
-                helper.replace(/^file:\/\//, ""),
+                helper,
                 cacheResult.path,
                 String(maxBytes === undefined ? root.maxCacheBytes : maxBytes)
             ].concat(effectiveProtected)
@@ -433,11 +454,10 @@ QtObject {
                     }
                 }
             })
-            var scriptsBase = Qt.resolvedUrl("../scripts")
-            var scriptPath = scriptsBase + "/atomic_write.py"
+            var helperPath = root.scriptPath("atomic_write.py")
             proc.command = [
                 "python3",
-                scriptPath.replace(/^file:\/\//, ""),
+                helperPath,
                 runtimeResult.path, safePrefix
             ]
             proc.writeContent = content === undefined || content === null ? "" : String(content)

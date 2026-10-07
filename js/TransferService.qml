@@ -37,8 +37,9 @@ QtObject {
     property int maxConcurrentUploads: 3
     property int maxQueuedUploads: 100
     property int sessionEpoch: 0
-    readonly property string _transferOutputHelper: Qt.resolvedUrl("../scripts/transfer_output.py").toString().replace(/^file:\/\//, "")
-    readonly property string _secureFinalizeHelper: Qt.resolvedUrl("../scripts/secure_finalize.py").toString().replace(/^file:\/\//, "")
+    readonly property string _scriptsDir: SafePath.toLocalFile(Qt.resolvedUrl("../scripts"))
+    readonly property string _transferOutputHelper: root._scriptsDir + "/transfer_output.py"
+    readonly property string _secureFinalizeHelper: root._scriptsDir + "/secure_finalize.py"
 
     // ===== SIGNALS =====
 
@@ -216,10 +217,6 @@ QtObject {
         })
     }
 
-    function getActiveCount() {
-        return root.getActiveTransfers().length
-    }
-
     function getCompletedCount() {
         return root.getCompletedTransfers().length
     }
@@ -228,22 +225,8 @@ QtObject {
         return root.getFailedTransfers().length
     }
 
-    function hasActive() {
-        return root.getActiveCount() > 0
-    }
-
     function hasFailures() {
         return root.getFailedCount() > 0
-    }
-
-    function getAggregateProgress() {
-        var active = root.getActiveTransfers()
-        if (active.length === 0) return 0
-        var total = 0
-        for (var i = 0; i < active.length; i++) {
-            total += active[i].progress
-        }
-        return total / active.length
     }
 
     // ===== COMMON =====
@@ -285,18 +268,6 @@ QtObject {
         return Math.max(0, root._activeReservedBytes - (transfer._reservedBytes || 0))
     }
 
-    function parseError(response) {
-        if (!response) return "Unknown error"
-        if (typeof response === "string") return response
-        if (typeof response === "object") {
-            if (response.non_field_errors) return response.non_field_errors.join(", ")
-            if (response.detail) return response.detail
-            if (response.error_msg) return response.error_msg
-            if (response.error) return response.error
-        }
-        return "Unknown error"
-    }
-
     // Coerce an HTTP status into the canonical numeric form. Anything that is
     // not a real status becomes 0, which means "no HTTP response was observed"
     // and is treated as a transport failure. Status is never inferred by
@@ -327,8 +298,7 @@ QtObject {
         return false
     }
 
-    // Back-compatible name. The message is accepted but ignored: a message can
-    // never raise or lower retryability, only the status decides.
+    // Keep the legacy API callable while ensuring messages never affect retry policy.
     function isRetryableError(status, errorMsg) {
         return root.isRetryableStatus(status)
     }
@@ -533,10 +503,6 @@ QtObject {
 
     // ===== SAFE PATH RESOLUTION =====
 
-    function resolveDestPath(dir, fileName, callback) {
-        SafePath.secureJoin(dir, fileName, callback)
-    }
-
     // ===== DOWNLOAD =====
 
     function startDownload(fileItem, token, baseUrl, repoId, destDir, fullPath, downloadLink) {
@@ -720,11 +686,10 @@ QtObject {
                 }
                 curlProc.transferRef = download
                 root._reserveTransferCapacity(download)
-                var scriptsBase = Qt.resolvedUrl("../scripts")
-                var outputHelper = scriptsBase + "/secure_output.py"
+                var outputHelper = root._scriptsDir + "/secure_output.py"
                 curlProc.command = [
                     "setsid", "python3",
-                    outputHelper.replace(/^file:\/\//, ""),
+                    outputHelper,
                     download.destDir, "dl",
                     "--max-stderr-bytes", root.maxTransferStderrBytes,
                     "--max-transfer-bytes", root.maxTransferBytes,
@@ -777,11 +742,10 @@ QtObject {
             }
             curlProc.transferRef = download
             root._reserveTransferCapacity(download)
-            var scriptsBase = Qt.resolvedUrl("../scripts")
-            var outputHelper = scriptsBase + "/secure_output.py"
+            var outputHelper = root._scriptsDir + "/secure_output.py"
             curlProc.command = [
                 "setsid", "python3",
-                outputHelper.replace(/^file:\/\//, ""),
+                outputHelper,
                 download.destDir, "dl",
                 "--max-stderr-bytes", root.maxTransferStderrBytes,
                 "--max-transfer-bytes", root.maxTransferBytes,
@@ -1411,19 +1375,6 @@ function executeCurlUploadNoAuth(upload) {
         root.transfersChanged()
     }
 
-    function clearAllTerminal() {
-        for (var i = 0; i < root.transfers.length; i++) {
-            var t = root.transfers[i]
-            if (t.state === "completed" || t.state === "failed" || t.state === "cancelled" || t.state === "auth_failed") {
-                cleanupTransferAuthFile(t)
-            }
-        }
-        root.transfers = root.transfers.filter(function(t) {
-            return t.state === "pending" || t.state === "downloading" || t.state === "uploading" || t.state === "opening"
-        })
-        root.transfersChanged()
-    }
-
     // Remove a single TERMINAL transfer from history. Batch "Clear All" actions
     // keep clearing whole categories; this targets exactly one transfer.
     function clearTransfer(transferId) {
@@ -1643,11 +1594,10 @@ function executeCurlUploadNoAuth(upload) {
                 }
                 curlProc.transferRef = download
                 root._reserveTransferCapacity(download)
-                var scriptsBase = Qt.resolvedUrl("../scripts")
-                var outputHelper = scriptsBase + "/secure_output.py"
+                var outputHelper = root._scriptsDir + "/secure_output.py"
                 curlProc.command = [
                     "setsid", "python3",
-                    outputHelper.replace(/^file:\/\//, ""),
+                    outputHelper,
                     download.cacheDir, "dl",
                     "--active-marker",
                     "--max-stderr-bytes", root.maxTransferStderrBytes,
@@ -1701,11 +1651,10 @@ function executeCurlUploadNoAuth(upload) {
             }
             curlProc.transferRef = download
             root._reserveTransferCapacity(download)
-            var scriptsBase = Qt.resolvedUrl("../scripts")
-            var outputHelper = scriptsBase + "/secure_output.py"
+            var outputHelper = root._scriptsDir + "/secure_output.py"
             curlProc.command = [
                 "setsid", "python3",
-                    outputHelper.replace(/^file:\/\//, ""),
+                    outputHelper,
                     download.cacheDir, "dl",
                     "--active-marker",
                     "--max-stderr-bytes", root.maxTransferStderrBytes,
@@ -1899,12 +1848,10 @@ function executeCurlUploadNoAuth(upload) {
             root.transfersChanged()
             return
         }
-        // Resolve the user's MIME handler, then let UWSM honor its desktop
-        // entry semantics (including Terminal=true) through the configured
-        // default terminal. Keep the path as an argv value throughout.
-        proc.command = ["setsid", "bash", "-c",
-            "mime=$(xdg-mime query filetype \"$1\") && desktop=$(xdg-mime query default \"$mime\") && exec uwsm-app -- \"$desktop\" \"$1\"",
-            "omarseafile-open", transfer.cachePath]
+        // Resolve the user's MIME handler and let UWSM honor desktop semantics,
+        // including Terminal=true. The helper keeps the path as one argv value.
+        var openHelper = root._scriptsDir + "/open_cached_file.sh"
+        proc.command = ["setsid", "bash", openHelper, transfer.cachePath]
         proc.transferRef = transfer
         transfer.process = proc
         proc.running = true

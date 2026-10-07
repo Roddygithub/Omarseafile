@@ -13,7 +13,7 @@ This is the current keyboard reference. All bindings are contextual to the Omars
 | Ctrl+A | Select all visible items | Browse mode, no dialog/search/destination mode |
 | Escape | Close the active dialog/view, clear search, or close the panel | Context-dependent |
 
-Mouse and explicit toolbar/context-menu actions are available for every important operation. Ctrl+H and Ctrl+T are not Omarseafile shortcuts; use the History context-menu action and Trash toolbar button.
+The overflow menu provides New Folder, Refresh, Transfers, Trash, Settings, and Logout without extra keyboard shortcuts. Mouse, toolbar, and context-menu actions are available for other operations. Ctrl+H and Ctrl+T are not Omarseafile shortcuts; use the History context-menu action and Trash toolbar button.
 
 ## Text Input
 

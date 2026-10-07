@@ -35,6 +35,7 @@ Item {
 
     Row {
         id: row
+        width: parent.width
         spacing: Style.space(8)
 
         Text {

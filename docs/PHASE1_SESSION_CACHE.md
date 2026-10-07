@@ -2,13 +2,7 @@
 
 ## Scope and status
 
-Branch: `remediate/phase1-session-cache`. Baseline and unchanged `main`:
-`3c71f7f04f12652082151fbe0ad8473ef06532fa`.
-
-Ready for **Phase 1 code review**, not deployed or merged. No main/arena branch,
-Marketplace, tag, release, or live desktop configuration was modified. No push.
-Excluded feature work (moveFolder, Omarchy controller/settings, UI refactor,
-Search, Login Enter, transfer progress) was not undertaken.
+Historical branch/baseline details are omitted here; this document records the session/cache design and test method, not current repository or deployment status.
 
 ## Logout contract
 
@@ -38,19 +32,12 @@ mutation was used to test the baseline.
   but A overwrites B's folder cache; navigating back consumes A's data. This is
   a cache-write/session bug, not observed credential forwarding to B.
 - **B — logout/download admission:** hold `SafePath.secureJoin`, call
-  `startDownload`, logout, then release the validation callback. Baseline
-  registers the download with the *new* epoch and sends an old-auth link request.
-  Separately, a registered, already-started download enters `cancelling` and its
-  late exit is retired: this existing cancellation behavior passes unchanged.
-  Pending link/header/config and queued/stat-upload controls also already pass.
-  HTTP preparation held at runtime-dir, response-file, header-file, or body-file
-  boundaries nevertheless launches after token clearing on baseline.
-- **C — keys/invalidation:** `/a/b` and `/a:b` alias, as do combinations involving
-  repo colons and `/:x`; `/` and `/root` are tested separately. Invalidating `/a`
-  also removes `/ab` and `/a:b`. Invalidating `/` removes nested entries but leaves
-  its special `root` entry. Server/account pairs `(https://a.invalid/x|y, z)` and
-  `(https://a.invalid/x, y|z)` alias. Re-entering the same account scope reuses an
-  earlier login's entries.
+  `startDownload`, logout, then release the validation callback. The original
+  baseline registered the download with the *new* epoch and sent an old-auth
+  link request. Related controls covered late exits and HTTP preparation races.
+- **C — keys/invalidation:** the original tests exercised path-boundary,
+  root/subtree, and account/server-scope collisions, plus cache reuse across
+  re-login.
 - **Related in-scope findings:** a pending keyring store delays memory clearing;
   delayed startup lookup can republish logged-out credentials; changing the API
   URL retains the old configured token; late auth/direct API callbacks survive
@@ -118,8 +105,7 @@ it; no live keyring or desktop interaction is needed for the new race suite.
   deployment: **all checks pass**. Shellcheck is explicitly skipped because it
   is not installed; other listed gates ran.
 
-Local logs: `/tmp/omarseafile-phase1-{baseline,focused,validate,isolated-validate}.log`.
-Temporary deployment used for the isolated gate is outside the live plugin tree.
+The original run used temporary local logs, which are not repository artifacts. Its results are historical evidence for that branch, not a claim about the current working tree.
 
 ## Adjacent findings and limits
 
@@ -132,15 +118,3 @@ Temporary deployment used for the isolated gate is outside the live plugin tree.
 - Logical cancellation does not undo already-started network side effects or
   revoke server-issued tokens. Keyring-clear failures remain user-visible only
   if the logout is still current.
-
-## Model / provider / route verification
-
-The user request did not name a model. The harness-configured requested model
-and recorded assistant model are both `gpt-6-astra`; provider `openai-codex`,
-reasoning level `medium`, API route `openai-codex-responses`.
-
-Verified from `PI_MODEL`, `PI_PROVIDER`, `PI_REASONING_LEVEL`, and session JSONL
-`model_change`, `thinking_level_change`, and assistant `model/provider/api`
-metadata. This is harness/session route verification, not independent
-attestation of the provider's underlying backend. No alternate-model routing
-was requested or performed.

@@ -37,6 +37,13 @@ tests = [
     # Duplicate QML property assignment sweep (wired via validate.sh and the
     # v1.1 suite; listed explicitly so CI runs it directly too).
     "test_duplicate_properties.py",
+    # Focused contract suites. These used to sit on disk unenforced, which
+    # meant a regression they cover could stay green in CI.
+    "test_ux_performance.py",
+    "test_mutation_contracts.py",
+    "test_search_action_contracts.py",
+    "test_login_contracts.py",
+    "test_required_properties.py",
 ]
 
 failed = []

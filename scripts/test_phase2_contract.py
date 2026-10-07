@@ -2,7 +2,6 @@
 """Behavioral contract checks for the installed Omarchy panel host."""
 import os
 import re
-import subprocess
 from pathlib import Path
 
 ROOT = Path(os.environ.get("PHASE2_SOURCE_ROOT", Path(__file__).resolve().parent.parent))

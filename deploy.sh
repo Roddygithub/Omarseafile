@@ -1,14 +1,13 @@
 #!/bin/bash
 # deploy.sh — Sync canonical source to Omarchy plugin directory
 #
-# The Git repo (/home/roddy/Projects/Omarseafile/) is the source of truth.
-# This script deploys plugin files to the Omarchy runtime location.
+# This repository is the source of truth. Deploy plugin files to the Omarchy runtime location.
 #
 # Usage:
 #   ./deploy.sh          # sync to default plugin dir
 #   ./deploy.sh --check  # dry run, show what would change
 #
-# Excludes: .git/, docs/, README.md, deploy.sh, .gitignore
+# Excludes: repository metadata/docs, contributor-only files and Python cache files
 
 set -euo pipefail
 
@@ -30,8 +29,7 @@ if $DRY_RUN; then
   echo ""
   CHANGES="$(rsync -ainc --delete --omit-dir-times \
     --exclude='.git/' \
-    --exclude='.agents/' \
-    --exclude='.codex/' \
+    --exclude='AGENTS.md' \
     --exclude='docs/' \
     --exclude='README.md' \
     --exclude='deploy.sh' \
@@ -51,8 +49,7 @@ else
   mkdir -p "$PLUGIN_DIR"
   rsync -av --delete \
     --exclude='.git/' \
-    --exclude='.agents/' \
-    --exclude='.codex/' \
+    --exclude='AGENTS.md' \
     --exclude='docs/' \
     --exclude='README.md' \
     --exclude='deploy.sh' \

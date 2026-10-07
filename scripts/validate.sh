@@ -87,11 +87,16 @@ check "Only valid Color names used" bash -c '! grep -rE "Color\\.[A-Za-z_]+" --i
 echo ""
 echo "--- Shell Syntax ---"
 if command -v shellcheck >/dev/null; then
-    check "deploy.sh shellcheck" shellcheck deploy.sh
+    check "deploy scripts shellcheck" shellcheck deploy.sh scripts/open_cached_file.sh
 else
-    echo "  deploy.sh shellcheck... SKIP (shellcheck not installed)"
+    echo "  deploy scripts shellcheck... SKIP (shellcheck not installed)"
 fi
 check "deploy.sh --check detects content drift, not directory mtimes" bash -c 'tmp=$(mktemp -d); trap '\''rm -rf "$tmp"'\'' EXIT; OMARCHY_PLUGIN_DIR="$tmp/plugin" ./deploy.sh >/dev/null; touch "$tmp/plugin"; OMARCHY_PLUGIN_DIR="$tmp/plugin" ./deploy.sh --check >/dev/null; touch "$tmp/plugin/parity-drift"; ! OMARCHY_PLUGIN_DIR="$tmp/plugin" ./deploy.sh --check >/dev/null 2>&1'
+check "Open Local runtime test exercises the production helper" bash -c '
+grep -q OPEN_HELPER scripts/test_open_lifecycle.py &&
+grep -q open_cached_file.sh js/TransferService.qml &&
+grep -q toLocalFile js/TransferService.qml
+'
 
 # --- CI_CAPABLE: Documentation Content ---
 echo ""
@@ -152,8 +157,17 @@ else
     echo "  omarchy plugin validate... SKIP (omarchy not in PATH)"
 fi
 
-if [[ -d "$HOME/.config/omarchy/plugins/roddy.seafile" ]]; then
-    check "Repo == Runtime parity (deploy.sh --check)" ./deploy.sh --check
+RUNTIME_PLUGIN_DIR="${OMARCHY_PLUGIN_DIR:-$HOME/.config/omarchy/plugins/roddy.seafile}"
+if [[ -d "$RUNTIME_PLUGIN_DIR" ]]; then
+    echo "  Runtime parity... checking with OMARCHY_PLUGIN_DIR=$RUNTIME_PLUGIN_DIR"
+    if parity_output="$(env OMARCHY_PLUGIN_DIR="$RUNTIME_PLUGIN_DIR" ./deploy.sh --check 2>&1)"; then
+        echo "  Repo == Runtime parity (deploy.sh --check)... OK"
+    else
+        echo "  Repo == Runtime parity (deploy.sh --check)... FAIL"
+        echo "  deploy --check output:"
+        printf '%s\n' "$parity_output" | sed 's/^/    /'
+        FAIL=1
+    fi
 else
     echo "  Runtime parity... SKIP (plugin not deployed)"
 fi
@@ -252,6 +266,7 @@ check "no duplicate QML properties on the same object" python3 scripts/check_dup
 echo ""
 echo "--- Security Microfix Tests ---"
 check "UI/UX behavior suite passes" python3 scripts/test_ui_ux.py
+check "transfer contract suite passes" python3 scripts/test_transfer_contracts.py
 check "blocker behavioral suite passes" python3 scripts/test_blockers.py
 check "portable CI suite passes" python3 scripts/test_portable.py
 # Listed explicitly so a reader can see these are enforced rather than only
@@ -259,6 +274,14 @@ check "portable CI suite passes" python3 scripts/test_portable.py
 check "qml warnings suite enforced" bash -c 'grep -q "test_qml_warnings.py" scripts/test_portable.py'
 check "panel reopen/libraries suite enforced" bash -c 'grep -q "test_panel_reopen_libraries.py" scripts/test_portable.py'
 check "v1.1 remediation suite enforced" bash -c 'grep -q "test_v11_remediation.py" scripts/test_portable.py'
+check "focused contract suites enforced" bash -c 'for s in test_ux_performance.py test_mutation_contracts.py test_search_action_contracts.py test_login_contracts.py test_required_properties.py; do grep -q "$s" scripts/test_portable.py || exit 1; done'
+# The phase 2 contract compares this source against the installed Omarchy host
+# sources, so it can only run where those sources are present.
+if [[ -d /usr/share/omarchy/shell/Ui ]]; then
+    check "Omarchy host contract suite passes" python3 scripts/test_phase2_contract.py
+else
+    echo "  Omarchy host contract suite... SKIP (Omarchy host sources not installed)"
+fi
 # deploy.sh drives rsync, so this suite cannot run where rsync is absent.
 # Reported as SKIP with the reason rather than a bare FAIL.
 if command -v rsync >/dev/null; then
@@ -267,10 +290,10 @@ else
     echo "  deployment scope suite passes... SKIP (rsync not installed; deploy.sh requires it)"
 fi
 if command -v qs >/dev/null; then
-    check "Open Local lifecycle suite passes" python3 scripts/test_open_lifecycle.py
-    check "ConnectionService race suite passes" python3 scripts/test_connection_service.py
     check "Quickshell runtime remediation suite passes" python3 scripts/test_runtime_remediation.py
     check "HTTP transport integration suite passes" python3 scripts/test_http_integration.py
+    check "Open Local lifecycle suite passes" python3 scripts/test_open_lifecycle.py
+    check "ConnectionService race suite passes" python3 scripts/test_connection_service.py
 else
     echo "  Quickshell runtime remediation suite... SKIP (qs not installed)"
 fi
@@ -278,7 +301,7 @@ fi
 # --- Dependency Reporting ---
 echo ""
 echo "--- Dependency Report ---"
-for cmd in curl python3 secret-tool zenity wl-copy xdg-open notify-send; do
+for cmd in curl python3 secret-tool zenity wl-copy xdg-open xdg-mime uwsm-app notify-send; do
     if command -v "$cmd" >/dev/null; then
         echo "  $cmd: $(which $cmd)"
     else

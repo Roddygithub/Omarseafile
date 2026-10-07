@@ -21,7 +21,12 @@ check("download HTTP 22 is not retried", "exitCode !== 22 && download.retryCount
 check("progress reaches Panel bindings", "function onTransferProgressChanged(transfer)" in panel)
 check("Panel owns the reactive active list", "root.activeTransfers = active" in panel)
 check("Home receives Panel active transfers", "activeTransfers: root.activeTransfers" in panel)
-check("Libraries list receives transfer revisions", "transferRevision: root.transferRevision" in (ROOT / "views/HomeView.qml").read_text())
+home = (ROOT / "views/HomeView.qml").read_text()
+item = (ROOT / "components/TransferItem.qml").read_text()
+check("Libraries list receives transfer revisions", "transferRevision: root.transferRevision" in home)
+check("Home active transfer rows keep their width", "id: row\n                        width: parent.width\n                        spacing: Style.space(12)" in home)
+check("Transfer rows keep their width", "id: row\n        width: parent.width\n        spacing: Style.space(8)" in item)
+check("Transfer rows render the file name", "root.transfer.fileName || \"Unknown\"" in item)
 
 if NODE:
     script = r'''const h = require("./scripts/qmljs.js");
@@ -47,6 +52,8 @@ T.transfers = [
 ];
 R.push("activeStates=" + T.getActiveTransfers().map(t => t.id).join(","));
 R.push("historyCounts=" + T.getCompletedCount() + "," + T.getFailedCount());
+R.push("legacyRetryable404=" + T.isRetryableError(404, "timeout"));
+R.push("legacyRetryable500=" + T.isRetryableError(500, "permanent"));
 console.log(R.join("\n"));'''
     result = subprocess.run([NODE, "-e", script], cwd=ROOT, capture_output=True, text=True, check=True)
     values = dict(line.split("=", 1) for line in result.stdout.strip().splitlines())
@@ -55,6 +62,8 @@ console.log(R.join("\n"));'''
     check("retry preserves history without credentials", values["missingTokenPreserved"] == "true")
     check("active model includes queued and running", values["activeStates"] == "queued,running")
     check("history model separates completed and failed", values["historyCounts"] == "1,1")
+    check("legacy retry helper ignores misleading message on 404", values["legacyRetryable404"] == "false")
+    check("legacy retry helper classifies 500 by status", values["legacyRetryable500"] == "true")
 else:
     print("SKIP runtime transfer checks: node unavailable")
 

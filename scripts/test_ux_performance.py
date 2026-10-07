@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
+"""Static checks for panel bounds, stale-response guards and cache hygiene."""
 from pathlib import Path
 
-panel = Path('Panel.qml').read_text()
-browser = Path('views/BrowserView.qml').read_text()
-toolbar = Path('components/ToolBar.qml').read_text()
-cache = Path('js/Cache.qml').read_text()
-http = Path('js/HttpTransport.qml').read_text()
-safepath = Path('js/SafePath.qml').read_text()
+ROOT = Path(__file__).resolve().parent.parent
+
+panel = (ROOT / 'Panel.qml').read_text()
+browser = (ROOT / 'views/BrowserView.qml').read_text()
+toolbar = (ROOT / 'components/ToolBar.qml').read_text()
+cache = (ROOT / 'js/Cache.qml').read_text()
+http = (ROOT / 'js/HttpTransport.qml').read_text()
+safepath = (ROOT / 'js/SafePath.qml').read_text()
 checks = {
     'login toolbar hidden and collapses': 'visible: root.state !== "login"' in panel and 'implicitHeight: visible ? row.implicitHeight : 0' in toolbar,
     'library title omitted from nested breadcrumb': 'path: root.pathHistory.length > 1 ? root.pathHistory.slice(1) : []' in browser,

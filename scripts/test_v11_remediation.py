@@ -900,6 +900,10 @@ test("python3 is required",
      re.search(r'\{ cmd: "python3"[^}]*required: true \}', auth) is not None, kind="STATIC")
 test("xdg-open is optional",
      re.search(r'\{ cmd: "xdg-open"[^}]*required: false \}', auth) is not None, kind="STATIC")
+test("open dependencies are declared",
+     re.search(r'\{ cmd: "xdg-mime"[^}]*required: false \}', auth) is not None
+     and re.search(r'\{ cmd: "uwsm-app"[^}]*required: false \}', auth) is not None,
+     kind="STATIC")
 test("notify-send is optional",
      re.search(r'\{ cmd: "notify-send"[^}]*required: false \}', auth) is not None, kind="STATIC")
 

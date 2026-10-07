@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Search started from the root list now renders on the Home view instead of disappearing when no library is open.
+- History and Trash expose their own loading and error states with a Retry action, replacing the transient toast for the same failure.
+- "Open Local" launches through `scripts/open_cached_file.sh`: it resolves the configured MIME handler through UWSM and falls back to `xdg-open` when the handler or `xdg-mime` is unavailable. The lifecycle suite exercises this exact script.
+- `scripts/test_required_properties.py` fails the build when a component instantiated through a Loader is missing one of its `required property` assignments, which would otherwise surface as a blank view at runtime.
+
+### Changed
+- Bundled helper paths are resolved once through `SafePath.toLocalFile()`, which decodes percent-escapes, so an install path containing spaces, `#` or `%` stays a single argv value instead of silently pointing at the wrong file.
+- Toolbar tooltips are unified on `PanelToolTip`; the overflow button no longer shows a "More" tooltip that only obscured the toolbar edge.
+- The Trash toolbar action is only offered inside a library, where a trash list actually exists.
+- Double-click no longer re-opens a file when single-click open is enabled.
+- Four contract suites that previously sat on disk unenforced (`test_ux_performance`, `test_mutation_contracts`, `test_search_action_contracts`, `test_login_contracts`) are part of the portable CI gate.
+
+### Fixed
+- Restoring a saved session on startup now reports credential-lookup failures instead of failing silently.
+- An empty toolbar overflow menu is hidden instead of rendering as an empty popup.
+- Transfer rows keep their width, so file names and progress no longer collapse in the list and on Home.
+
+### Removed
+- Unused helpers with no callers: `Models.parseFiles`/`parseLibraries` (superseded by the validating parsers in `SeafileAPI`), `SelectionHelper.serialize`/`deserialize`/`getSelectionCount`, `Favorites.removeById`/`clearActive`, `HttpTransport.sanitizeCollection`, `TransferService.getActiveCount`, `Cache.hasValidCache`, and the `ConnectionService.isOnline`/`retryDelay` members.
+- The unreachable "RECENT" placeholder on Home, `ToolbarToolTip.qml`, and `scripts/benchmark_http.sh`, whose `secret-tool` lookup could never match the stored credential attributes.
+
 ## [1.2.0] - 2026-09-22
 
 ### Added

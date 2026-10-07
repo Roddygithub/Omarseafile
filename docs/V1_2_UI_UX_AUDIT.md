@@ -6,8 +6,7 @@ Baseline: `151c7ec71b95af6b0de601fda14c1b986b0dea02`
 
 Captured from the synchronized Omarchy runtime before UI changes:
 
-- `/tmp/omarseafile-before.png` — panel at the Libraries root.
-- `/tmp/omarseafile-before-crop.png` — readable crop of the panel.
+- Baseline screenshots were captured locally at the time of the audit; those temporary artifacts are not part of the repository or an enduring acceptance criterion.
 
 The panel is a compact top-right card. The current root view is legible and
 appropriately dense, but file rows use one generic file glyph, selected rows

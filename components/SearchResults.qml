@@ -41,6 +41,11 @@ ListView {
 
     model: root.filteredResults
 
+    onResultsChanged: {
+        if (root.filterLibrary !== "" && root.libraryNames.indexOf(root.filterLibrary) < 0)
+            root.filterLibrary = ""
+    }
+
     // The filter controls live in the header so they occupy real layout space
     // and scroll out of the way. As a plain child of the ListView they floated
     // at (0,0) directly on top of the first result and never scrolled.

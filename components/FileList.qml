@@ -205,7 +205,7 @@ delegate: FileItem {
                 }
             }
         }
-        
+
         // Separator line
         Rectangle {
             width: parent.width

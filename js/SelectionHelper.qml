@@ -109,32 +109,4 @@ QtObject {
         }
         return result
     }
-
-    function getSelectionCount(selectedItems) {
-        return selectedItems.length
-    }
-
-    // ===== SERIALIZATION (for persistence if needed) =====
-
-    function serialize(selectedItems) {
-        var keys = []
-        for (var i = 0; i < selectedItems.length; i++) {
-            keys.push(makeKey(selectedItems[i]))
-        }
-        return keys
-    }
-
-    function deserialize(keys, currentItems) {
-        var result = []
-        var itemMap = {}
-        for (var i = 0; i < currentItems.length; i++) {
-            itemMap[makeKey(currentItems[i])] = currentItems[i]
-        }
-        for (var i = 0; i < keys.length; i++) {
-            if (itemMap[keys[i]]) {
-                result.push(itemMap[keys[i]])
-            }
-        }
-        return result
-    }
 }

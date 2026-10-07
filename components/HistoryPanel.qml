@@ -11,18 +11,22 @@ Column {
     required property string fileName
     required property var onDownloadRevision
     required property var onClose
-    property var onError: null
     property var historyData: []
+    property bool loading: false
+    property string errorMessage: ""
 
     width: parent.width
     spacing: 0
 
     function loadHistory() {
+        root.loading = true
+        root.errorMessage = ""
         SeafileAPI.getFileHistory(root.repoId, root.filePath, function(success, data, error) {
+            root.loading = false
             if (success) {
                 root.historyData = data
             } else {
-                if (root.onError) root.onError("Failed to load history: " + error)
+                root.errorMessage = "Failed to load history: " + error
             }
         })
     }
@@ -165,6 +169,21 @@ Column {
                 }
             }
 
+            LoadingIndicator {
+                bar: root.bar
+                visible: root.loading
+                anchors.centerIn: parent
+            }
+
+            ErrorOverlay {
+                anchors.fill: parent
+                visible: !root.loading && root.errorMessage !== ""
+                bar: root.bar
+                message: root.errorMessage
+                showError: !root.loading && root.errorMessage !== ""
+                onRetry: root.loadHistory
+            }
+
             // Empty state, overlaid and centered on the overlay Item.
             EmptyState {
                 id: emptyState
@@ -174,7 +193,7 @@ Column {
                 subtitle: "File revisions will appear here"
                 width: parent.width
                 anchors.centerIn: parent
-                visible: root.historyData.length === 0
+                visible: !root.loading && root.errorMessage === "" && root.historyData.length === 0
             }
         }
     }

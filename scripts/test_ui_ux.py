@@ -17,7 +17,10 @@ check("unknown extension fallback", F.iconForItem({type: "file", name: "notes.un
 '''
 subprocess.run(["node", "-e", script], cwd=ROOT, check=True)
 file_item = (ROOT / "components/FileItem.qml").read_text()
+panel_source = (ROOT / "Panel.qml").read_text()
 assert "ToolTip.visible: mouseArea.containsMouse && truncated" in file_item
+assert "mouse.button !== Qt.LeftButton || root.singleClickOpen" in file_item
+assert 'if (root.state === "browse" && (!root.libraries || root.libraries.length === 0))' in panel_source
 assert "border.width: root.isCurrent ? Style.spacing.hairline : 0" in file_item
 print("PASS long-name tooltip and focus styling")
 bar = (ROOT / "components/BatchActionBar.qml").read_text()
@@ -29,10 +32,17 @@ assert "hoverEnabled: true" in toolbar
 assert "readonly property bool overflowAvailable: overflowMenu.itemCount > 0" in toolbar
 assert "visible: root.overflowAvailable" in toolbar
 assert "if (root.overflowAvailable) root.overflowOpen = !root.overflowOpen" in toolbar
-assert 'text: "More"' in toolbar and 'ToolbarToolTip {' in toolbar
+assert 'ToolbarToolTip' not in toolbar
+assert toolbar.count('PanelToolTip {') == 5
+assert 'text: "More"' not in toolbar
 assert 'ToolTip.visible:' not in toolbar
 assert 'showUpload: root.state === "browse" && root.currentRepo !== null' in panel
 assert 'showTransfers: root.state === "browse" && !root.dialogOpen && !root.destinationMode && !root.showTransfers' in panel
+for surface in ("components/HistoryPanel.qml", "components/TrashPanel.qml"):
+    source = (ROOT / surface).read_text()
+    assert "property bool loading: false" in source
+    assert "property string errorMessage: \"\"" in source
+    assert "visible: !root.loading && root.errorMessage !== \"\"" in source
 print("PASS compact selection action hierarchy")
 selection_bar = (ROOT / "components/BatchActionBar.qml").read_text()
 assert "mapToItem(root.overlay" in selection_bar

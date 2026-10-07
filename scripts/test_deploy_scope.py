@@ -15,8 +15,8 @@ with tempfile.TemporaryDirectory() as temp:
     deployed = subprocess.run([str(ROOT / "deploy.sh")], capture_output=True, text=True, env=env)
     if deployed.returncode != 0:
         raise SystemExit("FAIL: deploy did not complete\n" + deployed.stdout + deployed.stderr)
-    if (target / ".agents").exists() or (target / ".codex").exists():
-        raise SystemExit("FAIL: development metadata was deployed")
+    if (target / "AGENTS.md").exists() or (target / "docs").exists() or (target / "README.md").exists():
+        raise SystemExit("FAIL: development-only files were deployed")
     if not (target / "Panel.qml").is_file():
         raise SystemExit("FAIL: runtime plugin file was not deployed")
     checked = subprocess.run([str(ROOT / "deploy.sh"), "--check"], capture_output=True, text=True, env=env)

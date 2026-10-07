@@ -18,13 +18,11 @@ QtObject {
     // requests, while allowing already-running processes to clean up normally.
     property double sessionGeneration: 0
     function invalidateSession() { root.sessionGeneration++ }
-    readonly property string _transferOutputHelper: Qt.resolvedUrl("../scripts/transfer_output.py").toString().replace(/^file:\/\//, "")
+    readonly property string _transferOutputHelper: SafePath.scriptPath("transfer_output.py")
 
     property Component _requestFactory: Component {
         Process {
             property var onDone: null
-            property var headerFilePath: ""
-            property var bodyFilePath: ""
             property var responseBodyPath: ""
             stdout: StdioCollector {}
             stderr: StdioCollector {}
@@ -277,20 +275,6 @@ QtObject {
         var limit = maxLen || root.maxStringLength
         if (str.length > limit) return { valid: false, error: "String exceeds max length" }
         return { valid: true }
-    }
-
-    function sanitizeCollection(arr, itemValidator, maxItems) {
-        var limit = maxItems || root.maxCollectionItems
-        var out = []
-        for (var i = 0; i < Math.min(arr.length, limit); i++) {
-            if (itemValidator) {
-                var v = itemValidator(arr[i])
-                if (v.valid) out.push(v.value || arr[i])
-            } else {
-                out.push(arr[i])
-            }
-        }
-        return out
     }
 
     function validateResponse(data) {

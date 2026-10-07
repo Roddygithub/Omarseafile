@@ -8,7 +8,6 @@ QtObject {
     property bool online: true
     property string serverUrl: ""
     property int checkInterval: 30000
-    property int retryDelay: 5000
     property int maxConsecutiveFailures: 3
 
     property int consecutiveFailures: 0
@@ -102,10 +101,6 @@ QtObject {
                 onlineChanged()
             }
         }
-    }
-
-    function isOnline() {
-        return root.online
     }
 
     Component.onCompleted: {

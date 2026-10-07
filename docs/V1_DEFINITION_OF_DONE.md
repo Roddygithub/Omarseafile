@@ -1,6 +1,6 @@
-# Omarseafile v1.0 Definition of Done
+# Omarseafile v1.0 Definition of Done (historical)
 
-This is a release checklist for the later independent audit. It is not a certification and is intentionally not marked complete.
+This checklist records the original v1 scope. It is not a certification, current release gate, or statement of the plugin's present version; the current release is defined by `manifest.json` and `CHANGELOG.md`.
 
 ## Functionality
 
@@ -36,6 +36,8 @@ This is a release checklist for the later independent audit. It is not a certifi
 
 ## Static and Documentation Validation
 
+The original release-time checklist items below are preserved as historical records; the checkmarks do not certify later versions or current working-tree changes.
+
 - [ ] `./scripts/validate.sh` passes.
 - [ ] `./deploy.sh --check` passes.
 - [ ] `git diff --check` passes.
@@ -48,3 +50,5 @@ This is a release checklist for the later independent audit. It is not a certifi
 - [ ] Manifest version is intentionally changed to `1.0.0` only at release time.
 - [ ] Final independent release audit is completed by a fresh reviewer.
 - [ ] Release tag and public release are created only after the audit passes.
+
+This v1 checklist predates the current `1.2.0` release. Consult `manifest.json` and `CHANGELOG.md` for current release metadata; any future release requires its own audit and authorization.

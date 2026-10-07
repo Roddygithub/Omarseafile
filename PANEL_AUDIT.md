@@ -1,12 +1,10 @@
 # Omarseafile Panel.qml Architecture Audit
 
-**File**: `/home/roddy/Projects/Omarseafile/Panel.qml` (1724 lines)
-**Companion**: `/home/roddy/Projects/Omarseafile/views/BrowserView.qml` (7548 lines)
-**Other views**: No separate HomeView, SearchView, TransferView QML files exist; view decomposition lives inside BrowserView.qml.
+**Status**: Historical snapshot; the application structure has changed since this audit. See `Panel.qml`, `views/HomeView.qml`, and `views/BrowserView.qml` for the current implementation.
 
 ---
 
-## 1. Current State Machine
+## 1. Historical State Machine Snapshot
 
 The Panel's root object holds a dense flat state machine with 30+ `property` declarations. Key groups:
 
@@ -19,9 +17,9 @@ The Panel's root object holds a dense flat state machine with 30+ `property` dec
 | **Destination mode** | `destinationOperation` ("move" \| "copy"), `destinationSources` (array), `destinationSourceRepoId`, `destinationSourcePath`, `destinationSourceHistory`, `destinationSubmitting` |
 | **Selection** | `selectedItems` (array), `selectionAnchor` (item null) |
 | **Browse context** | `currentRepo`, `currentPath`, `pathHistory` (array), `libraries` (array), `currentItems` (array), `loading`, `errorMessage` |
-| **IPC / lifecycle** | `hostWidget`, `anchorItem`, `bar`, `fileListRef`, `settingsOpen`, `dialogOpen`, `_loaderEditing()`, `textInputActive` |
+| **IPC / lifecycle** | `hostWidget`, `anchorItem`, `bar`, `activeFileList()`, `settingsOpen`, `dialogOpen`, `_loaderEditing()`, `textInputActive` |
 
-**Transition functions** (defined on Panel root):
+**Transition functions** (from the historical audit; check current source before relying on this list):
 - `handleBackClick()` — cycles through: transfers � history � trash � settings ⇒ goBack()
 - `closeTopDialog()` — dismisses topmost modal, returns true if handled
 - `toggleTransfersView()` — `showTransfers = !showTransfers`
@@ -44,13 +42,13 @@ The Panel's root object holds a dense flat state machine with 30+ `property` dec
 - `showBack`, `showRefresh`, `showUpload`, `showCreateFolder`, `showSearch`, `showLogout`
 - `showTransfers`, `showTrash`
 - `destinationMode`, `destinationOperation`, `destinationCount`, `destinationPath`
-- `searchActive`, `searchQuery`, `selectionCount`, `hasTrashItems`
+- `searchActive`, `searchQuery`, `selectionCount`
 
 ---
 
-## 2. View Boundaries
+## 2. Historical View Boundaries
 
-### BrowserView (the only view component, `views/BrowserView.qml`)
+### BrowserView (`views/BrowserView.qml`)
 
 Declarative layout: a `Column` stacking overlay elements, each with `visible` guards.
 
@@ -68,7 +66,7 @@ Declarative layout: a `Column` stacking overlay elements, each with `visible` gu
 
 **Required properties** (Panel → BrowserView): `bar`, `currentItems`, `pathHistory`, `libraries`, `loading`, `errorMessage`, `searchActive`, `searchState`, `searchResults`, `searchErrorMessage`, `searchTruncated`, `maxSearchResults`, `showTransfers`, `transferRevision`, `selectedItems`, `selectionAnchor`, `currentRepo`, `currentPath`, `destinationMode`, `connectionService`, `searchPendingCount`, and 20+ callback props (`onItemClicked`, `onDownloadClicked`, `onOpenClicked`, `onRenameClicked`, `onMoveClicked`, `onDeleteClicked`, `onShareClicked`, `onHistoryClicked`, `onSearchResultClicked`, `onNavigateToPath`, `onRefresh`, `onToggleSelection`, `onSelectRange`, `onSelectOnly`, `onPositionClicked`, `onContextMenuRequested`, `onSearchRetry`).
 
-**No separate views exist**: There is no `HomeView.qml`, `SearchView.qml`, or `TransferView.qml`. The "views" are runtime-enabled/disabled via `visible` boolean guards inside BrowserView. The Panel uses Loader components (`loginComponent`, `browseComponent`, plus 8 modal loaders: `createFolderLoader`, `renameLoader`, `confirmLoader`, `shareLoader`, `uploadLoader`, `historyLoader`, `trashLoader`, `settingsLoader`) to swap top-level components.
+`HomeView.qml` and `BrowserView.qml` are separate Loader-backed views; search and transfers are presented in their owning view/panel. Modal loaders handle create-folder, rename, confirmation, share, upload, history, trash, and settings surfaces.
 
 ---
 
@@ -89,22 +87,15 @@ These are the "global" controls that coordinate all views. Moving them would req
 - `textInputActive` (derived), `settingsOpen`, `dialogOpen`
 - All `handle*()`, `do*()`, `open*()`, `close*()` functions
 
-### Could be moved to views (but currently embedded)
+### State ownership
 
-These are view-local states that are *read* from Panel but could conceptually live in the view:
-
-- `searchState`, `searchErrorMessage`, `searchPendingCount`, `searchTruncated` — only used by BrowserView's search overlays
-- `transferRevision`, `fileTransfers` — only used by TransferManager inside BrowserView
-- `destinationMode` — but this is a cross-view mode (affects Panel ToolBar + BrowserView + selection), so keeping it in Panel is correct
-- `selectedItems` / `selectionAnchor` — selection logic lives in Panel (SelectionHelper) but is read by BrowserView FileList
-
-**Verdict**: The current decomposition is reasonable. Panel owns the "model" (state + data); BrowserView owns the "view logic" (visible guards, local rendering). The main risk is the flat state machine growing unchecked as new toggles are added.
+Panel owns the session/navigation model and selection; `HomeView` and `BrowserView` receive explicit required properties and callbacks. Search UI now exists in both views, while transfers are rendered in the Panel-level single TransferManager. Keep this section historical and inspect current QML before changing ownership.
 
 ---
 
 ## 4. Integration Points & Event Handlers
 
-### Panel → BrowserView (20+ callbacks, all required properties)
+### Panel → views (callbacks and required properties)
 
 | Callback | Panel function delegates to | Purpose |
 |---|---|---|
@@ -126,7 +117,7 @@ These are view-local states that are *read* from Panel but could conceptually li
 | `onContextMenuRequested` | `root.showItemContextMenu(item, x, y)` | Show context menu |
 | `onSearchRetry` | `root.executeSearch()` | Retry search |
 
-### BrowserView → Panel (signals / ToolBar handlers)
+### Views / ToolBar → Panel (callbacks and handlers)
 
 | Handler | Target | Purpose |
 |---|---|---|
@@ -192,11 +183,11 @@ These are view-local states that are *read* from Panel but could conceptually li
 
 ## Summary & Recommendations
 
-1. **No separate view files exist** — HomeView, SearchView, TransferView are not decomposed. All view logic resides in `BrowserView.qml` via visible guards. If decomposition is desired, each view could be a separate QML file with its own Loader, but the current design is functional.
+1. **Views are split across QML files** — `HomeView.qml` and `BrowserView.qml` are loaded by Panel; search has view-local rendering and Transfers uses one Panel-level `TransferManager`.
 
 2. **State machine is flat and Panel-owned** — All 30+ properties live on the Panel root. Consider grouping related properties into a sub-object (e.g., `root.stateMachine = { showTransfers: false, search: { active: false, query: "" } }`) to reduce noise, but this is a refactor, not a fix.
 
-3. **Event handler coverage is comprehensive** — Every UI action in ToolBar, FileList, SearchResults, TransferManager, and KeyboardPanel has a dedicated callback. The integration pattern (Panel function → BrowserView callback → Panel function) is consistent.
+3. **Callback boundaries** — Views and ToolBar route user actions back to Panel through explicit properties. Keep callbacks explicit as view responsibilities evolve.
 
 4. **Modal loaders are the view-switching mechanism** — Eight Loader items handle modal dialogs. The `dialogOpen` gating is the single source of truth for "is anything open?".
 
@@ -205,4 +196,4 @@ These are view-local states that are *read* from Panel but could conceptually li
 6. **Potential simplification**: The `destinationMode` + `destinationSources` + `destinationOperation` could be consolidated into a single `DestinationMode { operation: "move", sources: [...] }` object, but the current flat properties work and are directly bound in ToolBar.
 
 ---
-*End of audit. No files were modified.*
+*This architecture note is historical; update it when the view/component boundaries change.*

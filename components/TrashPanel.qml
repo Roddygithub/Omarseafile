@@ -8,17 +8,21 @@ Column {
     required property var bar
     required property var repoId
     required property var onClose
-    property var onError: null
+    property bool loading: false
+    property string errorMessage: ""
 
     width: parent.width
     spacing: 0
 
     function loadTrash() {
+        root.loading = true
+        root.errorMessage = ""
         SeafileAPI.listTrash(root.repoId, function(success, data, error) {
+            root.loading = false
             if (success) {
                 root.trashData = data
             } else {
-                if (root.onError) root.onError("Failed to load trash: " + error)
+                root.errorMessage = "Failed to load trash: " + error
             }
         })
     }
@@ -148,6 +152,21 @@ Column {
                 }
             }
 
+            LoadingIndicator {
+                bar: root.bar
+                visible: root.loading
+                anchors.centerIn: parent
+            }
+
+            ErrorOverlay {
+                anchors.fill: parent
+                visible: !root.loading && root.errorMessage !== ""
+                bar: root.bar
+                message: root.errorMessage
+                showError: !root.loading && root.errorMessage !== ""
+                onRetry: root.loadTrash
+            }
+
             // Empty state, overlaid and centered on the overlay Item.
             EmptyState {
                 id: emptyState
@@ -157,7 +176,7 @@ Column {
                 subtitle: "Deleted items appear here"
                 width: parent.width
                 anchors.centerIn: parent
-                visible: root.trashData.length === 0
+                visible: !root.loading && root.errorMessage === "" && root.trashData.length === 0
             }
         }
     }

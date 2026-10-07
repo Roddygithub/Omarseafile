@@ -14,7 +14,7 @@ QtObject {
     readonly property string keyEmail: "user-email"
     property var _sessionMutationTail: null
     property double sessionGeneration: 0
-    readonly property string _wrapperPath: Qt.resolvedUrl("../scripts/secret_tool_wrapper.py").toString().replace(/^file:\/\//, "")
+    readonly property string _wrapperPath: SafePath.scriptPath("secret_tool_wrapper.py")
     readonly property int _maxSecretBytes: 4096
 
     function _queueSessionMutation(mutation) {
@@ -182,11 +182,6 @@ QtObject {
         })
     }
 
-    function validateSession(token) {
-        if (!token) return false
-        return token.length > 20
-    }
-
     function checkDependency(cmd) {
         return new Promise(function(resolve) {
             var proc = root.procFactory.createObject(root, {
@@ -211,6 +206,8 @@ QtObject {
                 { cmd: "zenity", name: "zenity (graphical file picker)", install: "sudo pacman -S zenity", required: false },
                 { cmd: "wl-copy", name: "wl-copy (wl-clipboard)", install: "sudo pacman -S wl-clipboard", required: false },
                 { cmd: "xdg-open", name: "xdg-open (open files)", install: "sudo pacman -S xdg-utils", required: false },
+                { cmd: "xdg-mime", name: "xdg-mime (open files)", install: "sudo pacman -S xdg-utils", required: false },
+                { cmd: "uwsm-app", name: "uwsm-app (open files)", install: "install Omarchy/UWSM", required: false },
                 { cmd: "notify-send", name: "notify-send (notifications)", install: "sudo pacman -S libnotify", required: false }
             ]
             var missing = []

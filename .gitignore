@@ -7,3 +7,11 @@ deploy.sh.bak
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Local-only validation notes
+scripts/README_blocker_suite.md
+scripts/test_blockers_hardwork.md
+scripts/validate_debug_exit.md
+scripts/validate_debug_exit2.md
+scripts/validate_debug_final.md
+scripts/validate_runtime_notes.md
