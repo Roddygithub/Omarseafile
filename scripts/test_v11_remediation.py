@@ -454,11 +454,13 @@ R.push("queueLimitAcceptsUnderCap=" + JSON.stringify(
   T.startUpload("/tmp/under.txt", "tok", "https://s.example", "r1", "/", "under.txt") !== null));
 
 // Cancelling a QUEUED upload works and frees nothing that was never started
-const queued = T.transfers.filter(t => t.state === "queued");
-const before = T.transfers.filter(t => t.state === "queued").length;
-T.cancelTransfer(queued[0].id);
-R.push("queuedCancel=" + (queued[0].state === "cancelled"));
-R.push("queuedCancelFreesSlot=" + JSON.stringify(T.transfers.filter(t => t.state === "queued").length === before - 1));
+        const queuedInitial = T.transfers.filter(t => t.state === "queued");
+        const before = queuedInitial.length;
+        const targetId = queuedInitial[0].id;
+        T.cancelTransfer(targetId);
+        const cancelled = T.transfers.find(t => t.id === targetId);
+        R.push("queuedCancel=" + (cancelled && cancelled.state === "cancelled"));
+        R.push("queuedCancelFreesSlot=" + JSON.stringify(T.transfers.filter(t => t.state === "queued").length === before - 1));
 
 // Finish one in-flight upload: its slot must be handed to the next queued one.
 const validating = T.transfers.filter(t => t.state === "validating");
