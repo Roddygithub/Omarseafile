@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 - Search started from the root list now renders on the Home view instead of disappearing when no library is open.
+- Shift+F10 opens the context menu for the keyboard-focused list item.
 - History and Trash expose their own loading and error states with a Retry action, replacing the transient toast for the same failure.
 - "Open Local" launches through `scripts/open_cached_file.sh`: it resolves the configured MIME handler through UWSM and falls back to `xdg-open` when the handler or `xdg-mime` is unavailable. The lifecycle suite exercises this exact script.
 - `scripts/test_required_properties.py` fails the build when a component instantiated through a Loader is missing one of its `required property` assignments, which would otherwise surface as a blank view at runtime.
@@ -18,12 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Toolbar tooltips are unified on `PanelToolTip`; the overflow button no longer shows a "More" tooltip that only obscured the toolbar edge.
 - The Trash toolbar action is only offered inside a library, where a trash list actually exists.
 - Double-click no longer re-opens a file when single-click open is enabled.
+- Search, sort headers, Quick Access and transfer actions expose keyboard and accessible names; Type sorting is now visibly labelled.
+- The toolbar now measures the actual visible controls before sizing its title/search field, preventing action buttons from overflowing the panel.
 - Four contract suites that previously sat on disk unenforced (`test_ux_performance`, `test_mutation_contracts`, `test_search_action_contracts`, `test_login_contracts`) are part of the portable CI gate.
 
 ### Fixed
 - Restoring a saved session on startup now reports credential-lookup failures instead of failing silently.
 - An empty toolbar overflow menu is hidden instead of rendering as an empty popup.
 - Transfer rows keep their width, so file names and progress no longer collapse in the list and on Home.
+- File, search, history and trash rows now size their content against the viewport instead of a zero-width `Row`.
+- Home shows a loading indicator during the initial library request and a distinct empty-account message after a successful empty response.
+- The selected-item details card, offline banner and toast now receive real layout heights instead of relying on their implicit size alone.
+- Login reports missing fields inline; editing the server URL clears stale connection-test results without showing an error toast per keystroke, and the test enforces the same HTTPS policy as login.
+- Share-link expiration cannot silently be omitted when enabled, and starting another link resets the previous link/password state. Escape now dismisses the revoke confirmation before closing Share.
+- Single-item actions stay in Details; the batch toolbar is reserved for multi-selection, and the context menu or dialogs suppress overlapping actions.
+- Sharing an item from its context menu no longer leaves a temporary selection that reveals the details/actions pane after Share closes; focus and selection highlights are inset 16px on both sides of the row (clear of the panel edges), with a separate leading selection marker and content kept clear of the ring.
 
 ### Removed
 - Unused helpers with no callers: `Models.parseFiles`/`parseLibraries` (superseded by the validating parsers in `SeafileAPI`), `SelectionHelper.serialize`/`deserialize`/`getSelectionCount`, `Favorites.removeById`/`clearActive`, `HttpTransport.sanitizeCollection`, `TransferService.getActiveCount`, `Cache.hasValidCache`, and the `ConnectionService.isOnline`/`retryDelay` members.

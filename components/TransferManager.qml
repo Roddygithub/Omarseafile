@@ -142,11 +142,17 @@ Column {
             Text {
                 id: clearCompletedBtn
                 text: "Clear Done"
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: "Clear completed transfers"
+                Accessible.onPressAction: { if (root.onClearCompleted) root.onClearCompleted() }
                 color: Color.accent
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
                 height: parent.height
                 verticalAlignment: Text.AlignVCenter
+                Keys.onReturnPressed: function(event) { if (root.onClearCompleted) root.onClearCompleted(); event.accepted = true }
+                Keys.onSpacePressed: function(event) { if (root.onClearCompleted) root.onClearCompleted(); event.accepted = true }
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
@@ -196,11 +202,17 @@ Column {
             Text {
                 id: clearFailedBtn
                 text: "Clear"
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: "Clear failed transfers"
+                Accessible.onPressAction: { if (root.onClearFailed) root.onClearFailed() }
                 color: Color.urgent
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
                 height: parent.height
                 verticalAlignment: Text.AlignVCenter
+                Keys.onReturnPressed: function(event) { if (root.onClearFailed) root.onClearFailed(); event.accepted = true }
+                Keys.onSpacePressed: function(event) { if (root.onClearFailed) root.onClearFailed(); event.accepted = true }
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor

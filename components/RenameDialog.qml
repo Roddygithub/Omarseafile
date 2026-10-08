@@ -43,6 +43,7 @@ Item {
             id: nameField
             width: parent.width
             placeholderText: "New name"
+            Accessible.name: "New name"
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
             // Escape closes this dialog only — never the whole panel.

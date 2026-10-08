@@ -80,6 +80,13 @@ Item {
             onRetry: root.onRefresh
         }
 
+        LoadingIndicator {
+            width: parent.width
+            visible: root.loading && !root.searchActive
+            message: "Loading libraries..."
+            bar: root.bar
+        }
+
         // Quick Access Section
         Column {
             id: quickAccessSection
@@ -112,6 +119,7 @@ Item {
                     property string displayName: modelData.repoName || modelData.name || ""
 
                     implicitHeight: row.implicitHeight
+                    height: implicitHeight
 
                     // Declared BEFORE the Row so the Row's remove Button stacks
                     // above it and owns its own presses: the row only navigates
@@ -121,13 +129,28 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: "Open library " + displayName
+                        Accessible.onPressAction: {
+                            if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
+                        }
                         onClicked: {
                             if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
+                        }
+                        Keys.onReturnPressed: function(event) {
+                            if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
+                            event.accepted = true
+                        }
+                        Keys.onSpacePressed: function(event) {
+                            if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
+                            event.accepted = true
                         }
                     }
 
                     Row {
                         id: row
+                        width: parent.width
                         spacing: Style.space(12)
                         height: Math.max(icon.implicitHeight, nameLabel.implicitHeight) + Style.space(6)
 
@@ -162,6 +185,7 @@ Item {
                             width: Style.space(24)
                             height: Style.space(24)
                             tooltipText: "Remove from Quick Access"
+                            Accessible.name: "Remove " + displayName + " from Quick Access"
                             // The row MouseArea is declared before this Row, so
                             // the button stacks above it and owns its presses.
                             onClicked: {
@@ -181,6 +205,7 @@ Item {
                     property string displayName: modelData.name || modelData.path || ""
 
                     implicitHeight: row.implicitHeight
+                    height: implicitHeight
 
                     // Declared before the Row so the remove Button stacks above
                     // it and owns its presses (see library delegate above).
@@ -188,13 +213,28 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: "Open folder " + displayName
+                        Accessible.onPressAction: {
+                            if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
+                        }
                         onClicked: {
                             if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
+                        }
+                        Keys.onReturnPressed: function(event) {
+                            if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
+                            event.accepted = true
+                        }
+                        Keys.onSpacePressed: function(event) {
+                            if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
+                            event.accepted = true
                         }
                     }
 
                     Row {
                         id: row
+                        width: parent.width
                         spacing: Style.space(12)
                         height: Math.max(icon.implicitHeight, nameLabel.implicitHeight) + Style.space(6)
 
@@ -229,6 +269,7 @@ Item {
                             width: Style.space(24)
                             height: Style.space(24)
                             tooltipText: "Remove from Quick Access"
+                            Accessible.name: "Remove " + displayName + " from Quick Access"
                             // The row MouseArea is declared before this Row, so
                             // the button stacks above it and owns its presses.
                             onClicked: {
@@ -274,6 +315,7 @@ Item {
                     property bool isQueued: modelData.state === "queued"
 
                     implicitHeight: row.implicitHeight
+                    height: implicitHeight
 
                     Row {
                         id: row
@@ -323,6 +365,7 @@ Item {
                             height: Style.space(24)
                             visible: isActive
                             tooltipText: "Cancel transfer"
+                            Accessible.name: "Cancel transfer of " + (modelData.fileName || "file")
                             // Was `onClicked: root.onCancel`, which evaluated the
                             // callback without ever calling it - cancel did
                             // nothing. Queued transfers are cancellable too.
@@ -421,10 +464,12 @@ Item {
             id: emptyState
             bar: root.bar
             icon: Icons.book
-            title: "Quick Access"
-            subtitle: "Pin libraries and folders for quick access\nRight-click an item in the browser and select \"Add to Quick Access\""
+            title: root.libraries.length === 0 ? "No libraries available" : "Quick Access"
+            subtitle: root.libraries.length === 0
+                ? "This account has no accessible libraries."
+                : "Pin libraries and folders for quick access\nRight-click an item in the browser and select \"Add to Quick Access\""
             width: parent.width
-            visible: root.errorMessage === "" && !root.searchActive && Favorites.getLibraries().length === 0 && Favorites.getFolders().length === 0 && root.activeCount === 0 && !(root.libraries && root.libraries.length > 0)
+            visible: !root.loading && root.errorMessage === "" && !root.searchActive && Favorites.getLibraries().length === 0 && Favorites.getFolders().length === 0 && root.libraries.length === 0
         }
     }
 }

@@ -127,33 +127,55 @@ delegate: FileItem {
             spacing: 0
 
             Row {
-            width: parent.width
+            // Same width as the FileItem content row, so the header columns
+            // stay aligned with the cells beneath them.
+            width: parent.width - Style.space(24)
             height: implicitHeight
             spacing: Style.space(12)
 
             // Icon column = Type sort (matches FileItem icon column)
             MouseArea {
-                width: Style.space(24)
+                width: Style.space(56)
                 height: parent.height
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: root.sortColumn === "type"
+                    ? (root.sortAscending ? "Sort by type, ascending" : "Sort by type, descending")
+                    : "Sort by type"
+                Accessible.onPressAction: root.toggleSort("type")
                 onClicked: { root.toggleSort("type"); }
+                Keys.onReturnPressed: function(event) { root.toggleSort("type"); event.accepted = true }
+                Keys.onSpacePressed: function(event) { root.toggleSort("type"); event.accepted = true }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: root.sortColumn === "type" ? (root.sortAscending ? "▲" : "▼") : ""
-                    color: Color.accent
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    text: root.sortColumn === "type" ? (root.sortAscending ? "Type ▲" : "Type ▼") : "Type"
+                    color: root.sortColumn === "type" ? Color.accent : root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.caption
+                    font.bold: root.sortColumn === "type"
+                    elide: Text.ElideRight
                 }
             }
 
             // Name column (flex)
             MouseArea {
-                width: parent.width - Style.space(24) - Style.space(80) - Style.space(150) - Style.space(36)
+                width: parent.width - Style.space(56) - Style.space(80) - (Style.space(150) - Style.space(24)) - Style.space(36)
                 height: parent.height
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: root.sortColumn === "name"
+                    ? (root.sortAscending ? "Sort by name, ascending" : "Sort by name, descending")
+                    : "Sort by name"
+                Accessible.onPressAction: root.toggleSort("name")
                 onClicked: { root.toggleSort("name"); }
+                Keys.onReturnPressed: function(event) { root.toggleSort("name"); event.accepted = true }
+                Keys.onSpacePressed: function(event) { root.toggleSort("name"); event.accepted = true }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width
@@ -172,7 +194,15 @@ delegate: FileItem {
                 height: parent.height
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: root.sortColumn === "size"
+                    ? (root.sortAscending ? "Sort by size, ascending" : "Sort by size, descending")
+                    : "Sort by size"
+                Accessible.onPressAction: root.toggleSort("size")
                 onClicked: { root.toggleSort("size"); }
+                Keys.onReturnPressed: function(event) { root.toggleSort("size"); event.accepted = true }
+                Keys.onSpacePressed: function(event) { root.toggleSort("size"); event.accepted = true }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width
@@ -187,11 +217,19 @@ delegate: FileItem {
 
             // Modified date column (matches FileItem dateLabel)
             MouseArea {
-                width: Style.space(150)
+                width: Style.space(150) - Style.space(24)
                 height: parent.height
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: root.sortColumn === "date"
+                    ? (root.sortAscending ? "Sort by modified date, ascending" : "Sort by modified date, descending")
+                    : "Sort by modified date"
+                Accessible.onPressAction: root.toggleSort("date")
                 onClicked: { root.toggleSort("date"); }
+                Keys.onReturnPressed: function(event) { root.toggleSort("date"); event.accepted = true }
+                Keys.onSpacePressed: function(event) { root.toggleSort("date"); event.accepted = true }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width

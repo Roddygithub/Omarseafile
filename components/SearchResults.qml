@@ -16,6 +16,22 @@ ListView {
     height: parent.height
     clip: true
     spacing: Style.space(2)
+    keyNavigationEnabled: true
+    activeFocusOnTab: true
+    Accessible.name: "Search results"
+    onActiveFocusChanged: {
+        if (activeFocus && root.currentIndex < 0 && root.count > 0) root.currentIndex = 0
+    }
+    Keys.onReturnPressed: function(event) {
+        if (root.currentIndex >= 0 && root.currentIndex < root.filteredResults.length)
+            root.onResultClicked(root.filteredResults[root.currentIndex])
+        event.accepted = true
+    }
+    Keys.onEnterPressed: function(event) {
+        if (root.currentIndex >= 0 && root.currentIndex < root.filteredResults.length)
+            root.onResultClicked(root.filteredResults[root.currentIndex])
+        event.accepted = true
+    }
 
     // Distinct library names present in the current result set, in first-seen
     // order. Computed once so the filter model and its index lookup agree.
@@ -74,6 +90,7 @@ ListView {
                 id: typeFilter
                 width: Style.space(100)
                 model: ["All", "Files", "Folders"]
+                Accessible.name: "Filter search results by type"
                 currentIndex: root.filterType === "all" ? 0 : (root.filterType === "file" ? 1 : 2)
                 onActivated: function(index) {
                     root.filterType = ["all", "file", "folder"][index]
@@ -84,6 +101,7 @@ ListView {
                 id: libraryFilter
                 width: Style.space(140)
                 model: ["All libraries"].concat(root.libraryNames)
+                Accessible.name: "Filter search results by library"
                 currentIndex: root.filterLibrary === "" ? 0 : Math.max(0, root.libraryNames.indexOf(root.filterLibrary) + 1)
                 onActivated: function(index) {
                     root.filterLibrary = index === 0 ? "" : (root.libraryNames[index - 1] || "")
@@ -111,14 +129,22 @@ ListView {
     delegate: Item {
         id: delegate
         required property var modelData
+        required property int index
         property bool isDir: modelData.type === "folder"
         property string repoName: modelData.repoName || ""
 
         implicitHeight: row.implicitHeight
+        height: implicitHeight
         width: ListView.view ? ListView.view.width : parent.width
+        Accessible.role: Accessible.ListItem
+        Accessible.focusable: true
+        Accessible.name: (delegate.isDir ? "Folder " : "File ") + (delegate.modelData.name || "") + ", " + delegate.repoName
+        focus: ListView.isCurrentItem
+        Accessible.onPressAction: root.onResultClicked(delegate.modelData)
 
         Row {
             id: row
+            width: parent.width
             spacing: Style.space(12)
             height: Math.max(icon.implicitHeight, textColumn.implicitHeight) + Style.space(6)
 

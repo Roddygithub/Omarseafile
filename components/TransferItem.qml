@@ -15,6 +15,7 @@ Item {
     property var onShowInFolder: null
 
     implicitHeight: row.implicitHeight + Style.space(8)
+    height: implicitHeight
     width: parent.width
 
     property bool isCancelling: transfer.state === "cancelling"
@@ -37,6 +38,7 @@ Item {
         id: row
         width: parent.width
         spacing: Style.space(8)
+        height: implicitHeight
 
         Text {
             id: typeIcon
@@ -138,7 +140,13 @@ Item {
                     color: root.bar.foreground
                     font.family: Icons.family
                     font.pixelSize: Style.font.caption
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: "Retry transfer"
+                    Accessible.onPressAction: { if (root.onRetry) root.onRetry(root.transfer) }
                     ToolTip.text: "Retry transfer"
+                    Keys.onReturnPressed: function(event) { if (root.onRetry) root.onRetry(root.transfer); event.accepted = true }
+                    Keys.onSpacePressed: function(event) { if (root.onRetry) root.onRetry(root.transfer); event.accepted = true }
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
@@ -151,7 +159,13 @@ Item {
                     color: Color.urgent
                     font.family: Icons.family
                     font.pixelSize: Style.font.caption
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: "Remove transfer from history"
+                    Accessible.onPressAction: { if (root.onClear) root.onClear(root.transfer) }
                     ToolTip.text: "Remove from history"
+                    Keys.onReturnPressed: function(event) { if (root.onClear) root.onClear(root.transfer); event.accepted = true }
+                    Keys.onSpacePressed: function(event) { if (root.onClear) root.onClear(root.transfer); event.accepted = true }
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
@@ -165,10 +179,16 @@ Item {
                 color: Color.urgent
                 font.family: Icons.family
                 font.pixelSize: Style.font.caption
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: "Cancel transfer"
+                Accessible.onPressAction: { if (root.onCancel) root.onCancel(root.transfer) }
                 ToolTip.text: "Cancel transfer"
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 visible: root.isActive && !root.isCancelling
+                Keys.onReturnPressed: function(event) { if (root.onCancel) root.onCancel(root.transfer); event.accepted = true }
+                Keys.onSpacePressed: function(event) { if (root.onCancel) root.onCancel(root.transfer); event.accepted = true }
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
@@ -185,7 +205,13 @@ Item {
                     color: root.bar.foreground
                     font.family: Icons.family
                     font.pixelSize: Style.font.caption
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: "Open downloaded file"
+                    Accessible.onPressAction: { if (root.onOpen) root.onOpen(root.transfer) }
                     ToolTip.text: "Open file"
+                    Keys.onReturnPressed: function(event) { if (root.onOpen) root.onOpen(root.transfer); event.accepted = true }
+                    Keys.onSpacePressed: function(event) { if (root.onOpen) root.onOpen(root.transfer); event.accepted = true }
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
@@ -198,7 +224,13 @@ Item {
                     color: root.bar.foreground
                     font.family: Icons.family
                     font.pixelSize: Style.font.caption
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: "Show downloaded file in folder"
+                    Accessible.onPressAction: { if (root.onShowInFolder) root.onShowInFolder(root.transfer) }
                     ToolTip.text: "Show in file manager"
+                    Keys.onReturnPressed: function(event) { if (root.onShowInFolder) root.onShowInFolder(root.transfer); event.accepted = true }
+                    Keys.onSpacePressed: function(event) { if (root.onShowInFolder) root.onShowInFolder(root.transfer); event.accepted = true }
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor

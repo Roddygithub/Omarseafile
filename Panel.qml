@@ -11,7 +11,6 @@ import "./views"
 Panel {
     id: root
     moduleName: "roddy.seafile"
-    ipcTarget: "roddy.seafile"
     manageIpc: false
 
     property QtObject hostWidget: null
@@ -81,6 +80,7 @@ Panel {
     // ===== SELECTION STATE =====
     property var selectedItems: []
     property var selectionAnchor: null
+    property bool contextMenuAddedSelection: false
 
     // ===== UX PREFERENCES =====
     property bool singleClickOpen: setting("singleClickOpen", false)
@@ -264,6 +264,8 @@ Panel {
     // dismissed so Escape can close dialogs before it closes the panel.
     function closeTopDialog() {
         if (root.destinationMode) { root.cancelDestinationMode(); return true }
+        if (contextMenu.opened) { contextMenu.close(); return true }
+        if (shareLoader.item && shareLoader.item.revokeConfirmationOpen) { shareLoader.item.cancelRevoke(); return true }
         if (shareLoader.item) { root.cancelShare(); return true }
         if (uploadLoader.item) { root.cancelFilePicker(); return true }
         if (confirmLoader.item) { root.cancelDelete(); return true }
@@ -360,7 +362,7 @@ Panel {
     // Own the IPC target (manageIpc:false above) — same pattern as the
     // shell's dropbox/network panels: base-Panel handlers plus extras.
     IpcHandler {
-        target: root.ipcTarget
+        target: root.moduleName
         function open(): void { root.open() }
         function close(): void { root.close() }
         function show(): void { root.open() }
@@ -385,8 +387,9 @@ Panel {
 
     function showItemContextMenu(item, x, y) {
         if (!item || root.destinationMode) return
+        root.contextMenuAddedSelection = root.currentRepo !== null && !root.isItemSelected(item)
         if (!root.currentRepo) root.clearSelection()
-        else if (!root.isItemSelected(item)) root.selectOnly(item)
+        else if (root.contextMenuAddedSelection) root.selectOnly(item)
         contextMenu.item = item
         contextMenu.isDir = item.type === "dir"
         contextMenu.libraryMode = root.currentRepo === null
@@ -410,6 +413,27 @@ Panel {
         contextMenu.x = Math.max(0, Math.min(x, contextMenu.parent.width - contextMenu.width))
         contextMenu.y = Math.max(0, Math.min(y, contextMenu.parent.height - contextMenu.implicitHeight))
         contextMenu.open()
+    }
+
+    function shareFromContextMenu(item) {
+        var clearTemporarySelection = root.contextMenuAddedSelection
+        root.contextMenuAddedSelection = false
+        if (clearTemporarySelection) root.clearSelection()
+        root.pickShare(item)
+    }
+
+    function showKeyboardContextMenu() {
+        if (root.destinationSubmitting) return
+        var list = root.activeFileList()
+        if (!list || list.count <= 0) return
+        if (list.currentIndex < 0) list.currentIndex = 0
+        var current = list.currentItem || list.itemAtIndex(list.currentIndex)
+        if (!current) return
+        var item = current.item || current.modelData
+        if (!item) return
+        var overlay = keyCatcher.Overlay.overlay
+        var point = current.mapToItem(overlay, current.width / 2, current.height / 2)
+        root.showItemContextMenu(item, point.x, point.y)
     }
 
     ConnectionService {
@@ -507,7 +531,7 @@ Panel {
                 onRenameClicked: function(item) { root.pickRename(item) }
                 onMoveClicked: function(item) { root.moveItems(item) }
                 onCopyClicked: function(item) { root.copyItems(item) }
-                onShareClicked: function(item) { root.pickShare(item) }
+                onShareClicked: function(item) { root.shareFromContextMenu(item) }
                 onHistoryClicked: function(item) { root.openHistory(item) }
                 onDeleteClicked: function(item) {
                     if (root.selectedItems.length > 1) root.deleteItems()
@@ -556,7 +580,8 @@ Panel {
                     showOffline: !panelConnectionService.online
                     searchActive: root.searchActive
                     searchQuery: root.searchQuery
-                    selectionCount: root.selectedItems.length
+                    selectionCount: (!root.dialogOpen && !contextMenu.opened && root.selectedItems.length > 1)
+                        ? root.selectedItems.length : 0
                     destinationMode: root.destinationMode
                     destinationOperation: root.destinationOperation
                     destinationCount: root.destinationSources.length
@@ -762,6 +787,7 @@ Panel {
                         transferRevision: root.transferRevision
                         selectedItems: root.selectedItems
                         selectionAnchor: root.selectionAnchor
+                        contextMenuOpen: contextMenu.opened
                         currentRepo: root.currentRepo
                         currentPath: root.currentPath
                         destinationMode: root.destinationMode
@@ -776,8 +802,6 @@ Panel {
                         onShareClicked: function(item) { root.destinationMode ? null : root.pickShare(item) }
                         onHistoryClicked: root.openHistory
                         onSearchResultClicked: function(result) { root.onSearchResultClicked(result) }
-                        onMoveBatch: root.moveItems
-                        onDeleteBatch: root.deleteItems
                         onNavigateToPath: function(index) { root.navigateToPath(index) }
                         onRefresh: function() { root.refresh() }
                         onToggleSelection: root.destinationMode || !root.currentRepo ? function() {} : root.toggleSelection
@@ -797,6 +821,17 @@ Panel {
             }
         }
 
+        Item {
+            width: 0
+            height: 0
+
+            Shortcut {
+                sequence: "Shift+F10"
+                context: Qt.ApplicationShortcut
+                enabled: root.opened && root.state === "browse" && !root.searchActive && !root.dialogOpen && !root.destinationMode && !root.showTransfers && !contextMenu.opened
+                onActivated: root.showKeyboardContextMenu()
+            }
+        }
     }
 
     // The navigable FileList is owned by whichever view the state Loader is
@@ -1622,6 +1657,15 @@ Panel {
     }
 
     function changeServerUrl(newUrl, apply) {
+        if (!apply) {
+            root.connectionTestGeneration++
+            if (settingsLoader.item) {
+                settingsLoader.item.connectionTestRunning = false
+                settingsLoader.item.connectionTestSuccess = false
+                settingsLoader.item.connectionTestMessage = ""
+            }
+            return
+        }
         var normalized = normalizeUrl(newUrl)
         if (!normalized) {
             root.showToast("Invalid URL format", "error")
@@ -1632,7 +1676,7 @@ Panel {
             root.showToast(policy.error, "error")
             return
         }
-        if (apply && normalized !== root.serverUrl) {
+        if (normalized !== root.serverUrl) {
             root.doLogout()
             root.serverUrl = normalized
             root.errorMessage = "Server changed. Please log in again."
@@ -1651,20 +1695,26 @@ Panel {
     }
 
     function testConnection(url) {
+        var settingsDialog = settingsLoader.item
+        if (!settingsDialog) return
+        var generation = ++root.connectionTestGeneration
+        settingsDialog.connectionTestRunning = false
+        settingsDialog.connectionTestSuccess = false
+        settingsDialog.connectionTestMessage = ""
+
         var normalized = normalizeUrl(url)
         if (!normalized) {
-            root.showToast("Invalid URL format", "error")
+            settingsDialog.connectionTestMessage = "Enter a valid server URL."
             return
         }
-        // Update the connection test result in settings dialog
-        var settingsDialog = settingsLoader.item
-        if (settingsDialog) {
-            settingsDialog.connectionTestRunning = true
-            settingsDialog.connectionTestSuccess = false
-            settingsDialog.connectionTestMessage = "Testing connection..."
+        var policy = UrlPolicy.validateForAuth(normalized)
+        if (!policy.valid) {
+            settingsDialog.connectionTestMessage = policy.error
+            return
         }
 
-        var generation = ++root.connectionTestGeneration
+        settingsDialog.connectionTestRunning = true
+        settingsDialog.connectionTestMessage = "Testing connection..."
         var xhr = new XMLHttpRequest()
         var testUrl = normalized + "/api2/ping/"
         xhr.open("GET", testUrl, true)

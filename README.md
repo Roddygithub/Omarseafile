@@ -142,6 +142,7 @@ Search is available from the toolbar. It is debounced and searches each accessib
 | Space | Open a folder or activate a file | Browse mode and file-list focus |
 | Arrow Up/Down | Move the current list item | Browse mode and file-list focus |
 | Arrow Left/Right / h l | Back / open the focused folder | Browse mode and file-list focus |
+| Shift+F10 | Open the context menu for the focused item | Browse mode and file-list focus |
 | Ctrl+A | Select all visible items | Browse mode, no dialog/search/destination mode |
 | Ctrl+Click | Toggle item selection | Browse mode |
 | Shift+Click | Range selection | Browse mode |

@@ -16,8 +16,12 @@ def check(name, condition):
     print(f"PASS {name}")
 
 check("Enter submission has one shared path", "function submit()" in login and login.count("onAccepted: root.submit()") == 3)
-check("empty form is not submitted", "if (!serverField.text.trim() || !emailField.text.trim() || !passwordField.text) return" in login)
-check("login errors are displayed", "property string _raw: root.errorMessage" in login and "errorMessage: root.errorMessage" in panel)
+check("empty fields show inline validation and are not submitted",
+      'root.validationMessage = "Enter your Seafile server URL."' in login
+      and 'root.validationMessage = "Enter your email address."' in login
+      and 'root.validationMessage = "Enter your password."' in login
+      and "root.onLogin(serverField.text, emailField.text.trim(), passwordField.text)" in login)
+check("login errors are displayed", "root.validationMessage || errorText._raw" in login and "errorMessage: root.errorMessage" in panel)
 check("busy login disables submit", "enabled: !root.loading" in login and "if (root.loading) return" in login)
 check("busy state is visible", 'text: root.loading ? "Connecting…" : "Connect"' in login)
 check("Escape still dismisses login", login.count("root.onDismiss()") == 3)

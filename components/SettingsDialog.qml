@@ -86,6 +86,7 @@ Item {
                 id: serverUrlField
                 width: parent.width
                 placeholderText: "https://seafile.example.com"
+                Accessible.name: "Seafile server URL"
                 text: root.serverUrl
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.body
@@ -112,6 +113,7 @@ Item {
                     id: testConnectionButton
                     width: parent.width / 2 - Style.space(4)
                     text: "Test Connection"
+                    enabled: !root.connectionTestRunning
                     onClicked: {
                         if (root.onTestConnection) root.onTestConnection(serverUrlField.text)
                     }
@@ -120,6 +122,7 @@ Item {
                     id: applyServerButton
                     width: parent.width / 2 - Style.space(4)
                     text: "Apply Server"
+                    enabled: !root.connectionTestRunning
                     onClicked: {
                         if (root.onChangeServer) root.onChangeServer(serverUrlField.text, true)
                     }
@@ -222,6 +225,7 @@ Item {
                 }
                 Switch {
                     id: autoLoginSwitch
+                    Accessible.name: "Auto-login"
                     checked: root.autoLogin
                     onToggled: {
                         if (root.onAutoLoginToggled) root.onAutoLoginToggled(checked)
@@ -244,6 +248,7 @@ Item {
                 }
                 Switch {
                     id: singleClickOpenSwitch
+                    Accessible.name: "Single-click to open files and folders"
                     checked: root.singleClickOpen
                     onToggled: {
                         if (root.onSingleClickOpenToggled) root.onSingleClickOpenToggled(checked)
@@ -266,6 +271,7 @@ Item {
                 }
                 ComboBox {
                     id: sortColumnCombo
+                    Accessible.name: "Default sort order"
                     width: Style.space(120)
                     model: ["Name", "Size", "Modified", "Type"]
                     currentIndex: ["name", "size", "date", "type"].indexOf(root.sortColumn)
@@ -290,6 +296,7 @@ Item {
                 }
                 Switch {
                     id: foldersFirstSwitch
+                    Accessible.name: "Folders first"
                     // Was a hard-coded, disabled always-true switch: the setting
                     // existed in the UI but did nothing.
                     checked: root.foldersFirst
@@ -314,6 +321,7 @@ Item {
                 }
                 Switch {
                     id: sortAscendingSwitch
+                    Accessible.name: "Sort ascending"
                     checked: root.sortAscending
                     onToggled: {
                         if (root.onSortAscendingChange) root.onSortAscendingChange(checked)
@@ -336,6 +344,7 @@ Item {
                 }
                 Switch {
                     id: notifySwitch
+                    Accessible.name: "Transfer notifications"
                     checked: root.notifyEnabled
                     onToggled: {
                         if (root.onNotifyToggled) root.onNotifyToggled(checked)

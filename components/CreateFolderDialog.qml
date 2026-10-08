@@ -50,6 +50,7 @@ Item {
             id: nameField
             width: parent.width
             placeholderText: "Folder name"
+            Accessible.name: "New folder name"
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
             // Escape closes this dialog only — never the whole panel.

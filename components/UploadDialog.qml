@@ -135,6 +135,7 @@ Item {
                 id: pathField
                 width: parent.width - Style.space(8) - browseButton.width
                 placeholderText: "/home/user/file.txt"
+                Accessible.name: "File path to upload"
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.body
                 // Escape closes this dialog only — never the whole panel.

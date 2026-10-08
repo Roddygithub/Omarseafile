@@ -604,8 +604,9 @@ test("HomeView activeFileList is null when hidden",
 test("BrowserView activeFileList is null when hidden",
      "fileList.visible ? fileList : null" in browser, kind="STATIC")
 test("keyboard handlers null-check the derived list",
-     panel.count("var list = root.activeFileList()") == 5
-     and panel.count("if (!list") >= 5, kind="STATIC")
+     panel.count("var list = root.activeFileList()") >= 5
+     and panel.count("if (!list") >= panel.count("var list = root.activeFileList()"),
+     kind="STATIC")
 test("keyboard paths still cover move/activate/delete/rename",
      all(k in panel for k in ("onMoveRequested", "onActivateRequested",
                               "onDeleteRequested", "function renameTarget")), kind="STATIC")

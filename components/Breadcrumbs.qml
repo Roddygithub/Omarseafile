@@ -39,8 +39,22 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: "Go to " + segmentLabel.text
+                        Accessible.onPressAction: {
+                            if (root.onSegmentClicked) root.onSegmentClicked(index)
+                        }
                         onClicked: {
                             if (root.onSegmentClicked) root.onSegmentClicked(index)
+                        }
+                        Keys.onReturnPressed: function(event) {
+                            if (root.onSegmentClicked) root.onSegmentClicked(index)
+                            event.accepted = true
+                        }
+                        Keys.onSpacePressed: function(event) {
+                            if (root.onSegmentClicked) root.onSegmentClicked(index)
+                            event.accepted = true
                         }
                     }
                 }

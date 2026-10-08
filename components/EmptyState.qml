@@ -14,6 +14,7 @@ Item {
 
     width: parent.width
     implicitHeight: column.implicitHeight
+    height: implicitHeight
 
     // Column is a positioner; Qt only forbids fill/centerIn/verticalCenter/
     // top/bottom anchors on its direct children. horizontalCenter is permitted,

@@ -7,12 +7,23 @@ Item {
     id: root
     property QtObject bar: null
     property string message: "Are you sure?"
+    property string confirmText: "Delete"
     property var onConfirm: null
     property var onCancel: null
 
     width: parent.width
     implicitHeight: column.implicitHeight
     height: implicitHeight
+
+    Component.onCompleted: cancelButton.forceActiveFocus()
+
+    Rectangle {
+        anchors.fill: parent
+        color: Qt.darker(root.bar ? root.bar.background : Color.background, 1.1)
+        border.color: Color.accent
+        border.width: Style.spacing.hairline
+        radius: Style.cornerRadius
+    }
 
     Column {
         id: column
@@ -46,6 +57,10 @@ Item {
                 id: cancelButton
                 width: parent.width / 2 - Style.space(6)
                 text: "Cancel"
+                Keys.onEscapePressed: function(event) {
+                    event.accepted = true
+                    if (root.onCancel) root.onCancel()
+                }
                 onClicked: {
                     if (root.onCancel) root.onCancel()
                 }
@@ -54,7 +69,7 @@ Item {
             Button {
                 id: confirmButton
                 width: parent.width / 2 - Style.space(6)
-                text: "Delete"
+                text: root.confirmText
                 color: Color.urgent
                 onClicked: {
                     if (root.onConfirm) root.onConfirm()

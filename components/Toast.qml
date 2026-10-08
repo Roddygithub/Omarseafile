@@ -12,6 +12,7 @@ Item {
 
     implicitHeight: banner.implicitHeight
     width: parent.width
+    height: visible ? implicitHeight : 0
     visible: false
 
     function show(msg, msgType) {
@@ -30,6 +31,7 @@ Item {
     Rectangle {
         id: banner
         width: parent.width
+        height: implicitHeight
         color: {
             switch (root.type) {
             case "error": return Color.urgent

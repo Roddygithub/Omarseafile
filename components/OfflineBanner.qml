@@ -15,6 +15,7 @@ Item {
     Rectangle {
         id: banner
         width: parent.width
+        height: implicitHeight
         color: Color.urgent
         implicitHeight: text.implicitHeight + Style.space(16)
 

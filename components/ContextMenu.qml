@@ -12,6 +12,7 @@ Popup {
     property bool libraryMode: false
     property bool isFavorite: false
     property QtObject bar: null
+    property int focusedActionIndex: -1
 
     signal openClicked(var item)
     signal downloadClicked(var item)
@@ -26,18 +27,103 @@ Popup {
 
     readonly property bool batchMode: selectionCount > 1
 
+    function actionButtons() {
+        return [openFileButton, openFolderButton, downloadButton, shareButton,
+            renameButton, moveButton, copyButton, historyButton, favoritesButton, deleteButton]
+    }
+
+    function focusFirstAction() {
+        var buttons = root.actionButtons()
+        for (var i = 0; i < buttons.length; i++) {
+            if (buttons[i].visible && buttons[i].enabled) {
+                root.focusedActionIndex = i
+                buttons[i].forceActiveFocus()
+                return
+            }
+        }
+    }
+
+    function moveActionFocus(direction) {
+        var buttons = root.actionButtons()
+        for (var step = 1; step <= buttons.length; step++) {
+            var index = (root.focusedActionIndex + direction * step + buttons.length * 2) % buttons.length
+            if (buttons[index].visible && buttons[index].enabled) {
+                root.focusedActionIndex = index
+                buttons[index].forceActiveFocus()
+                return
+            }
+        }
+    }
+
+    function activateFocusedAction() {
+        var buttons = root.actionButtons()
+        var button = buttons[root.focusedActionIndex]
+        if (button && button.visible && button.enabled) button.clicked()
+    }
+
     width: Style.space(180)
     implicitHeight: column.implicitHeight + topPadding + bottomPadding
     padding: Style.space(4)
     focus: true
-    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside | Popup.CloseOnPressOutsideParent
+    modal: true
+    dim: false
+    closePolicy: Popup.CloseOnPressOutside
+    onOpened: Qt.callLater(root.focusFirstAction)
 
     Column {
         id: column
         width: parent.width
         spacing: Style.space(2)
 
+        Item {
+            width: 0
+            height: 0
+            Shortcut {
+                sequence: "Escape"
+                context: Qt.ApplicationShortcut
+                enabled: root.opened
+                onActivated: root.close()
+            }
+            Shortcut {
+                sequence: "Up"
+                context: Qt.ApplicationShortcut
+                enabled: root.opened
+                onActivated: root.moveActionFocus(-1)
+            }
+            Shortcut {
+                sequence: "Down"
+                context: Qt.ApplicationShortcut
+                enabled: root.opened
+                onActivated: root.moveActionFocus(1)
+            }
+            Shortcut {
+                sequence: "Shift+Tab"
+                context: Qt.ApplicationShortcut
+                enabled: root.opened
+                onActivated: root.moveActionFocus(-1)
+            }
+            Shortcut {
+                sequence: "Tab"
+                context: Qt.ApplicationShortcut
+                enabled: root.opened
+                onActivated: root.moveActionFocus(1)
+            }
+            Shortcut {
+                sequence: "Return"
+                context: Qt.ApplicationShortcut
+                enabled: root.opened
+                onActivated: root.activateFocusedAction()
+            }
+            Shortcut {
+                sequence: "Space"
+                context: Qt.ApplicationShortcut
+                enabled: root.opened
+                onActivated: root.activateFocusedAction()
+            }
+        }
+
         Button {
+            id: openFileButton
             width: parent.width
             text: "Open"
             visible: !root.libraryMode && !root.batchMode && !root.isDir
@@ -48,6 +134,7 @@ Popup {
         }
 
         Button {
+            id: openFolderButton
             width: parent.width
             text: "Open"
             visible: !root.batchMode && (root.libraryMode || root.isDir)
@@ -58,6 +145,7 @@ Popup {
         }
 
         Button {
+            id: downloadButton
             width: parent.width
             text: "Download"
             visible: !root.libraryMode && !root.batchMode && !root.isDir
@@ -68,6 +156,7 @@ Popup {
         }
 
         Button {
+            id: shareButton
             width: parent.width
             text: "Share"
             visible: !root.libraryMode && !root.batchMode
@@ -86,6 +175,7 @@ Popup {
         }
 
         Button {
+            id: renameButton
             width: parent.width
             text: "Rename"
             visible: !root.libraryMode && !root.batchMode
@@ -96,6 +186,7 @@ Popup {
         }
 
         Button {
+            id: moveButton
             width: parent.width
             text: root.batchMode ? "Move " + root.selectionCount + " items" : "Move"
             visible: !root.libraryMode
@@ -106,6 +197,7 @@ Popup {
         }
 
         Button {
+            id: copyButton
             width: parent.width
             text: root.batchMode ? "Copy " + root.selectionCount + " items" : "Copy"
             visible: !root.libraryMode
@@ -124,6 +216,7 @@ Popup {
         }
 
         Button {
+            id: historyButton
             width: parent.width
             text: "History"
             visible: !root.libraryMode && !root.batchMode && !root.isDir
@@ -134,6 +227,7 @@ Popup {
         }
 
         Button {
+            id: favoritesButton
             width: parent.width
             text: root.isFavorite ? "Remove from Quick Access" : "Add to Quick Access"
             // Quick Access targets are libraries and folders only in v1.1.
@@ -160,6 +254,7 @@ Popup {
         }
 
         Button {
+            id: deleteButton
             width: parent.width
             text: "Delete"
             color: Color.urgent
@@ -169,5 +264,20 @@ Popup {
                 root.close()
             }
         }
+    }
+
+    Rectangle {
+        z: 1
+        x: column.x
+        y: root.focusedActionIndex >= 0 ? root.actionButtons()[root.focusedActionIndex].y : 0
+        width: column.width
+        height: root.focusedActionIndex >= 0 ? root.actionButtons()[root.focusedActionIndex].height : 0
+        color: "transparent"
+        border.color: Color.accent
+        border.width: Style.spacing.hairline
+        radius: Style.cornerRadius
+        visible: root.opened && root.focusedActionIndex >= 0
+            && root.actionButtons()[root.focusedActionIndex].visible
+        enabled: false
     }
 }

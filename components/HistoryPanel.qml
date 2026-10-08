@@ -77,12 +77,15 @@ Column {
                     width: parent.width
                     height: row.implicitHeight + Style.space(8)
                     required property var modelData
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: "Revision " + timeLabel.text + (isCurrent ? ", current" : "")
 
                     property var revision: modelData
                     property bool isCurrent: String(modelData.version) === "1"
 
                     Row {
                         id: row
+                        width: parent.width
                         spacing: Style.space(12)
                         height: Math.max(icon.implicitHeight, timeLabel.implicitHeight) + Style.space(8)
 

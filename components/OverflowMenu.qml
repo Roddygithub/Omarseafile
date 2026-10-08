@@ -101,6 +101,9 @@ Popup {
                 delegate: Rectangle {
                     required property var modelData
                     required property int index
+                    Accessible.role: Accessible.MenuItem
+                    Accessible.name: modelData.label
+                    Accessible.onPressAction: popup.triggerItem(index)
                     width: actionColumn.width
                     height: popup.itemHeight
                     color: index === popup.currentIndex

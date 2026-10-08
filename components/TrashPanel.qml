@@ -74,12 +74,15 @@ Column {
                     width: parent.width
                     height: row.implicitHeight + Style.space(8)
                     required property var modelData
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: (isDir ? "Folder " : "File ") + (trashItem.objName || "") + ", deleted " + detailLabel.text
 
                     property var trashItem: modelData
                     property bool isDir: modelData.isDir === true
 
                     Row {
                         id: row
+                        width: parent.width
                         spacing: Style.space(12)
                         height: Math.max(icon.implicitHeight, nameLabel.implicitHeight) + Style.space(8)
 

@@ -28,6 +28,14 @@ Item {
     property bool singleClickOpen: false
 
     readonly property var safeItem: item || {}
+    Accessible.role: Accessible.ListItem
+    Accessible.focusable: true
+    Accessible.name: (root.isDir ? "Folder " : "File ") + Models.boundedDisplayText(root.safeItem.name || "", 1024)
+        + (root.isSelected ? ", selected" : "")
+    Accessible.onPressAction: {
+        if (root.isDir) root.onItemClicked(root.item)
+        else root.onOpenClicked(root.item)
+    }
 
     function iconForItem(value) {
         if (!value || value.type === "dir") return Icons.folder
@@ -59,15 +67,20 @@ Item {
     // transfer, and assigning undefined to a string property is a binding error.
     property string transferSpeed: (activeTransfer && activeTransfer.speed) ? activeTransfer.speed : ""
     property bool isSelected: root.selected
+    readonly property int highlightInset: Style.space(16)
 
     onTransferRevisionChanged: root.activeTransfer = root.findTransfer(root.item)
 
     implicitHeight: row.implicitHeight
+    height: implicitHeight
     width: parent ? parent.width : 0
 
     // Keyboard cursor highlight
     Rectangle {
-        anchors.fill: parent
+        x: root.highlightInset
+        width: parent.width - 2 * x
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
         color: root.isCurrent ? Color.accent : "transparent"
         opacity: root.isCurrent ? 0.18 : 0
         visible: root.isCurrent
@@ -75,7 +88,10 @@ Item {
 
     // Batch-selection row highlight — distinct from the keyboard cursor.
     Rectangle {
-        anchors.fill: parent
+        x: root.highlightInset
+        width: parent.width - 2 * x
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
         color: root.isSelected ? Color.accent : "transparent"
         opacity: root.isSelected && !root.isCurrent ? 0.16 : 0
         visible: root.isSelected
@@ -92,11 +108,16 @@ Item {
     }
 
     Rectangle {
-        anchors.fill: parent
+        x: root.highlightInset
+        width: parent.width - 2 * x
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
         color: "transparent"
         border.color: Color.accent
         border.width: root.isCurrent ? Style.spacing.hairline : 0
         visible: root.isCurrent
+        // Geometry must match the fill rectangles above exactly: a ring inset
+        // by a different amount reads as a stray line floating over the band.
     }
 
     // Hover highlight
@@ -110,6 +131,10 @@ Item {
 
     Row {
         id: row
+        // Content stops short of the highlight's right edge: the date column
+        // keeps ~8px of air before the focus ring, and the icon keeps the same
+        // air after it on the left.
+        width: parent.width - Style.space(24)
         spacing: Style.space(12)
         height: Math.max(icon.implicitHeight, nameLabel.implicitHeight) + Style.space(6)
 
@@ -119,7 +144,7 @@ Item {
             color: root.isSelected || root.isDir ? Color.accent : (root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground)
             font.family: Icons.family
             font.pixelSize: Style.font.title
-            width: Style.space(24)
+            width: Style.space(56)
             horizontalAlignment: Text.AlignHCenter
             height: parent.height
             verticalAlignment: Text.AlignVCenter
@@ -192,7 +217,7 @@ Item {
             color: Qt.darker(root.bar ? (root.bar.foreground || Color.foreground) : Color.foreground, 1.4)
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.caption
-            width: visible ? Style.space(150) : 0
+            width: visible ? (Style.space(150) - Style.space(24)) : 0
             horizontalAlignment: Text.AlignRight
             elide: Text.ElideRight
             height: parent.height

@@ -17,12 +17,11 @@ Item {
     required property var onRename
     required property var onMove
     required property var onDelete
-    required property var onMoveBatch
-    required property var onDeleteBatch
     required property var onItemClicked
 
     width: parent.width
     implicitHeight: detailsContainer.implicitHeight
+    height: implicitHeight
 
     property var item: root.selectedItems.length > 0 ? root.selectedItems[0] : null
     property bool isSingleSelection: root.selectedItems.length === 1
@@ -31,15 +30,17 @@ Item {
     Rectangle {
         id: detailsContainer
         width: parent.width
+        implicitHeight: detailsColumn.implicitHeight + Style.space(16)
+        height: implicitHeight
         color: Qt.darker(root.bar.background, 1.1)
         border.color: Qt.darker(root.bar.background, 1.3)
         border.width: Style.spacing.hairline
         radius: Style.cornerRadius
-        anchors.margins: Style.space(8)
 
         Column {
             id: detailsColumn
-            width: parent.width
+            anchors.fill: parent
+            anchors.margins: Style.space(8)
             spacing: 0
 
             // Header
@@ -73,6 +74,7 @@ Item {
             Column {
                 id: singleDetails
                 width: parent.width
+                height: visible ? implicitHeight : 0
                 spacing: Style.space(4)
                 visible: root.isSingleSelection && root.item !== null
 
@@ -303,6 +305,7 @@ Item {
             Column {
                 id: multiDetails
                 width: parent.width
+                height: visible ? implicitHeight : 0
                 spacing: Style.space(4)
                 visible: root.isMultiSelection
 
@@ -422,11 +425,13 @@ Item {
             // Action buttons
             Column {
                 width: parent.width
+                height: visible ? implicitHeight : 0
                 spacing: Style.space(4)
                 visible: root.isSingleSelection && root.item !== null
 
                 Row {
                     width: parent.width
+                    height: implicitHeight
                     spacing: Style.space(8)
 
                     Button {
@@ -464,6 +469,7 @@ Item {
 
                 Row {
                     width: parent.width
+                    height: implicitHeight
                     spacing: Style.space(8)
 
                     Button {
@@ -502,45 +508,21 @@ Item {
                 spacing: Style.space(4)
                 visible: root.isMultiSelection
 
-                Row {
+                Button {
                     width: parent.width
-                    spacing: Style.space(8)
-
-                    Button {
-                        text: "Download"
-                        width: parent.width / 3 - Style.space(5)
-                        height: Style.space(28)
-                        enabled: (function() {
-                            for (var i = 0; i < root.selectedItems.length; i++) {
-                                if (root.selectedItems[i].type !== "dir") return true
-                            }
-                            return false
-                        })()
-                        onClicked: {
-                            for (var i = 0; i < root.selectedItems.length; i++) {
-                                if (root.selectedItems[i].type !== "dir" && root.onDownload) {
-                                    root.onDownload(root.selectedItems[i])
-                                }
-                            }
+                    height: Style.space(28)
+                    text: "Download selected files"
+                    enabled: (function() {
+                        for (var i = 0; i < root.selectedItems.length; i++) {
+                            if (root.selectedItems[i].type !== "dir") return true
                         }
-                    }
-
-                    Button {
-                        text: "Move"
-                        width: parent.width / 3 - Style.space(5)
-                        height: Style.space(28)
-                        onClicked: {
-                            if (root.onMoveBatch) root.onMoveBatch()
-                        }
-                    }
-
-                    Button {
-                        text: "Delete"
-                        width: parent.width / 3 - Style.space(5)
-                        height: Style.space(28)
-                        color: Color.urgent
-                        onClicked: {
-                            if (root.onDeleteBatch) root.onDeleteBatch()
+                        return false
+                    })()
+                    onClicked: {
+                        for (var i = 0; i < root.selectedItems.length; i++) {
+                            if (root.selectedItems[i].type !== "dir" && root.onDownload) {
+                                root.onDownload(root.selectedItems[i])
+                            }
                         }
                     }
                 }

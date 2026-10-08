@@ -59,18 +59,27 @@ Item {
         spacing: Style.space(5)
 
         // Fixed buttons that must always be accessible
-        readonly property int _fixedWidth: backButton.implicitWidth
-            + (searchActive ? searchField.implicitWidth : searchButton.implicitWidth)
-            + (selectionCount > 0 ? batchActionBar.implicitWidth : 0)
-            + transferIndicator.implicitWidth
-            + offlineIndicator.implicitWidth
-            + (root.overflowAvailable ? overflowButton.implicitWidth : 0)
-            + Style.space(8) * 5
-            + (root.overflowAvailable ? Style.space(8) : 0)
+        readonly property int _fixedChildCount: (backButton.visible ? 1 : 0)
+            + (batchActionBar.visible ? 1 : 0)
+            + (searchButton.visible ? 1 : 0)
+            + (uploadButton.visible ? 1 : 0)
+            + (transferIndicator.visible ? 1 : 0)
+            + (offlineIndicator.visible ? 1 : 0)
+            + (overflowButton.visible ? 1 : 0)
+        readonly property int _flexChildCount: root.searchActive ? 1 : (titleLabel.visible ? 1 : 0)
+        readonly property int _fixedWidth: (backButton.visible ? backButton.implicitWidth : 0)
+            + (batchActionBar.visible ? batchActionBar.implicitWidth : 0)
+            + (searchButton.visible ? searchButton.implicitWidth : 0)
+            + (uploadButton.visible ? uploadButton.implicitWidth : 0)
+            + (transferIndicator.visible ? transferIndicator.width : 0)
+            + (offlineIndicator.visible ? offlineIndicator.width : 0)
+            + (overflowButton.visible ? overflowButton.implicitWidth : 0)
+            + row.spacing * Math.max(0, _fixedChildCount + _flexChildCount - 1)
 
         Button {
             id: backButton
             text: Icons.chevronLeft
+            Accessible.name: "Back"
             visible: root.showBack
             tooltipText: ""
             HoverHandler { id: backHover }
@@ -116,6 +125,8 @@ Item {
             height: row.height
             visible: root.searchActive
             placeholderText: "Search..."
+            Accessible.name: "Search Seafile"
+            Accessible.searchEdit: true
             text: root.searchQuery
             color: root.bar.foreground
             placeholderTextColor: Qt.darker(root.bar.foreground, 1.4)
@@ -144,6 +155,7 @@ Item {
         Button {
             id: searchButton
             text: root.searchActive ? Icons.times : Icons.search
+            Accessible.name: root.searchActive ? "Close search" : "Search"
             visible: root.showSearch
             tooltipText: ""
             HoverHandler { id: searchHover }
@@ -162,6 +174,7 @@ Item {
         Button {
             id: uploadButton
             text: Icons.upload
+            Accessible.name: "Upload file"
             visible: root.showUpload && !root.searchActive && root.selectionCount === 0
             tooltipText: ""
             HoverHandler { id: uploadHover }
@@ -180,6 +193,20 @@ Item {
             width: Style.space(28)
             height: row.height
             visible: root.showTransfers && (root.activeTransferCount > 0 || root.hasTransferFailures)
+            activeFocusOnTab: visible
+            Accessible.role: Accessible.Button
+            Accessible.name: root.hasTransferFailures
+                ? "Transfers, with failures"
+                : "Transfers, " + root.activeTransferCount + " active"
+            Accessible.onPressAction: { if (root.onTransfersClicked) root.onTransfersClicked() }
+            Keys.onReturnPressed: function(event) {
+                if (root.onTransfersClicked) root.onTransfersClicked()
+                event.accepted = true
+            }
+            Keys.onSpacePressed: function(event) {
+                if (root.onTransfersClicked) root.onTransfersClicked()
+                event.accepted = true
+            }
 
             Text {
                 id: transfersIcon
@@ -188,6 +215,14 @@ Item {
                 font.family: Icons.family
                 font.pixelSize: Style.font.title
                 anchors.centerIn: parent
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: Style.cornerRadius
+                color: "transparent"
+                border.color: Color.accent
+                border.width: transferIndicator.activeFocus ? Style.spacing.hairline : 0
             }
 
             Text {
@@ -235,6 +270,8 @@ Item {
             width: root.showOffline ? Style.space(24) : 0
             height: row.height
             visible: root.showOffline
+            Accessible.role: Accessible.StaticText
+            Accessible.name: "Offline — retrying connection"
 
             Text {
                 id: offlineIcon
@@ -259,6 +296,7 @@ Item {
         Button {
             id: overflowButton
             text: Icons.ellipsisV
+            Accessible.name: "More actions"
             visible: root.overflowAvailable
             // The menu labels already identify every available action; an
             // additional tooltip only obscures the toolbar edge.

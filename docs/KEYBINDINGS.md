@@ -10,6 +10,7 @@ This is the current keyboard reference. All bindings are contextual to the Omars
 | Space | Open a folder or activate a file | Browse mode and file-list focus |
 | Arrow Up/Down | Move the current list item | Browse mode and file-list focus |
 | Arrow Left/Right / h l | Back / open the focused folder | Browse mode and file-list focus |
+| Shift+F10 | Open the context menu for the focused item | Browse mode and file-list focus |
 | Ctrl+A | Select all visible items | Browse mode, no dialog/search/destination mode |
 | Escape | Close the active dialog/view, clear search, or close the panel | Context-dependent |
 

@@ -23,6 +23,7 @@ Item {
     required property int transferRevision
     required property var selectedItems
     required property var selectionAnchor
+    required property bool contextMenuOpen
     required property var currentRepo
     required property string currentPath
     required property var destinationMode
@@ -36,8 +37,6 @@ Item {
     required property var onRenameClicked
     required property var onMoveClicked
     required property var onDeleteClicked
-    required property var onMoveBatch
-    required property var onDeleteBatch
     required property var onShareClicked
     required property var onHistoryClicked
     required property var onSearchResultClicked
@@ -182,7 +181,7 @@ Item {
             selectedItems: root.selectedItems
             currentRepo: root.currentRepo
             currentPath: root.currentPath
-            visible: root.selectedItems.length > 0 && !root.loading && !root.searchActive && !root.showTransfers
+            visible: root.selectedItems.length > 0 && !root.loading && !root.searchActive && !root.showTransfers && !root.contextMenuOpen
             onDownload: function(item) { root.onDownloadClicked(item) }
             onOpen: function(item) { root.onOpenClicked(item) }
             onShare: function(item) { root.onShareClicked(item) }
@@ -190,8 +189,6 @@ Item {
             onRename: function(item) { root.onRenameClicked(item) }
             onMove: function(item) { root.onMoveClicked(item) }
             onDelete: function(item) { root.onDeleteClicked(item) }
-            onMoveBatch: root.onMoveBatch
-            onDeleteBatch: root.onDeleteBatch
             onItemClicked: function(item) { root.onItemClicked(item) }
         }
     }

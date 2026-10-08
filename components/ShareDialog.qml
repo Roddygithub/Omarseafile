@@ -38,6 +38,7 @@ Item {
 
     // Revoke confirmation state
     property var revokeLinkData: null
+    readonly property bool revokeConfirmationOpen: confirmLoader.item !== null
 
     width: parent.width
     implicitHeight: column.implicitHeight
@@ -75,6 +76,13 @@ Item {
         if (root.enablePassword && root.passwordValue.length < 6) {
             root.errorMessage = "Password must be at least 6 characters"
             return
+        }
+        if (root.enableExpiration) {
+            var days = Number(root.expireDays)
+            if (!/^\d+$/.test(root.expireDays) || days < 1 || days > 365) {
+                root.errorMessage = "Expiration must be between 1 and 365 days"
+                return
+            }
         }
         root.loading = true
         var generation = ++root.requestGeneration
@@ -146,6 +154,21 @@ Item {
         confirmLoader.sourceComponent = confirmComponent
     }
 
+    function beginCreateForm() {
+        root.shareUrl = ""
+        root.shareToken = ""
+        root.errorMessage = ""
+        root.enablePassword = false
+        root.passwordValue = ""
+        root.enableExpiration = false
+        root.expireDays = "7"
+        root.enablePermissions = false
+        root.permCanEdit = false
+        root.permCanDownload = true
+        root.permCanUpload = false
+        root.showCreateForm = true
+    }
+
     function cancelRevoke() {
         confirmLoader.sourceComponent = undefined
         root.revokeLinkData = null
@@ -163,13 +186,20 @@ Item {
     Loader {
         id: confirmLoader
         sourceComponent: undefined
+        width: root.width
+        height: item ? item.implicitHeight : 0
+        anchors.centerIn: parent
+        z: 10
     }
 
     Component {
         id: confirmComponent
         ConfirmDialog {
             bar: root.bar
-            message: "Revoke share link for \"" + root.revokeLinkData.obj_name + "\"?"
+            confirmText: "Revoke"
+            message: "Revoke share link for \"" + (root.revokeLinkData
+                ? (root.revokeLinkData.obj_name || root.revokeLinkData.path || "this item")
+                : "this item") + "\"?"
             onConfirm: function() { root.executeRevoke() }
             onCancel: function() { root.cancelRevoke() }
         }
@@ -328,7 +358,7 @@ Item {
                 width: parent.width
                 text: "Create New Link"
                 onClicked: {
-                    root.showCreateForm = true
+                    root.beginCreateForm()
                 }
             }
         }
@@ -355,6 +385,7 @@ Item {
                 Switch {
                     id: passwordSwitch
                     checked: root.enablePassword
+                    Accessible.name: "Password protect share link"
                     onCheckedChanged: root.enablePassword = checked
                 }
 
@@ -372,6 +403,7 @@ Item {
                 id: passwordField
                 width: parent.width
                 placeholderText: "Password (min 6 chars)"
+                Accessible.name: "Share link password"
                 text: root.passwordValue
                 onTextChanged: root.passwordValue = text
                 visible: root.enablePassword
@@ -392,6 +424,7 @@ Item {
                 Switch {
                     id: expirationSwitch
                     checked: root.enableExpiration
+                    Accessible.name: "Set link expiration"
                     onCheckedChanged: root.enableExpiration = checked
                 }
 
@@ -414,8 +447,12 @@ Item {
                     id: expireDaysField
                     width: parent.width - daysLabel.width - Style.space(8)
                     placeholderText: "Days"
+                    Accessible.name: "Expiration in days, from 1 to 365"
                     text: root.expireDays
-                    onTextChanged: root.expireDays = text
+                    onTextChanged: {
+                        root.expireDays = text
+                        if (root.errorMessage.indexOf("Expiration") === 0) root.errorMessage = ""
+                    }
                     validator: IntValidator { bottom: 1; top: 365 }
                     // Escape closes this dialog only — never the whole panel.
                     Keys.onEscapePressed: function(event) {
@@ -444,6 +481,7 @@ Item {
                 Switch {
                     id: permissionsSwitch
                     checked: root.enablePermissions
+                    Accessible.name: "Set share link permissions"
                     onCheckedChanged: root.enablePermissions = checked
                 }
 
@@ -468,6 +506,7 @@ Item {
 
                     Switch {
                         id: canEditSwitch
+                        Accessible.name: "Allow editing"
                         checked: root.permCanEdit
                         onCheckedChanged: root.permCanEdit = checked
                     }
@@ -488,6 +527,7 @@ Item {
 
                     Switch {
                         id: canDownloadSwitch
+                        Accessible.name: "Allow downloads"
                         checked: root.permCanDownload
                         onCheckedChanged: root.permCanDownload = checked
                     }
@@ -509,6 +549,7 @@ Item {
 
                     Switch {
                         id: canUploadSwitch
+                        Accessible.name: "Allow uploads"
                         checked: root.permCanUpload
                         onCheckedChanged: root.permCanUpload = checked
                     }
@@ -580,9 +621,15 @@ Item {
 
             Button {
                 width: parent.width / 2 - Style.space(6)
-                text: "Close"
+                text: root.showCreateForm && root.existingLinks.length > 0 ? "Cancel" : "Close"
+                Accessible.name: text
                 onClicked: {
-                    if (root.onDone) root.onDone()
+                    if (root.showCreateForm && root.existingLinks.length > 0) {
+                        root.showCreateForm = false
+                        root.errorMessage = ""
+                    } else if (root.onDone) {
+                        root.onDone()
+                    }
                 }
             }
 
@@ -594,6 +641,18 @@ Item {
                     root.createLink()
                 }
             }
+        }
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        visible: root.revokeConfirmationOpen
+        z: 9
+        color: Util.alpha(root.bar.background, 0.72)
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
         }
     }
 }

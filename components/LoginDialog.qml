@@ -13,6 +13,7 @@ Item {
     property alias errorText: errorText
     property string depErrorMessage: ""
     property string errorMessage: ""
+    property string validationMessage: ""
     property bool loading: false
     property var onLogin: null
     property var onDismiss: null
@@ -25,8 +26,23 @@ Item {
 
     function submit() {
         if (root.loading) return
-        if (!serverField.text.trim() || !emailField.text.trim() || !passwordField.text) return
-        if (root.onLogin) root.onLogin(serverField.text, emailField.text, passwordField.text)
+        if (!serverField.text.trim()) {
+            root.validationMessage = "Enter your Seafile server URL."
+            serverField.forceActiveFocus()
+            return
+        }
+        if (!emailField.text.trim()) {
+            root.validationMessage = "Enter your email address."
+            emailField.forceActiveFocus()
+            return
+        }
+        if (!passwordField.text) {
+            root.validationMessage = "Enter your password."
+            passwordField.forceActiveFocus()
+            return
+        }
+        root.validationMessage = ""
+        if (root.onLogin) root.onLogin(serverField.text, emailField.text.trim(), passwordField.text)
     }
 
     // True while any login field owns keyboard focus. The panel's key catcher
@@ -75,9 +91,11 @@ Item {
             id: serverField
             width: parent.width
             placeholderText: "Server URL (e.g. https://seafile.example.com)"
+            Accessible.name: "Seafile server URL"
             text: ""
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
+            onTextChanged: root.validationMessage = ""
             // Escape from the login form closes the whole panel — no dialog
             // sits above the form. Same pattern as the shell network panel's
             // credential fields.
@@ -92,9 +110,11 @@ Item {
             id: emailField
             width: parent.width
             placeholderText: "Email"
+            Accessible.name: "Email address"
             text: ""
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
+            onTextChanged: root.validationMessage = ""
             onAccepted: root.submit()
             Keys.onEscapePressed: function(event) {
                 event.accepted = true
@@ -106,9 +126,11 @@ Item {
             id: passwordField
             width: parent.width
             placeholderText: "Password"
+            Accessible.name: "Password"
             echoMode: TextField.Password
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
+            onTextChanged: root.validationMessage = ""
             onAccepted: root.submit()
             Keys.onEscapePressed: function(event) {
                 event.accepted = true
@@ -125,7 +147,7 @@ Item {
             visible: text !== ""
             wrapMode: Text.WordWrap
             textFormat: Text.PlainText
-            text: Models.boundedDisplayText(errorText._raw, 4096)
+            text: Models.boundedDisplayText(root.validationMessage || errorText._raw, 4096)
             property string _raw: root.errorMessage
         }
 
@@ -133,6 +155,7 @@ Item {
             id: loginButton
             width: parent.width
             text: root.loading ? "Connecting…" : "Connect"
+            Accessible.name: root.loading ? "Connecting to Seafile" : "Connect to Seafile"
             enabled: !root.loading
             onClicked: root.submit()
         }
