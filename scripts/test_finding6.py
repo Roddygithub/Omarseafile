@@ -11,6 +11,9 @@ import tempfile
 import signal
 import time
 import textwrap
+import http.server
+import socketserver
+import threading
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 WRAPPER = os.path.join(SCRIPT_DIR, "secret_tool_wrapper.py")
@@ -331,23 +334,82 @@ with tempfile.TemporaryDirectory() as tmpdir:
     probe = (
         "import os,sys; "
         "marker=[x for x in sys.argv if x.startswith('file=@')][0][6:]; "
-        "sys.stdout.write(open(marker, encoding='utf-8').read())"
+        "sys.stdout.write(open(marker.split(';', 1)[0], encoding='utf-8').read()); "
+        "sys.stderr.write(marker)"
     )
     r = run([
         sys.executable, TRANSFER, "4096",
-        "--secure-upload-source", source, "--max-input-bytes", "1024", "--",
+        "--secure-upload-source", source, "--max-input-bytes", "1024",
+        "--secure-upload-filename", "report; \"final\".txt", "--",
         sys.executable, "-c", probe, "file=@__OMARSEAFILE_SECURE_UPLOAD_SOURCE__",
     ])
     check("secure source is readable through inherited fd", r.returncode == 0 and r.stdout == b"held upload source")
+    check("multipart filename is preserved in helper argument",
+          b'filename="report; \\\"final\\\".txt"' in r.stderr or
+          b'filename="report; \\\"final\\\".txt"' in r.stdout)
+
+    oversized = os.path.join(tmpdir, "oversized.txt")
+    with open(oversized, "wb") as f:
+        f.write(b"0123456789")
+    r = run([
+        sys.executable, TRANSFER, "4096",
+        "--secure-upload-source", oversized, "--max-input-bytes", "8",
+        "--secure-upload-filename", "oversized.txt", "--",
+        sys.executable, "-c", probe, "file=@__OMARSEAFILE_SECURE_UPLOAD_SOURCE__",
+    ])
+    check("secure source enforces the upload size limit", r.returncode != 0)
+
+    fifo = os.path.join(tmpdir, "source.fifo")
+    os.mkfifo(fifo)
+    r = run([
+        sys.executable, TRANSFER, "4096",
+        "--secure-upload-source", fifo, "--max-input-bytes", "1024",
+        "--secure-upload-filename", "fifo", "--",
+        sys.executable, "-c", probe, "file=@__OMARSEAFILE_SECURE_UPLOAD_SOURCE__",
+    ], timeout=3)
+    check("secure source rejects a FIFO without blocking", r.returncode != 0)
 
     link = os.path.join(tmpdir, "source-link")
     os.symlink(source, link)
     r = run([
         sys.executable, TRANSFER, "4096",
-        "--secure-upload-source", link, "--max-input-bytes", "1024", "--",
+        "--secure-upload-source", link, "--max-input-bytes", "1024",
+        "--secure-upload-filename", "source.txt", "--",
         sys.executable, "-c", probe, "file=@__OMARSEAFILE_SECURE_UPLOAD_SOURCE__",
     ])
     check("secure source rejects symlinks", r.returncode != 0)
+
+    class UploadHandler(http.server.BaseHTTPRequestHandler):
+        body = b""
+
+        def do_POST(self):
+            self.__class__.body = self.rfile.read(int(self.headers.get("content-length", "0")))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"uploaded")
+
+        def log_message(self, *_args):
+            pass
+
+    server = socketserver.TCPServer(("127.0.0.1", 0), UploadHandler)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+    try:
+        r = run([
+            sys.executable, TRANSFER, "4096",
+            "--secure-upload-source", source, "--max-input-bytes", "1024",
+            "--secure-upload-filename", "report; final.txt", "--",
+            "curl", "-q", "-sS", "-F", "file=@__OMARSEAFILE_SECURE_UPLOAD_SOURCE__",
+            f"http://127.0.0.1:{server.server_address[1]}/upload",
+        ], timeout=10)
+        body = UploadHandler.body
+        check("actual curl upload succeeds", r.returncode == 0 and b"uploaded" in r.stdout)
+        check("actual curl receives the source content", b"held upload source" in body)
+        check("actual curl receives the intended multipart filename",
+              b'filename="report; final.txt"' in body)
+    finally:
+        server.shutdown()
+        server.server_close()
 
 # ===== 15. regression: existing secure_output tests still pass =====
 section("15. Regression: secure_output.py basic operations")

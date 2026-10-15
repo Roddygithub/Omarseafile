@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Four contract suites that previously sat on disk unenforced (`test_ux_performance`, `test_mutation_contracts`, `test_search_action_contracts`, `test_login_contracts`) are part of the portable CI gate.
 
 ### Fixed
-- Uploads now hand curl a held, `O_NOFOLLOW`-validated source descriptor instead of reopening the user-selected pathname after preflight validation.
+- Uploads now hand curl a bounded snapshot from an `O_NOFOLLOW`-validated source instead of reopening the user-selected pathname after preflight validation; multipart filenames are preserved.
 - Restoring a saved session on startup now reports credential-lookup failures instead of failing silently.
 - An empty toolbar overflow menu is hidden instead of rendering as an empty popup.
 - Transfer rows keep their width, so file names and progress no longer collapse in the list and on Home.
