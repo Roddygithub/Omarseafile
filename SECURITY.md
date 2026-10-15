@@ -22,7 +22,7 @@ Please report suspected vulnerabilities privately through the repository's GitHu
 - **Byte ceiling & disk admission**: Producer-side 1 GiB default via curl --max-filesize. Disk-space admission check using fstatvfs on held dir_fd with 256 MiB safety margin. Insufficient space fails before any content write. ENOSPC during transfer triggers cleanup.
 - **Deadlines**: curl --max-time 30 min, --connect-timeout 10s, stall protection (--speed-limit 1 --speed-time 30s). Process group isolation via setsid; cancellation kills entire tree (kill -TERM -pgid).
 - **Open Local cache**: Private `XDG_CACHE_HOME`/omarseafile (or `~/.cache/omarseafile`). Bounded 1 GiB default with recovery before each new Open Local transfer. Active/temp files are protected from eviction. No symlink traversal during eviction.
-- **Upload source hardening**: Absolute path required. Must be regular file (stat %F check). Rejects symlinks, directories, devices, FIFOs, sockets. Size precheck (1 GiB default).
+- **Upload source hardening**: Absolute path required. Must be a regular file opened with O_NOFOLLOW|O_NONBLOCK. Symlinks, directories, devices, FIFOs, and sockets are rejected. The source is copied into a private bounded snapshot (1 GiB default) before curl starts, so later inode growth cannot bypass the limit; snapshot cleanup covers rejection, failure, and cancellation.
 - **Auth isolation**: Cross-origin transfer URLs never receive Authorization header (same-origin check via UrlPolicy.shouldAttachAuth). Redirects disabled (--no-location).
 - **Output bounds**: Helper stderr capped at 64 KiB (--max-stderr-bytes). stdout bounded by curl --max-filesize.
 

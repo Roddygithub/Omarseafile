@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Four contract suites that previously sat on disk unenforced (`test_ux_performance`, `test_mutation_contracts`, `test_search_action_contracts`, `test_login_contracts`) are part of the portable CI gate.
 
 ### Fixed
+- Upload basenames now preserve valid leading/trailing spaces, and a basename of `--` no longer collides with the upload helper's command separator.
 - Uploads now hand curl a bounded snapshot from an `O_NOFOLLOW`-validated source instead of reopening the user-selected pathname after preflight validation; multipart filenames are preserved.
 - Restoring a saved session on startup now reports credential-lookup failures instead of failing silently.
 - An empty toolbar overflow menu is hidden instead of rendering as an empty popup.

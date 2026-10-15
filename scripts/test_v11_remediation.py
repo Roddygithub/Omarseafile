@@ -12,6 +12,7 @@ Test classification is printed per section:
 """
 
 import glob
+import json
 import os
 import re
 import shutil
@@ -953,6 +954,20 @@ print("\n--- 9. Security invariants (STATIC) ---")
 # =====================================================================
 tsv = read("js/TransferService.qml")
 htp = read("js/HttpTransport.qml")
+if NODE:
+    safe_out = run_node(HARNESS + r'''
+const S = h.loadQmlObject("js/SafePath.qml", {});
+const names = [" report.txt ", "--"];
+console.log(JSON.stringify(names.map(n => S.sanitizeBasename(n))));
+''')
+    test("basename validation preserves accepted edge whitespace and --",
+         json.loads(safe_out) == [
+             {"valid": True, "sanitized": " report.txt "},
+             {"valid": True, "sanitized": "--"},
+         ])
+else:
+    print("  SKIP: node not available")
+    skipped += 1
 test("curl disables user config everywhere",
      tsv.count('"-q"') >= 6 and '"-q"' in htp, kind="STATIC")
 test("no redirect flags anywhere",

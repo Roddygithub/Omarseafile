@@ -407,6 +407,18 @@ with tempfile.TemporaryDirectory() as tmpdir:
         check("actual curl receives the source content", b"held upload source" in body)
         check("actual curl receives the intended multipart filename",
               b'filename="report; final.txt"' in body)
+
+        dash_name = os.path.join(tmpdir, "dash-source")
+        with open(dash_name, "wb") as f:
+            f.write(b"dash payload")
+        r = run([
+            sys.executable, TRANSFER, "4096",
+            "--secure-upload-source", dash_name, "--max-input-bytes", "1024",
+            "--secure-upload-filename", "--", "--",
+            sys.executable, "-c", probe, "file=@__OMARSEAFILE_SECURE_UPLOAD_SOURCE__",
+        ])
+        check("filename -- is not mistaken for the command separator",
+              r.returncode == 0 and r.stdout == b"dash payload")
     finally:
         server.shutdown()
         server.server_close()

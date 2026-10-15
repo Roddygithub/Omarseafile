@@ -224,7 +224,7 @@ See [SECURITY.md](SECURITY.md) for reporting and security boundaries. In brief, 
 - Download deadlines: --max-time 30 min, --connect-timeout 10s, stall protection (--speed-limit 1 --speed-time 30s)
 - Process group isolation via setsid; cancellation kills entire process tree (kill -TERM -pgid)
 - Open Local cache bounded (default 1 GiB), LRU eviction on successful completion, active/temp files protected
-- Upload source validation: absolute path, regular file only (rejects symlinks, directories, devices, FIFOs, sockets), size precheck (default 1 GiB)
+- Upload source validation: absolute path, regular file only (rejects symlinks, directories, devices, FIFOs, sockets), bounded private snapshot before curl (default 1 GiB), with cleanup on rejection, failure, or cancellation
 - Cross-origin transfer URLs never receive Authorization header (same-origin check)
 - Redirects disabled (--no-location)
 - Helper stdout/stderr bounded (64 KiB stderr cap)

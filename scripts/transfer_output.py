@@ -88,7 +88,7 @@ def _drain(stream, max_bytes, output_fd, lock, result):
 
 
 def main():
-    if len(sys.argv) < 4 or "--" not in sys.argv[2:]:
+    if len(sys.argv) < 4:
         sys.stderr.write(
             "usage: transfer_output.py <max_stderr_bytes> "
             "[--secure-upload-source PATH --max-input-bytes N "
@@ -105,19 +105,22 @@ def main():
     secure_source = None
     secure_filename = None
     max_input_bytes = None
-    option_end = sys.argv.index("--")
-    options = sys.argv[2:option_end]
     i = 0
-    while i < len(options):
-        if options[i] == "--secure-upload-source" and i + 1 < len(options):
-            secure_source = options[i + 1]
+    option_end = None
+    while i + 2 < len(sys.argv):
+        arg = sys.argv[i + 2]
+        if arg == "--":
+            option_end = i + 2
+            break
+        if arg == "--secure-upload-source" and i + 3 < len(sys.argv):
+            secure_source = sys.argv[i + 3]
             i += 2
-        elif options[i] == "--secure-upload-filename" and i + 1 < len(options):
-            secure_filename = options[i + 1]
+        elif arg == "--secure-upload-filename" and i + 3 < len(sys.argv):
+            secure_filename = sys.argv[i + 3]
             i += 2
-        elif options[i] == "--max-input-bytes" and i + 1 < len(options):
+        elif arg == "--max-input-bytes" and i + 3 < len(sys.argv):
             try:
-                max_input_bytes = int(options[i + 1])
+                max_input_bytes = int(sys.argv[i + 3])
             except ValueError:
                 sys.stderr.write("invalid input byte limit\n")
                 return 2
@@ -126,6 +129,9 @@ def main():
             sys.stderr.write("invalid transfer option\n")
             return 2
 
+    if option_end is None or option_end + 1 >= len(sys.argv):
+        sys.stderr.write("missing command separator or command\n")
+        return 2
     cmd = sys.argv[option_end + 1:]
     source_fd = None
     secure_snapshot = None

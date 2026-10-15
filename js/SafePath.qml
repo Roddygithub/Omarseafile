@@ -83,25 +83,27 @@ QtObject {
         if (trimmed === "") {
             return { valid: false, error: "Filename is whitespace only" }
         }
-        if (trimmed === "." || trimmed === "..") {
-            return { valid: false, error: "Reserved filename: " + trimmed }
+        if (name === "." || name === "..") {
+            return { valid: false, error: "Reserved filename: " + name }
         }
-        if (trimmed.indexOf("/") !== -1 || trimmed.indexOf("\\") !== -1) {
+        if (name.indexOf("/") !== -1 || name.indexOf("\\") !== -1) {
             return { valid: false, error: "Path separators not allowed in filename" }
         }
-        if (trimmed.indexOf("\0") !== -1) {
+        if (name.indexOf("\0") !== -1) {
             return { valid: false, error: "NUL character not allowed" }
         }
-        for (var i = 0; i < trimmed.length; i++) {
-            var code = trimmed.charCodeAt(i)
+        for (var i = 0; i < name.length; i++) {
+            var code = name.charCodeAt(i)
             if (code < 0x20 || code === 0x7F) {
                 return { valid: false, error: "Control characters not allowed" }
             }
         }
-        if (trimmed.length > root.maxBasenameLength) {
+        if (name.length > root.maxBasenameLength) {
             return { valid: false, error: "Filename exceeds maximum length of " + root.maxBasenameLength }
         }
-        return { valid: true, sanitized: trimmed }
+        // Whitespace at either edge is valid filename data; trim is used only
+        // to detect an all-whitespace name, never to rewrite the basename.
+        return { valid: true, sanitized: name }
     }
 
     function secureJoin(baseDir, name, callback) {
