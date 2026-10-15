@@ -317,7 +317,10 @@ QtObject {
     }
 
     function curlFileForm(path) {
-        return "file=@\"" + path.replace(/\\/g, "\\\\").replace(/\"/g, "\\\"") + "\""
+        // The helper opens the source with O_NOFOLLOW and passes its held fd to
+        // curl. The pathname is deliberately not handed to curl for a second
+        // open, which closes the stat-to-upload symlink race.
+        return "file=@__OMARSEAFILE_SECURE_UPLOAD_SOURCE__"
     }
 
 // Validates secure_output.py helper stdout: single basename line matching exactly [A-Za-z0-9_-]+
@@ -1124,7 +1127,10 @@ QtObject {
                 curlProc.transferRef = upload
                 curlProc.command = [
                     "setsid", "python3", root._transferOutputHelper,
-                    root.maxTransferStderrBytes, "--",
+                    root.maxTransferStderrBytes,
+                    "--secure-upload-source", upload.srcPath,
+                    "--max-input-bytes", root.maxUploadBodyBytes,
+                    "--",
                     "curl",
                     "-q",
                     "-f",
@@ -1167,7 +1173,10 @@ function executeCurlUploadNoAuth(upload) {
             curlProc.transferRef = upload
             curlProc.command = [
                 "setsid", "python3", root._transferOutputHelper,
-                root.maxTransferStderrBytes, "--",
+                root.maxTransferStderrBytes,
+                "--secure-upload-source", upload.srcPath,
+                "--max-input-bytes", root.maxUploadBodyBytes,
+                "--",
                 "curl",
                 "-q",
                 "-f",

@@ -322,8 +322,35 @@ if child_pid:
     except OSError:
         check("child killed by process-group SIGTERM", True)
 
-# ===== 14. regression: existing secure_output tests still pass =====
-section("14. Regression: secure_output.py basic operations")
+# ===== 14. secure upload source is opened once and passed by fd =====
+section("14. Secure upload source handoff")
+with tempfile.TemporaryDirectory() as tmpdir:
+    source = os.path.join(tmpdir, "source.txt")
+    with open(source, "w", encoding="utf-8") as f:
+        f.write("held upload source")
+    probe = (
+        "import os,sys; "
+        "marker=[x for x in sys.argv if x.startswith('file=@')][0][6:]; "
+        "sys.stdout.write(open(marker, encoding='utf-8').read())"
+    )
+    r = run([
+        sys.executable, TRANSFER, "4096",
+        "--secure-upload-source", source, "--max-input-bytes", "1024", "--",
+        sys.executable, "-c", probe, "file=@__OMARSEAFILE_SECURE_UPLOAD_SOURCE__",
+    ])
+    check("secure source is readable through inherited fd", r.returncode == 0 and r.stdout == b"held upload source")
+
+    link = os.path.join(tmpdir, "source-link")
+    os.symlink(source, link)
+    r = run([
+        sys.executable, TRANSFER, "4096",
+        "--secure-upload-source", link, "--max-input-bytes", "1024", "--",
+        sys.executable, "-c", probe, "file=@__OMARSEAFILE_SECURE_UPLOAD_SOURCE__",
+    ])
+    check("secure source rejects symlinks", r.returncode != 0)
+
+# ===== 15. regression: existing secure_output tests still pass =====
+section("15. Regression: secure_output.py basic operations")
 tmpdir = tempfile.mkdtemp()
 r = run([sys.executable, "-u", SECURE, tmpdir, "dl", "--",
          "sh", "-c", "printf regression_test"], timeout=5)
