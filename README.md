@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/omarseafile-libraries.png" alt="Omarseafile showing Seafile libraries inside an Omarchy panel" width="520">
+  <img src="assets/screenshots/quick-access.png" alt="Omarseafile Quick Access inside an Omarchy panel" width="520">
 </p>
 
 Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing and managing a self-hosted [Seafile](https://www.seafile.com/) account from a Quickshell panel. It keeps the remote server experience central and stays deliberately smaller than a desktop file manager.
@@ -79,17 +79,20 @@ sudo pacman -S curl libsecret python zenity wl-clipboard libnotify
 
 ## Screenshots
 
-The panel is designed to stay compact while keeping the common Seafile actions close at hand:
+The panel stays compact while keeping the common Seafile workflows close at hand:
 
-<p align="center">
-  <img src="assets/screenshots/omarseafile-libraries.png" alt="Omarseafile library browser" width="520">
-</p>
+<table>
+  <tr>
+    <td align="center"><strong>Quick Access</strong><br><img src="assets/screenshots/quick-access.png" alt="Pinned libraries in Quick Access" width="360"></td>
+    <td align="center"><strong>Right-click actions</strong><br><img src="assets/screenshots/context-menu.png" alt="Right-click menu with Add to Quick Access" width="360"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Settings</strong><br><img src="assets/screenshots/settings.png" alt="Omarseafile settings" width="360"></td>
+    <td align="center"><strong>Browsing</strong><br><img src="assets/screenshots/browser.png" alt="Browsing a Seafile library" width="360"></td>
+  </tr>
+</table>
 
-More screenshots and the marketplace listing will be linked here once the community listing is approved: [Omarchy Plugins](https://plugins.omarchy.org/).
-
-<p align="center">
-  <img src="assets/screenshots/omarchy-plugin-marketplace.png" alt="Omarchy Plugin Marketplace publishing page" width="720">
-</p>
+The plugin is intended for the [Omarchy Plugin Marketplace](https://plugins.omarchy.org/); the repository remains the canonical source and install location.
 
 ## Installation
 
