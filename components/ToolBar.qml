@@ -327,9 +327,12 @@ Item {
         onSettingsClicked: root.onSettingsClicked
         onLogoutClicked: root.onLogoutClicked
         onAboutToShow: {
-            // Reparent to the overlay and anchor to the overflow button.
-            overflowMenu.parent = root.overlay
-            var pt = overflowButton.mapToItem(root.overlay, 0, 0)
+            // Reparent to the overlay and anchor to the overflow button. The
+            // fallback keeps the menu usable while the host overlay is being
+            // created or briefly unavailable during panel reopen.
+            var target = root.overlay || root
+            overflowMenu.parent = target
+            var pt = overflowButton.mapToItem(target, 0, 0)
             overflowMenu.x = pt.x + overflowButton.width - overflowMenu.width
             overflowMenu.y = pt.y + overflowButton.height + Style.space(2)
         }

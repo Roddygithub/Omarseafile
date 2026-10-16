@@ -20,7 +20,7 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 
 > **Install:** `omarchy plugin add https://github.com/Roddygithub/Omarseafile.git --enable`
 
-## Features (v1.2.0)
+## Features (v1.2.1)
 
 - **Home / Quick Access**: Pin libraries and folders for instant access. See active transfers at a glance.
 - Browse accessible Seafile libraries and folders with breadcrumbs.
@@ -41,6 +41,7 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 - **Details panel**: shows metadata and quick actions for selected item(s).
 - **Transfer Manager**: retry all failed, clear completed/failed, speed/ETA display.
 - **Desktop notifications** for transfer completion/failure (configurable, uses notify-send).
+- **Update notices** for newer GitHub releases at startup and once per day; no Seafile credentials or data are sent.
 - **Single-click or double-click to open** preference.
 - Show offline status, loading states, errors, empty states, and toasts.
 - Open completed downloads or reveal them in the file manager.
@@ -91,7 +92,7 @@ The panel stays compact while keeping the common Seafile workflows close at hand
     <td align="center"><strong>Settings</strong><br><img src="assets/screenshots/settings.png" alt="Omarseafile settings" width="360"></td>
   </tr>
   <tr>
-    <td align="center"><strong>Transfers</strong><br><img src="assets/screenshots/transfers.png" alt="Omarseafile transfer progress" width="360"></td>
+    <td align="center"><strong>Transfers &amp; notifications</strong><br><img src="assets/screenshots/transfers.png" alt="A single transfer completion notification" width="360"></td>
     <td align="center"><strong>Sharing</strong><br><img src="assets/screenshots/share.png" alt="Omarseafile share dialog" width="360"></td>
   </tr>
   <tr>
@@ -115,6 +116,8 @@ To update an installed plugin:
 ```bash
 omarchy plugin update roddy.seafile
 ```
+
+Omarseafile checks the latest GitHub release at startup and every 24 hours. If a newer version is available, it reports the update through the configured notification channel. The check sends no credentials or Seafile data.
 
 ## First Login
 
@@ -169,7 +172,7 @@ Search is available from the toolbar. It searches as you type, with a short debo
 
 - **Connection**: Server URL, Test Connection, Auto-login.
 - **Account**: Shows signed-in email.
-- **Preferences**: Single-click to open, Default sort (Name/Size/Modified/Type), Ascending/Descending, **Folders first**, Transfer notifications.
+- **Preferences**: Single-click to open, Default sort (Name/Size/Modified/Type), Ascending/Descending, **Folders first**, Transfer notifications. Update notices use the same notification preference.
 
 `Folders first` puts directories ahead of files when sorting by Name, Size or Modified. Turning it off orders every entry purely by the selected column and direction. Sorting by the Type column always groups directories first regardless of this switch. The setting is persisted across shell restarts.
 - **Data**: Clear Cache, Logout.

@@ -59,6 +59,14 @@ Panel {
     property int transferRevision: 0
     property bool showTransfers: false
 
+    // ===== UPDATE CHECK =====
+    readonly property string updateApiUrl: "https://api.github.com/repos/Roddygithub/Omarseafile/releases/latest"
+    readonly property string updateCommand: "omarchy plugin update roddy.seafile"
+    property string availableUpdateVersion: ""
+    property bool updateNoticeShown: false
+    property bool updateCheckInFlight: false
+    property int updateCheckGeneration: 0
+
     // ===== SEARCH STATE =====
     property string searchQuery: ""
     property string searchState: "idle"
@@ -84,6 +92,12 @@ Panel {
 
     // ===== UX PREFERENCES =====
     property bool singleClickOpen: setting("singleClickOpen", false)
+    property bool notifyEnabled: setting("notifyEnabled", true)
+
+    onNotifyEnabledChanged: {
+        TransferService.notifyEnabled = root.notifyEnabled
+        Qt.callLater(root.announceAvailableUpdate)
+    }
 
     function setSetting(name, value) {
         var next = Object.assign({}, root.settings)
@@ -100,7 +114,7 @@ Panel {
 
     // Single source of truth for the displayed version, kept in step with
     // manifest.json by scripts/test_v11_remediation.py.
-    readonly property string pluginVersion: "1.2.0"
+    readonly property string pluginVersion: "1.2.1"
 
     function selectionKeyForItem(item) {
         return SelectionHelper.makeKey(item)
@@ -348,6 +362,7 @@ Panel {
             root.loadLibraries()
         }
         root.controller.show()
+        Qt.callLater(root.announceAvailableUpdate)
     }
     function close() { root.controller.hide() }
     function toggle() { root.opened ? close() : open() }
@@ -357,6 +372,66 @@ Panel {
 
     function showToast(message, type) {
         toast.show(message, type || "success")
+    }
+
+    function normalizeReleaseVersion(tag) {
+        if (typeof tag !== "string" || tag.length > 32) return ""
+        var version = tag.replace(/^v/, "")
+        return /^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(version) ? version : ""
+    }
+
+    function isNewerVersion(candidate, current) {
+        var next = root.normalizeReleaseVersion(candidate)
+        var installed = root.normalizeReleaseVersion(current)
+        if (!next || !installed) return false
+        var a = next.split(".")
+        var b = installed.split(".")
+        for (var i = 0; i < 3; i++) {
+            var left = parseInt(a[i], 10)
+            var right = parseInt(b[i], 10)
+            if (left !== right) return left > right
+        }
+        return false
+    }
+
+    function announceAvailableUpdate() {
+        if (!root.availableUpdateVersion || root.updateNoticeShown) return
+        var message = "v" + root.availableUpdateVersion + " is available. Run: " + root.updateCommand
+        if (TransferService.notify("Omarseafile update available", message, "low")) {
+            root.updateNoticeShown = true
+        } else if (root.opened) {
+            root.showToast("Update available: v" + root.availableUpdateVersion + " — " + root.updateCommand, "info")
+            root.updateNoticeShown = true
+        }
+    }
+
+    function checkForUpdate() {
+        if (root.updateCheckInFlight) return
+        root.updateCheckInFlight = true
+        var requestGeneration = ++root.updateCheckGeneration
+        HttpTransport.get(root.updateApiUrl, {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "Omarseafile/" + root.pluginVersion
+        }, function(success, data) {
+            if (requestGeneration !== root.updateCheckGeneration) return
+            root.updateCheckInFlight = false
+            if (!success || !data || typeof data !== "object") return
+            var candidate = root.normalizeReleaseVersion(data.tag_name)
+            if (!root.isNewerVersion(candidate, root.pluginVersion)) return
+            if (root.availableUpdateVersion !== candidate) {
+                root.availableUpdateVersion = candidate
+                root.updateNoticeShown = false
+            }
+            root.announceAvailableUpdate()
+        })
+    }
+
+    Timer {
+        id: updateCheckTimer
+        interval: 24 * 60 * 60 * 1000
+        repeat: true
+        running: true
+        onTriggered: root.checkForUpdate()
     }
 
     // Own the IPC target (manageIpc:false above) — same pattern as the
@@ -1070,7 +1145,7 @@ Panel {
             sortColumn: setting("sortColumn", "name")
             sortAscending: setting("sortAscending", true)
             foldersFirst: root.foldersFirst
-            notifyEnabled: setting("notifyEnabled", true)
+            notifyEnabled: root.notifyEnabled
             onClose: function() { root.closeSettings() }
             onLogout: function() { root.doLogout() }
             onClearCache: function() { root.clearCache() }
@@ -1575,14 +1650,15 @@ Panel {
             if (transfer.type === "upload") {
                 Cache.invalidatePath(transfer.repoId, transfer.destUploadPath)
                 if (root.currentRepo && root.currentRepo.id === transfer.repoId && root.currentPath === transfer.destUploadPath) root.refresh()
-                root.showToast("Uploaded " + transfer.fileName)
+                if (!transfer.notificationSent) root.showToast("Uploaded " + transfer.fileName)
             } else if (transfer.type === "download") {
-                root.showToast("Downloaded " + transfer.fileName)
+                if (!transfer.notificationSent) root.showToast("Downloaded " + transfer.fileName)
             }
         } else if (transfer.state === "auth_failed") {
             root.doLogout()
         } else if (transfer.state === "failed") {
-            root.showToast("Transfer failed: " + (transfer.error || "unknown error"), "error")
+            if (!transfer.notificationSent)
+                root.showToast("Transfer failed: " + (transfer.error || "unknown error"), "error")
         }
     }
 
@@ -2107,6 +2183,8 @@ Panel {
 
     Component.onCompleted: {
         SeafileAPI.setConnectionService(panelConnectionService)
+        TransferService.notifyEnabled = root.notifyEnabled
+        root.checkForUpdate()
         updateConnectionServiceUrl()
 
         // Load favorites from settings: the account-scoped store, the legacy

@@ -182,6 +182,7 @@ Item {
                     from: 0
                     to: 1
                     value: root.transferProgress
+                    visible: root.transferProgress > 0
                 }
 
                 Text {

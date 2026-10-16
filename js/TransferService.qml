@@ -13,6 +13,7 @@ QtObject {
     property int retryBaseDelay: 2000
     property int maxRetryDelay: 30000
     property int maxHistory: 50
+    property bool notifyEnabled: true
 
     // ===== TRANSFER LIMITS =====
     property int maxTransferBytes: 1024 * 1024 * 1024
@@ -53,12 +54,14 @@ QtObject {
     }
 
     // Send desktop notification using notify-send
-    function notify(title, message, urgency) {
-        if (!setting("notifyEnabled", true)) return
+    function notify(title, message, urgency, transfer) {
+        if (!root.notifyEnabled) return false
         var proc = _notifyFactory.createObject(root)
-        if (!proc) return
+        if (!proc) return false
         proc.command = ["notify-send", "-u", urgency || "normal", "-a", "Omarseafile", title, message]
         proc.running = true
+        if (transfer) transfer.notificationSent = true
+        return true
     }
 
     property Component _notifyFactory: Component {
@@ -844,13 +847,13 @@ QtObject {
             download.speed = ""
             root.sanitizeForHistory(download)
             root.pruneHistory()
-            root.notify("Download completed", download.fileName, "low")
+            root.notify("Download completed", download.fileName, "low", download)
         } else {
             download.state = "failed"
             download.error = "Download target already exists or could not be finalized"
             deleteFile(download.tempPath)
             root.sanitizeForHistory(download)
-            root.notify("Download failed", download.fileName, "critical")
+            root.notify("Download failed", download.fileName, "critical", download)
         }
         root.transferStateChanged(download)
         root.transfersChanged()
@@ -1244,10 +1247,10 @@ function executeCurlUploadNoAuth(upload) {
             upload.state = "failed"
             upload.error = "Upload outcome is unknown after curl failed (exit code: " + exitCode + "); verify the server before retrying"
             root.sanitizeForHistory(upload)
-            root.notify("Upload failed", upload.fileName, "critical")
+            root.notify("Upload failed", upload.fileName, "critical", upload)
         }
         if (upload.state === "completed") {
-            root.notify("Upload completed", upload.fileName, "low")
+            root.notify("Upload completed", upload.fileName, "low", upload)
         }
         root.transferStateChanged(upload)
         root.transfersChanged()

@@ -355,7 +355,7 @@ Item {
                             from: 0
                             to: 1
                             value: modelData.progress
-                            visible: isActive
+                            visible: isActive && modelData.progress > 0
                         }
 
                         Button {

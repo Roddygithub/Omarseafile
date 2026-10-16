@@ -1000,15 +1000,25 @@ print("\n--- 10. Release metadata consistency (STATIC) ---")
 # =====================================================================
 import json
 manifest = json.loads(read("manifest.json"))
-test("manifest version is 1.2.0", manifest.get("version") == "1.2.0", manifest.get("version"),
+test("manifest version is 1.2.1", manifest.get("version") == "1.2.1", manifest.get("version"),
      kind="STATIC")
 test("Settings About derives from the same version",
-     'readonly property string pluginVersion: "1.2.0"' in panel
+      'readonly property string pluginVersion: "1.2.1"' in panel
      and "pluginVersion: root.pluginVersion" in panel, kind="STATIC")
 test("foldersFirst is declared in the manifest schema",
      any(f.get("key") == "foldersFirst" for f in manifest["barWidget"]["schema"]), kind="STATIC")
 changelog = read("CHANGELOG.md")
-test("CHANGELOG has a 1.2.0 section", "[1.2.0]" in changelog, kind="STATIC")
+test("CHANGELOG has a 1.2.1 section", "[1.2.1]" in changelog, kind="STATIC")
+test("update checker uses the GitHub latest release endpoint",
+     "api.github.com/repos/Roddygithub/Omarseafile/releases/latest" in panel
+     and "function checkForUpdate()" in panel, kind="STATIC")
+test("update notice includes the native update command",
+     "omarchy plugin update roddy.seafile" in panel
+     and "TransferService.notify(\"Omarseafile update available\"" in panel, kind="STATIC")
+toolbar = read("components/ToolBar.qml")
+test("overflow menu has a host-overlay fallback",
+     "var target = root.overlay || root" in toolbar
+     and "overflowButton.mapToItem(target" in toolbar, kind="STATIC")
 readme = read("README.md")
 test("README documents the zenity picker", "zenity" in readme.lower(), kind="STATIC")
 test("README no longer claims Qt FileDialog",

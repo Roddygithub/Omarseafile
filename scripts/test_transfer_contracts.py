@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 NODE = shutil.which("node") or shutil.which("nodejs")
 service = (ROOT / "js/TransferService.qml").read_text()
 panel = (ROOT / "Panel.qml").read_text()
+home = (ROOT / "views/HomeView.qml").read_text()
 
 def check(name, condition):
     if not condition:
@@ -21,7 +22,11 @@ check("download HTTP 22 is not retried", "exitCode !== 22 && download.retryCount
 check("progress reaches Panel bindings", "function onTransferProgressChanged(transfer)" in panel)
 check("Panel owns the reactive active list", "root.activeTransfers = active" in panel)
 check("Home receives Panel active transfers", "activeTransfers: root.activeTransfers" in panel)
-home = (ROOT / "views/HomeView.qml").read_text()
+check("notifications use an injected preference", "property bool notifyEnabled: true" in service and "root.notifyEnabled" in service)
+check("transfer notification ownership is tracked", "transfer.notificationSent = true" in service and "!transfer.notificationSent" in panel)
+check("Panel forwards notification preference", "TransferService.notifyEnabled = root.notifyEnabled" in panel)
+check("file progress background waits for progress", "visible: root.transferProgress > 0" in (ROOT / "components/FileItem.qml").read_text())
+check("home progress background waits for progress", "visible: isActive && modelData.progress > 0" in home)
 item = (ROOT / "components/TransferItem.qml").read_text()
 check("Libraries list receives transfer revisions", "transferRevision: root.transferRevision" in home)
 check("Home active transfer rows keep their width", "id: row\n                        width: parent.width\n                        spacing: Style.space(12)" in home)
@@ -52,6 +57,18 @@ T.transfers = [
 ];
 R.push("activeStates=" + T.getActiveTransfers().map(t => t.id).join(","));
 R.push("historyCounts=" + T.getCompletedCount() + "," + T.getFailedCount());
+T._notifyFactory = { createObject: () => ({ command: null, running: false }) };
+T.cleanupTransferAuthFile = () => {};
+T.cleanupTransferConfigFile = () => {};
+T._pumpUploadQueue = () => {};
+T.transfersChanged = () => {};
+T.transferStateChanged = () => {};
+const completed = { id: "upload-done", type: "upload", state: "uploading", fileName: "x", progress: 0, speed: "", authHeaderFile: null, curlConfigFile: null, process: { stdout: { text: '[{"name":"x"}]' }, destroy() {} } };
+T.transfers = [completed];
+T.handleUploadExited(0, completed);
+R.push("completionState=" + completed.state);
+R.push("completionActive=" + T.getActiveTransfers().length);
+R.push("completionNotified=" + completed.notificationSent);
 R.push("legacyRetryable404=" + T.isRetryableError(404, "timeout"));
 R.push("legacyRetryable500=" + T.isRetryableError(500, "permanent"));
 console.log(R.join("\n"));'''
@@ -62,6 +79,8 @@ console.log(R.join("\n"));'''
     check("retry preserves history without credentials", values["missingTokenPreserved"] == "true")
     check("active model includes queued and running", values["activeStates"] == "queued,running")
     check("history model separates completed and failed", values["historyCounts"] == "1,1")
+    check("completed upload leaves active model", values["completionState"] == "completed" and values["completionActive"] == "0")
+    check("completed upload owns one notification", values["completionNotified"] == "true")
     check("legacy retry helper ignores misleading message on 404", values["legacyRetryable404"] == "false")
     check("legacy retry helper classifies 500 by status", values["legacyRetryable500"] == "true")
 else:

@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.1] - 2026-10-16
+
+### Added
+- A startup and daily check for newer GitHub releases, with update instructions delivered through the configured notification channel.
+
+### Fixed
+- Transfer completion and failure notifications no longer appear twice.
+- Completed transfers now clear the active-transfer badge reliably.
+- Empty progress bars no longer render as gray slivers before progress starts.
+
 ## [Unreleased]
 
 ### Added
@@ -15,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `scripts/test_required_properties.py` fails the build when a component instantiated through a Loader is missing one of its `required property` assignments, which would otherwise surface as a blank view at runtime.
 
 ### Changed
+- Transfer completion and failure now use one notification channel at a time: the desktop notification when enabled, otherwise the in-panel toast.
+- Progress bars in file and Quick Access rows stay hidden until transfer progress is available, avoiding an empty gray bar at 0%.
 - Search now starts after the first typed character and refreshes as the query grows, with a short debounce between keystrokes.
 - Bundled helper paths are resolved once through `SafePath.toLocalFile()`, which decodes percent-escapes, so an install path containing spaces, `#` or `%` stays a single argv value instead of silently pointing at the wrong file.
 - Toolbar tooltips are unified on `PanelToolTip`; the overflow button no longer shows a "More" tooltip that only obscured the toolbar edge.
@@ -25,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Four contract suites that previously sat on disk unenforced (`test_ux_performance`, `test_mutation_contracts`, `test_search_action_contracts`, `test_login_contracts`) are part of the portable CI gate.
 
 ### Fixed
+- Transfer completion notifications now use the Panel's persisted preference without calling an unavailable global setting helper, so the active-transfer badge clears when a transfer finishes.
 - Search results now accept Seafile's ISO-8601 modification timestamps instead of showing a parse error.
 - Dismissing a context menu now removes only its temporary right-click selection, so the details/actions pane does not appear unexpectedly afterward.
 - Upload basenames now preserve valid leading/trailing spaces, and a basename of `--` no longer collides with the upload helper's command separator.

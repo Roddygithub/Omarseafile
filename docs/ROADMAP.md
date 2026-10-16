@@ -2,7 +2,7 @@
 
 ## Current State
 
-The current release is `1.2.0`. The v1 scope is delivered; the items below are future work unless explicitly scheduled.
+The current release is `1.2.1`. The v1 scope is delivered; the items below are future work unless explicitly scheduled.
 
 ## v1 Scope
 
