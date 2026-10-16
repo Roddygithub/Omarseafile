@@ -415,10 +415,17 @@ Panel {
         contextMenu.open()
     }
 
-    function shareFromContextMenu(item) {
-        var clearTemporarySelection = root.contextMenuAddedSelection
+    // A right-click may select an unselected item only to give its context
+    // menu a target. That selection must not survive dismissing the menu and
+    // unexpectedly reveal the details/actions pane.
+    function clearTemporaryContextSelection() {
+        if (!root.contextMenuAddedSelection) return
         root.contextMenuAddedSelection = false
-        if (clearTemporarySelection) root.clearSelection()
+        root.clearSelection()
+    }
+
+    function shareFromContextMenu(item) {
+        root.clearTemporaryContextSelection()
         root.pickShare(item)
     }
 
@@ -533,6 +540,7 @@ Panel {
                 onCopyClicked: function(item) { root.copyItems(item) }
                 onShareClicked: function(item) { root.shareFromContextMenu(item) }
                 onHistoryClicked: function(item) { root.openHistory(item) }
+                onClosed: root.clearTemporaryContextSelection()
                 onDeleteClicked: function(item) {
                     if (root.selectedItems.length > 1) root.deleteItems()
                     else if (item) root.pickDelete(item)

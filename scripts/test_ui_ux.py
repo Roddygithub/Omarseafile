@@ -56,6 +56,16 @@ P.shareFromContextMenu(contextRow.item);
 check("context-menu Share clears temporary selection, preserves its target, and resets its marker",
   contextShareItem === contextRow.item && temporarySelectionCleared === 1
   && P.selectedItems.length === 0 && !P.contextMenuAddedSelection);
+P.contextMenuAddedSelection = true;
+P.selectedItems = [contextRow.item];
+P.clearTemporaryContextSelection();
+check("dismissing context menu clears its temporary selection",
+  temporarySelectionCleared === 2 && P.selectedItems.length === 0 && !P.contextMenuAddedSelection);
+P.selectedItems = [contextRow.item];
+P.contextMenuAddedSelection = false;
+P.clearTemporaryContextSelection();
+check("dismissing context menu preserves an existing selection",
+  temporarySelectionCleared === 2 && P.selectedItems.length === 1 && !P.contextMenuAddedSelection);
 let contextClosed = false;
 P.destinationMode = "";
 P.shareLoader = {item: null};
@@ -157,6 +167,7 @@ assert 'ipcTarget: "roddy.seafile"' not in panel
 assert "target: root.moduleName" in panel
 assert 'sequence: "Shift+F10"' in panel and "root.showKeyboardContextMenu()" in panel
 assert "context: Qt.ApplicationShortcut" in panel
+assert "onClosed: root.clearTemporaryContextSelection()" in panel
 print("PASS plugin uses one active shell IPC target")
 for path in ("components/FileItem.qml", "components/SearchResults.qml", "components/HistoryPanel.qml", "components/TrashPanel.qml"):
     source = (ROOT / path).read_text()
