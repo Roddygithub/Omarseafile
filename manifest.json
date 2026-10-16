@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "roddy.seafile",
   "name": "Omarseafile",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "author": "Roddy",
   "description": "A compact, secure Seafile client deeply integrated with Omarchy",
   "kinds": [

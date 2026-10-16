@@ -20,7 +20,7 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 
 > **Install:** `omarchy plugin add https://github.com/Roddygithub/Omarseafile.git --enable`
 
-## Features (v1.2.1)
+## Features (v1.2.2)
 
 - **Home / Quick Access**: Pin libraries and folders for instant access. See active transfers at a glance.
 - Browse accessible Seafile libraries and folders with breadcrumbs.

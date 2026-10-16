@@ -35,7 +35,7 @@ Item {
 
     property string serverUrl: ""
     property string accountEmail: ""
-    property string pluginVersion: "1.2.1"
+    property string pluginVersion: "1.2.2"
     property bool autoLogin: true
     property bool singleClickOpen: false
     property string sortColumn: "name"
@@ -53,21 +53,6 @@ Item {
         // root is a plain Item (not a positioner), so anchoring the top-level
         // column is valid and preserves the intended horizontal centring.
         anchors.horizontalCenter: parent.horizontalCenter
-
-        Text {
-            text: "Settings"
-            color: root.bar.foreground
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.heading
-            font.bold: true
-        }
-
-        Rectangle {
-            width: parent.width
-            height: Style.spacing.hairline
-            color: root.bar.foreground
-            opacity: 0.12
-        }
 
         // Connection Section
         Column {

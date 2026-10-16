@@ -50,36 +50,6 @@ Column {
         function onTransfersChanged() { root.refresh() }
     }
 
-    // Header with summary
-    Item {
-        width: parent.width
-        height: Style.space(32)
-        visible: root.activeCount > 0 || root.completedCount > 0 || root.failedCount > 0
-
-        Row {
-            spacing: Style.space(8)
-
-            Text {
-                text: "Transfers"
-                color: root.bar.foreground
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-                height: parent.height
-                verticalAlignment: Text.AlignVCenter
-            }
-
-            Text {
-                text: "(" + (root.activeCount + root.completedCount + root.failedCount) + ")"
-                color: Qt.darker(root.bar.foreground, 1.4)
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.caption
-                height: parent.height
-                verticalAlignment: Text.AlignVCenter
-            }
-        }
-    }
-
     // Active section
     Column {
         width: parent.width
