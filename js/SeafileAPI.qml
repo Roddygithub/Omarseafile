@@ -71,8 +71,15 @@ QtObject {
     }
 
     function _safeTimestamp(value) {
-        if (typeof value !== "number" || isNaN(value)) return { valid: false, error: "Expected timestamp number" }
-        return { valid: true }
+        if (typeof value === "number" && isFinite(value) && !isNaN(value))
+            return { valid: true, value: value }
+        // Search-file returns ISO-8601 strings while the folder API returns
+        // Unix seconds. Normalize both at this trust boundary.
+        if (typeof value === "string" && value.length <= 64 && !_hasControlChars(value)) {
+            var parsed = Date.parse(value)
+            if (!isNaN(parsed) && isFinite(parsed)) return { valid: true, value: parsed / 1000 }
+        }
+        return { valid: false, error: "Expected timestamp number or ISO date" }
     }
 
     function _safeArray(value, limit) {
@@ -770,7 +777,7 @@ QtObject {
                                 path: item.path,
                                 parentPath: parentPath,
                                 size: rawSize,
-                                mtime: item.mtime,
+                                 mtime: vMtime.value,
                                 type: item.type,
                                 repoId: repoId
                             })

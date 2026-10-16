@@ -24,7 +24,7 @@ C.handleResponse(1, 500);
 check("stale probe remains ignored", C.online === true);
 
 // Exercise the real SeafileAPI search parser, not a duplicate parser.
-function searchResult(type) {
+function searchResult(type, mtime = 1) {
   let callback;
   const A = h.loadQmlObject("js/SeafileAPI.qml", {
     HttpTransport: { get: (url, headers, cb) => { callback = cb; } },
@@ -34,11 +34,12 @@ function searchResult(type) {
   A.token = "token";
   let result;
   A.search("needle", "repo", (ok, data, error) => result = {ok, data, error});
-  callback(true, {data: [{path: "/docs/item", size: 1, mtime: 1, type: type}]}, null);
+  callback(true, {data: [{path: "/docs/item", size: 1, mtime, type: type}]}, null);
   return result;
 }
 check("search accepts file", searchResult("file").ok === true);
 check("search accepts folder", searchResult("folder").ok === true);
+check("search accepts ISO timestamp", searchResult("file", "2026-07-29T00:13:54+00:00").ok === true);
 check("search rejects unknown type", searchResult("link").ok === false);
 check("search rejects missing type", searchResult(undefined).ok === false);
 
@@ -58,6 +59,8 @@ const P = h.loadQmlObject("Panel.qml", {
   Qt: { resolvedUrl: () => "" }
 });
 P.searchDebounceTimer = { stop: () => {}, restart: () => {} };
+P.onSearchQueryChanged("a");
+check("search starts from the first character", P.searchState === "debounce");
 P.libraries = [{id: "repo", name: "Repo", encrypted: false}];
 P.searchQuery = "needle";
 P.searchActive = true;

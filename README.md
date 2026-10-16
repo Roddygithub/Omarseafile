@@ -96,7 +96,7 @@ The panel stays compact while keeping the common Seafile workflows close at hand
   </tr>
   <tr>
     <td align="center"><strong>Browsing</strong><br><img src="assets/screenshots/browser.png" alt="Browsing a Seafile library" width="360"></td>
-    <td></td>
+    <td align="center"><strong>Live search</strong><br><img src="assets/screenshots/search.png" alt="Live search results with filters" width="360"></td>
   </tr>
 </table>
 
@@ -157,7 +157,7 @@ Copy and Move are same-library operations in v1. A source folder cannot be moved
 
 ### Search
 
-Search is available from the toolbar. It is debounced and searches each accessible non-encrypted library through Seafile's repo-scoped search API. Results include the library, path, type, and size where available. Filter by type (file/folder) and library. Seafile CE's global search endpoint is not used.
+Search is available from the toolbar. It searches as you type, with a short debounce to avoid sending one request per keystroke burst, across each accessible non-encrypted library through Seafile's repo-scoped search API. Results include the library, path, type, and size where available. Filter by type (file/folder) and library. Seafile CE's global search endpoint is not used.
 
 ### Sharing, history, and trash
 

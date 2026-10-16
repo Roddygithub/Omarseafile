@@ -1347,11 +1347,11 @@ Panel {
 
     function onSearchQueryChanged(query) {
         root.searchQuery = query
-        if (query.length < 2) {
+        if (query.length === 0) {
             root.searchGeneration++
             searchDebounceTimer.stop()
             root.searchResults = []
-            root.searchState = query.length === 0 ? "idle" : "debounce"
+            root.searchState = "idle"
             return
         }
         root.searchState = "debounce"
@@ -1376,7 +1376,7 @@ Panel {
     function executeSearch() {
         searchDebounceTimer.stop()
         var query = root.searchQuery.trim()
-        if (query.length < 2) {
+        if (query.length === 0) {
             root.searchState = "idle"
             return
         }
