@@ -91,6 +91,10 @@ The panel stays compact while keeping the common Seafile workflows close at hand
     <td align="center"><strong>Settings</strong><br><img src="assets/screenshots/settings.png" alt="Omarseafile settings" width="360"></td>
   </tr>
   <tr>
+    <td align="center"><strong>Transfers</strong><br><img src="assets/screenshots/transfers.png" alt="Omarseafile transfer progress" width="360"></td>
+    <td align="center"><strong>Sharing</strong><br><img src="assets/screenshots/share.png" alt="Omarseafile share dialog" width="360"></td>
+  </tr>
+  <tr>
     <td align="center"><strong>Browsing</strong><br><img src="assets/screenshots/browser.png" alt="Browsing a Seafile library" width="360"></td>
     <td></td>
   </tr>
