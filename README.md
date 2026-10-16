@@ -87,8 +87,12 @@ The panel stays compact while keeping the common Seafile workflows close at hand
     <td align="center"><strong>Right-click actions</strong><br><img src="assets/screenshots/context-menu.png" alt="Right-click menu with Add to Quick Access" width="360"></td>
   </tr>
   <tr>
+    <td align="center"><strong>Upload</strong><br><img src="assets/screenshots/upload.png" alt="Omarseafile upload dialog" width="360"></td>
     <td align="center"><strong>Settings</strong><br><img src="assets/screenshots/settings.png" alt="Omarseafile settings" width="360"></td>
+  </tr>
+  <tr>
     <td align="center"><strong>Browsing</strong><br><img src="assets/screenshots/browser.png" alt="Browsing a Seafile library" width="360"></td>
+    <td></td>
   </tr>
 </table>
 
