@@ -227,6 +227,7 @@ In Move or Copy destination mode, Enter and pointer activation navigate folders 
 | Share link will not copy | Install `wl-clipboard`; the link can still be viewed. |
 | Plugin missing from the bar | Check `omarchy plugin list`, then inspect Omarchy shell logs. |
 | File picker doesn't appear | Install `zenity`, or type the path into the upload dialog manually. |
+| DOCX opens in the wrong application | Omarseafile follows the system MIME handler. Check `xdg-mime query default application/vnd.openxmlformats-officedocument.wordprocessingml.document`, then set OnlyOffice with `xdg-mime default onlyoffice-desktopeditors.desktop application/vnd.openxmlformats-officedocument.wordprocessingml.document`. |
 
 ## Development
 

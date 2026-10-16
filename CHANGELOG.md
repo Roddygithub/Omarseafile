@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `scripts/test_required_properties.py` fails the build when a component instantiated through a Loader is missing one of its `required property` assignments, which would otherwise surface as a blank view at runtime.
 
 ### Changed
+- Troubleshooting now documents how to select OnlyOffice as the system handler for DOCX files.
 - Transfer completion and failure now use one notification channel at a time: the desktop notification when enabled, otherwise the in-panel toast.
 - Progress bars in file and Quick Access rows stay hidden until transfer progress is available, avoiding an empty gray bar at 0%.
 - Search now starts after the first typed character and refreshes as the query grows, with a short debounce between keystrokes.
