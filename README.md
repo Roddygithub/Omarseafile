@@ -1,6 +1,24 @@
 # Omarseafile
 
-Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing and managing a self-hosted [Seafile](https://www.seafile.com/) account from a Quickshell panel.
+<p align="center">
+  <strong>A compact, fast Seafile client for Omarchy.</strong><br>
+  Browse libraries, search files, transfer data, share links, and manage everyday file operations without leaving your Quickshell panel.
+</p>
+
+<p align="center">
+  <a href="https://github.com/Roddygithub/Omarseafile/actions/workflows/validate.yml"><img src="https://github.com/Roddygithub/Omarseafile/actions/workflows/validate.yml/badge.svg" alt="Validation"></a>
+  <a href="https://github.com/Roddygithub/Omarseafile/releases"><img src="https://img.shields.io/github/v/release/Roddygithub/Omarseafile?display_name=tag" alt="Latest release"></a>
+  <a href="https://github.com/Roddygithub/Omarseafile/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Roddygithub/Omarseafile" alt="MIT license"></a>
+  <a href="https://plugins.omarchy.org/"><img src="https://img.shields.io/badge/Omarchy-plugin-ff6b4a" alt="Omarchy plugin"></a>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/omarseafile-libraries.png" alt="Omarseafile showing Seafile libraries inside an Omarchy panel" width="520">
+</p>
+
+Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing and managing a self-hosted [Seafile](https://www.seafile.com/) account from a Quickshell panel. It keeps the remote server experience central and stays deliberately smaller than a desktop file manager.
+
+> **Install:** `omarchy plugin add https://github.com/Roddygithub/Omarseafile.git --enable`
 
 ## Features (v1.2.0)
 
@@ -11,7 +29,7 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 - **Secure download target creation**: temporary files created with exclusive O_CREAT|O_EXCL|O_NOFOLLOW on a held directory FD, mode 0600, curl writes to held FD (no pathname reopen), producer-side byte ceiling (1 GiB default) and disk-space admission check (256 MiB safety margin), automatic cleanup on failure/cancellation, symlink and clobber protection.
 - **Open Local**: download to private `XDG_CACHE_HOME` (or `~/.cache`) cache, same secure creation, bounded cache (1 GiB default, recovery/eviction before use), cached file opened with the configured MIME handler through UWSM, falling back to `xdg-open`.
 - **Graphical file picker** for uploads (an out-of-process `zenity --file-selection --multiple`) with multi-file selection; manual path entry remains as fallback and is the only route when `zenity` is absent.
-- **Upload source hardening**: absolute path required, must be regular file (rejects symlinks, directories, devices, FIFOs, sockets), size precheck (1 GiB default).
+- **Upload source hardening**: absolute path required, regular files only (rejects symlinks, directories, devices, FIFOs, sockets), and a bounded private snapshot before upload (1 GiB default).
 - Create folders, rename items (F2), and delete files or folders (Delete).
 - Select multiple items with Ctrl+Click, Shift+Click, or Ctrl+A for batch actions.
 - Copy and move files and folders, including batch operations.
@@ -58,6 +76,20 @@ On Arch/Omarchy:
 ```bash
 sudo pacman -S curl libsecret python zenity wl-clipboard libnotify
 ```
+
+## Screenshots
+
+The panel is designed to stay compact while keeping the common Seafile actions close at hand:
+
+<p align="center">
+  <img src="assets/screenshots/omarseafile-libraries.png" alt="Omarseafile library browser" width="520">
+</p>
+
+More screenshots and the marketplace listing will be linked here once the community listing is approved: [Omarchy Plugins](https://plugins.omarchy.org/).
+
+<p align="center">
+  <img src="assets/screenshots/omarchy-plugin-marketplace.png" alt="Omarchy Plugin Marketplace publishing page" width="720">
+</p>
 
 ## Installation
 

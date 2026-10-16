@@ -63,7 +63,7 @@ BarWidget {
         id: button
         anchors.fill: parent
         bar: root.bar
-        tooltipText: "Seafile"
+         tooltipText: "Omarseafile"
         iconComponent: Component {
             Image {
                 anchors.fill: parent
