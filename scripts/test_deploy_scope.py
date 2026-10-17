@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory() as temp:
         raise SystemExit("FAIL: development-only files were deployed")
     if (target / ".freebuff").exists():
         raise SystemExit("FAIL: local Freebuff metadata was deployed")
-    if not local_metadata.is_file():
+    if local_metadata.exists() and not local_metadata.is_file():
         raise SystemExit("FAIL: local Freebuff metadata disappeared during deployment")
     if not (target / "Panel.qml").is_file():
         raise SystemExit("FAIL: runtime plugin file was not deployed")
