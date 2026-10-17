@@ -127,6 +127,8 @@ check "Transfers hide capability URLs in private config" grep -q "createCurlConf
 check "Upload form literals are parser-safe" bash -c 'grep -q "curlFileForm" js/TransferService.qml && grep -q '"'"'"--form-string"'"'"' js/TransferService.qml'
 check "Download finalization treats destination as a file" grep -q 'mv -nT' js/TransferService.qml
 check "Text-entry dialogs autofocus fields" bash -c 'grep -q "nameField.forceActiveFocus" components/RenameDialog.qml && grep -q "nameField.forceActiveFocus" components/CreateFolderDialog.qml && grep -q "pathField.forceActiveFocus" components/UploadDialog.qml && grep -q "serverUrlField.forceActiveFocus" components/SettingsDialog.qml && grep -q "serverField.forceActiveFocus" components/LoginDialog.qml'
+check "Login fields stay read-only and block native clipboard paths" bash -c 'test "$(grep -c "readOnly: true" components/LoginDialog.qml)" -eq 3 && grep -q "root.isPasteShortcut(event)" components/LoginDialog.qml && test "$(grep -c "acceptedButtons: Qt.MiddleButton" components/LoginDialog.qml)" -eq 3 && ! grep -q "\.paste(" components/LoginDialog.qml'
+check "Login clipboard reads are size-capped and deadlined" bash -c 'grep -q "set -o pipefail" components/LoginDialog.qml && grep -q "timeout -s KILL" components/LoginDialog.qml && grep -q "wl-paste" components/LoginDialog.qml && grep -q "head -c" components/LoginDialog.qml && grep -q "root.pasteMaxBytes + 1" components/LoginDialog.qml && grep -q "readonly property int pasteMaxBytes: 16384" components/LoginDialog.qml'
 check "Revision downloads accept capability URLs" grep -q 'typeof data !== "string"' js/SeafileAPI.qml
 check "Unsupported trash restore sends no mutation" bash -c '! grep -q "function restoreFolder" js/SeafileAPI.qml && grep -q "Restore unavailable" components/TrashPanel.qml'
 check "Offline banner uses null-safe binding (connectionService guard)" bash -c 'grep -q "offlineBannerVisible" views/BrowserView.qml && grep -q "root.connectionService &&" views/BrowserView.qml && ! grep -q "visible: !root.connectionService.online" views/BrowserView.qml'
@@ -138,7 +140,8 @@ check "Upload picker does not URI-decode selected paths" bash -c '! grep -vE "^\
 # Looks for a file:// string literal, not for the word in a comment.
 check "Upload picker passes raw filesystem paths to the caller" bash -c "! grep -qE '\"file://' components/UploadDialog.qml"
 check "Quick Access is limited to libraries and folders" bash -c 'grep -q "Only libraries and folders can be added to Quick Access" Panel.qml'
-check "zenity cannot block login (optional dependency)" bash -c 'grep -A2 "cmd: \"zenity\"" js/Auth.qml | grep -q "required: false"'
+check "zenity remains optional (upload picker only)" bash -c 'grep -A2 "cmd: \"zenity\"" js/Auth.qml | grep -q "required: false" && ! grep -q "credential form" js/Auth.qml'
+check "wl-paste remains optional for bounded login paste" bash -c 'grep -A2 "cmd: \"wl-paste\"" js/Auth.qml | grep -q "required: false"'
 check "python3 is a declared required dependency" bash -c 'grep -A2 "cmd: \"python3\"" js/Auth.qml | grep -q "required: true"'
 check "foldersFirst is a real wired preference" bash -c 'grep -q "foldersFirst: root.foldersFirst" views/BrowserView.qml && grep -q "root.foldersFirst &&" components/FileList.qml'
 check "Transfers surface is reachable without a library open" grep -q 'root.state === "browse" && root.showTransfers' Panel.qml
@@ -301,7 +304,7 @@ fi
 # --- Dependency Reporting ---
 echo ""
 echo "--- Dependency Report ---"
-for cmd in curl python3 secret-tool zenity wl-copy xdg-open xdg-mime uwsm-app notify-send; do
+for cmd in curl python3 secret-tool zenity wl-copy wl-paste xdg-open xdg-mime uwsm-app notify-send; do
     if command -v "$cmd" >/dev/null; then
         echo "  $cmd: $(which $cmd)"
     else

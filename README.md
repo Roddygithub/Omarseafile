@@ -20,7 +20,7 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 
 > **Install:** `omarchy plugin add https://github.com/Roddygithub/Omarseafile.git --enable`
 
-## Features (v1.2.2)
+## Features (v1.2.3)
 
 - **Home / Quick Access**: Pin libraries and folders for instant access. See active transfers at a glance.
 - Browse accessible Seafile libraries and folders with breadcrumbs.
@@ -52,10 +52,10 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 - A reachable Seafile server. Development validation used Seafile CE 12.0.x.
 - `curl` for transfers.
 - `libsecret` for `secret-tool` and credential storage.
-- `zenity` for the graphical upload picker. **Optional**: without it the manual path field still uploads, and login is not blocked.
-- `wl-clipboard` for copying share links. Sharing still works without it, but copying the link does not.
+- `zenity` for the graphical upload picker. **Optional**: without it the manual path field still uploads.
+- `wl-clipboard` for copying share links and optionally pasting into the login form. Sharing still works without `wl-copy`; login values can always be typed if `wl-paste` is unavailable.
 - `libnotify` for `notify-send` transfer notifications. **Optional**.
-- Python 3, `coreutils` (`stat`, `realpath`, `cat`, `rm`, `mv`), `util-linux` (`setsid`, `kill`), and `xdg-user-dirs`/`xdg-utils` (`xdg-user-dir`, `xdg-open`), normally supplied by Omarchy/Arch desktop installations.
+- Python 3, `coreutils` (`stat`, `realpath`, `cat`, `rm`, `mv`, `head`, `timeout`), `util-linux` (`setsid`, `kill`), and `xdg-user-dirs`/`xdg-utils` (`xdg-user-dir`, `xdg-open`), normally supplied by Omarchy/Arch desktop installations.
 
 Dependency classification:
 
@@ -64,11 +64,11 @@ Dependency classification:
 | `curl` | REQUIRED | Yes — every authenticated API call and transfer uses it. |
 | `secret-tool` (libsecret) | REQUIRED | Yes — token/credential storage and lookup. |
 | `python3` | REQUIRED | Yes — hardened temp-file writers, transfer wrappers, cache eviction. |
-| `setsid`, `stat`, `cat`, `rm`, `kill`, `which`, `realpath`, `mv` | SYSTEM_ASSUMPTION | No — standard util-linux/coreutils present on any Arch/Omarchy install. |
+| `setsid`, `stat`, `cat`, `rm`, `kill`, `which`, `realpath`, `mv`, `head`, `timeout` | SYSTEM_ASSUMPTION | No — standard util-linux/coreutils present on any Arch/Omarchy install. |
 | `bash`/`sh` | SYSTEM_ASSUMPTION | No — used for secure `mv -nT` finalization and the xdg-open handoff. |
 | `xdg-user-dir` (xdg-user-dirs) | SYSTEM_ASSUMPTION | No — resolves the Downloads directory; falls back to `~/Downloads`. |
-| `zenity` | OPTIONAL_FEATURE | No — graphical upload picker only; the manual path field still uploads, and login is never blocked. |
-| `wl-copy` (wl-clipboard) | OPTIONAL_FEATURE | No — copying share links only. |
+| `zenity` | OPTIONAL_FEATURE | No — graphical upload picker only; the manual path field still uploads. |
+| `wl-copy`, `wl-paste` (wl-clipboard) | OPTIONAL_FEATURE | No — copying share links and guarded paste into the login fields only. |
 | `notify-send` (libnotify) | OPTIONAL_FEATURE | No — desktop notifications only. |
 | `xdg-open`, `xdg-mime`, `uwsm-app` | OPTIONAL_FEATURE | No — Open Local only; UWSM/MIME resolution falls back to `xdg-open`. |
 
@@ -124,6 +124,8 @@ Omarseafile checks the latest GitHub release at startup and every 24 hours. If a
 1. Open the Seafile bar widget.
 2. Enter the server URL, email, and password.
 3. Select **Connect**.
+
+Pasting into these fields goes through a bounded, out-of-process clipboard read (`wl-paste`, 16 KiB cap, 2 s deadline); oversized or stalled clipboard content is rejected with an inline message instead of being read into the shell. Clipboard support is optional; credentials can always be typed.
 
 HTTPS is required for non-loopback servers. HTTP is accepted only for loopback addresses (localhost, 127.0.0.1). The URL is normalized and validated before authentication. Auto-login can be enabled or disabled in Settings.
 
@@ -200,6 +202,8 @@ The overflow menu also provides New Folder, Refresh, Transfers, Trash, Settings,
 
 When a search, login, settings, upload, share, rename, or create-folder field has focus, panel-level shortcuts are blocked so typing, Delete, Ctrl+A, and Escape work in the field or dialog.
 
+Login fields intercept `Ctrl+V`/`Ctrl+Shift+V`/`Shift+Insert` and use a bounded out-of-process read (`wl-paste`, 16 KiB cap, 2 s deadline), including middle-click from the PRIMARY selection. If `wl-paste` is missing, paste reports unavailable; values can still be typed.
+
 ## Destination Mode
 
 In Move or Copy destination mode, Enter and pointer activation navigate folders in the source library. File-list selection and destructive shortcuts are disabled. Escape or Cancel exits destination mode; the confirmation buttons perform the selected operation.
@@ -225,6 +229,7 @@ In Move or Copy destination mode, Enter and pointer activation navigate folders 
 | TLS failure | Use a certificate trusted by the system; do not disable verification. |
 | Auto-login failure | Check that Secret Service is available and Auto-login is enabled in Settings. |
 | Share link will not copy | Install `wl-clipboard`; the link can still be viewed. |
+| Paste does not work in the login form | Install `wl-clipboard` (`wl-paste`); credentials can still be typed. |
 | Plugin missing from the bar | Check `omarchy plugin list`, then inspect Omarchy shell logs. |
 | File picker doesn't appear | Install `zenity`, or type the path into the upload dialog manually. |
 | DOCX opens in the wrong application | Omarseafile follows the system MIME handler. Check `xdg-mime query default application/vnd.openxmlformats-officedocument.wordprocessingml.document`, then set OnlyOffice with `xdg-mime default onlyoffice-desktopeditors.desktop application/vnd.openxmlformats-officedocument.wordprocessingml.document`. |

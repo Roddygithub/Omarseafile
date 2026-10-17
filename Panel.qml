@@ -114,7 +114,7 @@ Panel {
 
     // Single source of truth for the displayed version, kept in step with
     // manifest.json by scripts/test_v11_remediation.py.
-    readonly property string pluginVersion: "1.2.2"
+    readonly property string pluginVersion: "1.2.3"
 
     function selectionKeyForItem(item) {
         return SelectionHelper.makeKey(item)
@@ -728,7 +728,7 @@ Panel {
                     LoginDialog {
                         id: loginDialog
                         bar: root.bar
-                        serverField.text: root.serverUrl
+                        serverUrl: root.serverUrl
                         depErrorMessage: root.depErrorMessage
                         errorMessage: root.errorMessage
                         loading: root.loading
@@ -940,7 +940,8 @@ Panel {
     readonly property bool dialogOpen: settingsLoader.item !== null || createFolderLoader.item !== null || renameLoader.item !== null || confirmLoader.item !== null || shareLoader.item !== null || uploadLoader.item !== null || historyLoader.item !== null || trashLoader.item !== null
 
     // True while keyboard input belongs to a text-editing surface: the search
-    // bar, the login form, settings, or the editable field of any open dialog.
+    // bar, a focused login field, settings, or the editable field of any open
+    // dialog. Login text fields intercept paste so clipboard reads stay bounded.
     // Drives PanelKeyCatcher.blocked so h/j/k/l/x, arrows, Enter, Space,
     // Delete and Escape reach the focused control instead of being interpreted
     // as panel-level navigation/actions while the user is typing. Each editor

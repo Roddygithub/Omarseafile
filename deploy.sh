@@ -7,7 +7,7 @@
 #   ./deploy.sh          # sync to default plugin dir
 #   ./deploy.sh --check  # dry run, show what would change
 #
-# Excludes: repository metadata/docs, contributor-only files and Python cache files
+# Excludes: repository/local metadata, docs, contributor-only files and Python cache files
 
 set -euo pipefail
 
@@ -29,6 +29,7 @@ if $DRY_RUN; then
   echo ""
   CHANGES="$(rsync -ainc --delete --omit-dir-times \
     --exclude='.git/' \
+    --exclude='.freebuff/' \
     --exclude='AGENTS.md' \
     --exclude='docs/' \
     --exclude='README.md' \
@@ -48,6 +49,7 @@ else
   mkdir -p "$PLUGIN_DIR"
   rsync -av --delete \
     --exclude='.git/' \
+    --exclude='.freebuff/' \
     --exclude='AGENTS.md' \
     --exclude='docs/' \
     --exclude='README.md' \

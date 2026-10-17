@@ -12,11 +12,16 @@ with tempfile.TemporaryDirectory() as temp:
     target = pathlib.Path(temp) / "plugin"
     env = os.environ.copy()
     env["OMARCHY_PLUGIN_DIR"] = str(target)
+    local_metadata = ROOT / ".freebuff" / "project-id"
     deployed = subprocess.run([str(ROOT / "deploy.sh")], capture_output=True, text=True, env=env)
     if deployed.returncode != 0:
         raise SystemExit("FAIL: deploy did not complete\n" + deployed.stdout + deployed.stderr)
     if (target / "AGENTS.md").exists() or (target / "docs").exists() or (target / "README.md").exists():
         raise SystemExit("FAIL: development-only files were deployed")
+    if (target / ".freebuff").exists():
+        raise SystemExit("FAIL: local Freebuff metadata was deployed")
+    if not local_metadata.is_file():
+        raise SystemExit("FAIL: local Freebuff metadata disappeared during deployment")
     if not (target / "Panel.qml").is_file():
         raise SystemExit("FAIL: runtime plugin file was not deployed")
     checked = subprocess.run([str(ROOT / "deploy.sh"), "--check"], capture_output=True, text=True, env=env)

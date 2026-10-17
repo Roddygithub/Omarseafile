@@ -196,15 +196,16 @@ QtObject {
         return new Promise(function(resolve) {
             // required: the plugin cannot work at all without it.
             // optional: a specific feature degrades, the rest still works.
-            // Zenity is optional on purpose: when it is missing the graphical
-            // picker is unavailable but the manual path field still uploads,
-            // so a missing zenity must never block login.
+            // Zenity is optional: without it, the graphical upload picker is
+            // unavailable but the manual path field still uploads. Login uses
+            // native fields with a separately bounded clipboard read.
             var checks = [
                 { cmd: "curl", name: "curl", install: "sudo pacman -S curl", required: true },
                 { cmd: "secret-tool", name: "secret-tool (libsecret)", install: "sudo pacman -S libsecret", required: true },
                 { cmd: "python3", name: "python3", install: "sudo pacman -S python", required: true },
                 { cmd: "zenity", name: "zenity (graphical file picker)", install: "sudo pacman -S zenity", required: false },
-                { cmd: "wl-copy", name: "wl-copy (wl-clipboard)", install: "sudo pacman -S wl-clipboard", required: false },
+                { cmd: "wl-copy", name: "wl-copy (share-link copy)", install: "sudo pacman -S wl-clipboard", required: false },
+                { cmd: "wl-paste", name: "wl-paste (login paste)", install: "sudo pacman -S wl-clipboard", required: false },
                 { cmd: "xdg-open", name: "xdg-open (open files)", install: "sudo pacman -S xdg-utils", required: false },
                 { cmd: "xdg-mime", name: "xdg-mime (open files)", install: "sudo pacman -S xdg-utils", required: false },
                 { cmd: "uwsm-app", name: "uwsm-app (open files)", install: "install Omarchy/UWSM", required: false },

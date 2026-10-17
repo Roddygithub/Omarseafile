@@ -29,8 +29,8 @@ Item {
         root.checkPickerAvailable()
     }
 
-    // True once we've probed for zenity. Missing zenity must never block login
-    // or the manual path field; only the graphical Browse action degrades.
+    // True once we've probed for zenity. If missing, only the graphical Browse
+    // action degrades - the manual path field still uploads.
     property bool pickerAvailable: true
 
     // Probe PATH for zenity without running it. A missing binary disables

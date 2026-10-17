@@ -894,8 +894,11 @@ test("ordinary text follows the Omarchy user font",
 print("\n--- 8. Dependency contract, URL policy, foldersFirst (BEHAVIORAL/STATIC) ---")
 # =====================================================================
 auth = read("js/Auth.qml")
-test("zenity is declared optional (cannot block login)",
-     re.search(r'\{ cmd: "zenity"[^}]*required: false \}', auth) is not None, kind="STATIC")
+test("zenity remains optional (login has no zenity dependency)",
+     re.search(r'\{ cmd: "zenity"[^}]*required: false \}', auth) is not None
+     and "credential form" not in auth, kind="STATIC")
+test("wl-paste is declared optional for login paste",
+     re.search(r'\{ cmd: "wl-paste"[^}]*required: false \}', auth) is not None, kind="STATIC")
 test("curl is required", re.search(r'\{ cmd: "curl"[^}]*required: true \}', auth) is not None,
      kind="STATIC")
 test("secret-tool is required",
@@ -1000,15 +1003,15 @@ print("\n--- 10. Release metadata consistency (STATIC) ---")
 # =====================================================================
 import json
 manifest = json.loads(read("manifest.json"))
-test("manifest version is 1.2.2", manifest.get("version") == "1.2.2", manifest.get("version"),
+test("manifest version is 1.2.3", manifest.get("version") == "1.2.3", manifest.get("version"),
      kind="STATIC")
 test("Settings About derives from the same version",
-      'readonly property string pluginVersion: "1.2.2"' in panel
+      'readonly property string pluginVersion: "1.2.3"' in panel
      and "pluginVersion: root.pluginVersion" in panel, kind="STATIC")
 test("foldersFirst is declared in the manifest schema",
      any(f.get("key") == "foldersFirst" for f in manifest["barWidget"]["schema"]), kind="STATIC")
 changelog = read("CHANGELOG.md")
-test("CHANGELOG has a 1.2.2 section", "[1.2.2]" in changelog, kind="STATIC")
+test("CHANGELOG has a 1.2.3 section", "[1.2.3]" in changelog, kind="STATIC")
 test("update checker uses the GitHub latest release endpoint",
      "api.github.com/repos/Roddygithub/Omarseafile/releases/latest" in panel
      and "function checkForUpdate()" in panel, kind="STATIC")

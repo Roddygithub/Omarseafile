@@ -16,6 +16,7 @@ Please report suspected vulnerabilities privately through the repository's GitHu
 - Transfer processes disable user curl configuration and do not follow redirects, so a custom authorization header is not forwarded to another origin.
 - TLS certificate verification is not disabled. HTTPS is required for non-loopback servers; HTTP is accepted only for loopback (localhost, 127.0.0.1, ::1).
 - The plugin has no telemetry service. Network requests are made to the Seafile server configured by the user and to local desktop utilities such as `wl-copy`.
+- Login fields intercept `Ctrl+V`/`Ctrl+Shift+V`/`Shift+Insert` and middle-click so Qt never reads clipboard contents in-process. A separate `wl-paste` process runs under a 2 s deadline and its output is capped at 16 KiB + 1 byte before entering Quickshell; oversized or stalled reads are rejected without inserting partial data. The extra byte detects truncation, and the kill-on-timeout prevents a clipboard owner from keeping the shell busy.
 
 **Transfer Path Hardening (Finding 5):**
 - **Secure output creation**: Download targets created via `secure_output.py` using held directory FD (O_DIRECTORY|O_NOFOLLOW), verified ownership/permissions, unpredictable basename, O_CREAT|O_EXCL|O_NOFOLLOW, mode 0600. curl writes to held FD (stdout), never a pathname. Relative unlink on failure/cancellation.

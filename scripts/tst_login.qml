@@ -73,4 +73,39 @@ TestCase {
         compare(dismissals, 1)
         compare(calls.length, 2)
     }
+
+    function test_read_only_paste_and_password_editing() {
+        verify(dialog.serverField.readOnly)
+        verify(dialog.emailField.readOnly)
+        verify(dialog.passwordField.readOnly)
+        compare(dialog.pasteByteLength("a"), 1)
+        compare(dialog.pasteByteLength("é"), 2)
+        compare(dialog.pasteByteLength("🙂"), 4)
+        verify(dialog.pasteByteLength("x".repeat(dialog.pasteMaxBytes + 1)) > dialog.pasteMaxBytes)
+
+        dialog.passwordField.forceActiveFocus()
+        dialog.passwordField.cursorPosition = dialog.passwordField.length
+        keyClick(Qt.Key_X)
+        compare(dialog.passwordField.text, "test-passwordx")
+        keyClick(Qt.Key_Backspace)
+        compare(dialog.passwordField.text, "test-password")
+    }
+
+    function test_guarded_paste_never_hangs() {
+        dialog.serverField.text = ""
+        dialog.validationMessage = ""
+        dialog.serverField.forceActiveFocus()
+        // Clipboard reads happen only after an explicit shortcut and run in a
+        // bounded helper process; the headless harness has no clipboard.
+        keyClick(Qt.Key_V, Qt.ControlModifier)
+        verify(dialog.pasteReadInFlight)
+        var waited = 0
+        while (dialog.pasteReadInFlight && waited < 8000) {
+            wait(250)
+            waited += 250
+        }
+        verify(!dialog.pasteReadInFlight)
+        compare(dialog.validationMessage !== "", true)
+        verify(dialog.editing)
+    }
 }
