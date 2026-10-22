@@ -206,6 +206,17 @@ check(f"total PlainText instances >= {total_required}",
 
 print(f"  {total_found}/{total_required} required PlainText instances found across {len(REQUIRED_PLAINTEXT)} files")
 
+# Remote names and paths must never reach the shared AutoText tooltip.
+for filename, expected in (("FileItem.qml", 1), ("DetailsPanel.qml", 2)):
+    with open(os.path.join(REPO_ROOT, "components", filename)) as f:
+        source = f.read()
+    tooltips = re.findall(r"PanelToolTip\s*\{([^}]+)\}", source)
+    check(f"{filename}: all remote tooltips use PanelToolTip",
+          len(tooltips) == expected and "ToolTip.text:" not in source)
+    check(f"{filename}: tooltip text is bounded to 1024 characters",
+          all(re.search(r'text:.*Models\.boundedDisplayText\(.+, 1024\)', tip)
+              for tip in tooltips))
+
 print("--- J. boundedDisplayText usage in QML files ---")
 # Every file with a dynamic text sink must use Models.boundedDisplayText.
 REQUIRED_BOUNDS = {

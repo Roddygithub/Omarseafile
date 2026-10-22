@@ -66,15 +66,16 @@ ShellRoot {
         proc.running = true
     }
 
+    // Match signal payloads by stable transfer ID across QML contexts.
     Connections {
         target: TransferService
         function onTransferStateChanged(transfer) {
-            if (transfer === root.failureProbe && transfer.state === "failed") {
+            if (root.failureProbe && transfer.id === root.failureProbe.id && transfer.state === "failed") {
                 root.failureHandled = root.releasedOnce(transfer)
                 root.cancelProbe = root.probe("cancel", "/probe-cancel")
                 root.startProbe(root.cancelProbe)
                 Qt.callLater(function() { TransferService.cancelTransfer(root.cancelProbe.id) })
-            } else if (transfer === root.cancelProbe && transfer.state === "cancelled") {
+            } else if (root.cancelProbe && transfer.id === root.cancelProbe.id && transfer.state === "cancelled") {
                 root.cancelHandled = root.releasedOnce(transfer)
                 root.successProbe = root.probe("success", root.cachePath, root.cacheName)
                 root.startProbe(root.successProbe)
@@ -86,7 +87,7 @@ ShellRoot {
                         root.maybeFinishHandoff()
                     })
                 })
-            } else if (transfer === root.successProbe && transfer.state === "completed") {
+            } else if (root.successProbe && transfer.id === root.successProbe.id && transfer.state === "completed") {
                 root.handoffCompleted = root.successProcess.running && root.releasedOnce(transfer)
                 root.maybeFinishHandoff()
             }

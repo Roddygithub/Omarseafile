@@ -73,7 +73,9 @@ def main():
         os.symlink("/usr/share/omarchy/shell/Ui", os.path.join(package_dir, "Ui"))
         os.symlink("/usr/share/omarchy/shell/Commons", os.path.join(package_dir, "Commons"))
 
-        env = os.environ.copy()
+        env = dict(os.environ, QT_QPA_PLATFORM="offscreen",
+                   QT_QPA_PLATFORMTHEME="generic", QT_QUICK_CONTROLS_STYLE="Basic")
+        env.pop("WAYLAND_DISPLAY", None)
         # Provide a real XDG_RUNTIME_DIR so SafePath can create private files.
         rt = os.path.join(temp, "run")
         os.makedirs(rt, mode=0o700)

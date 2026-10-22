@@ -123,4 +123,9 @@ check("bar forwards popout close", "panelLoader.item.closeForPopoutSwitch()" in 
 check("external settings are reinjected", "onSettingsChanged: injectPanel()" in bar and "panelLoader.item.settings = root.settings" in bar)
 check("sort callback reaches both views", "onSortChanged: root.onSortChanged" in home and "onSortChanged: root.onSortChanged" in browser)
 
+host_tooltip = (host_root / "Ui/PanelToolTip.qml").read_text()
+check("host tooltip renders server text as PlainText",
+      re.search(r"contentItem:\s*Text\s*\{[^}]*textFormat:\s*Text\.PlainText", host_tooltip) is not None
+      and "text: root.text" in host_tooltip)
+
 print("=== phase 2 contract checks passed ===")

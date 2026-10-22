@@ -108,7 +108,7 @@ check("creating another share link clears the previous result", S.showCreateForm
 subprocess.run(["node", "-e", script], cwd=ROOT, check=True)
 file_item = (ROOT / "components/FileItem.qml").read_text()
 panel_source = (ROOT / "Panel.qml").read_text()
-assert "ToolTip.visible: mouseArea.containsMouse && truncated" in file_item
+assert "visible: mouseArea.containsMouse && nameLabel.truncated" in file_item
 assert "mouse.button !== Qt.LeftButton || root.singleClickOpen" in file_item
 assert 'if (root.state === "browse" && (!root.libraries || root.libraries.length === 0))' in panel_source
 assert "border.width: root.isCurrent ? Style.spacing.hairline : 0" in file_item
@@ -154,8 +154,8 @@ assert 'sequence: "Escape"' in menu and "enabled: root.opened" in menu and "onAc
 assert "CloseOnPressOutsideParent" not in menu
 print("PASS grouped context actions and destructive emphasis")
 details = (ROOT / "components/DetailsPanel.qml").read_text()
-assert "ToolTip.visible: nameHover.containsMouse && truncated" in details
-assert "ToolTip.visible: pathHover.containsMouse && truncated" in details
+assert "visible: nameHover.containsMouse && valueText.truncated" in details
+assert "visible: pathHover.containsMouse && valueText6.truncated" in details
 assert 'visible: root.item && root.item.type === "file"' in details
 print("PASS details long-name and action visibility")
 home = (ROOT / "views/HomeView.qml").read_text()

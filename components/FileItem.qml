@@ -161,9 +161,11 @@ Item {
             height: parent.height
             verticalAlignment: Text.AlignVCenter
             textFormat: Text.PlainText
-            ToolTip.visible: mouseArea.containsMouse && truncated
-            ToolTip.delay: 500
-            ToolTip.text: safeItem.name || ""
+            PanelToolTip {
+                visible: mouseArea.containsMouse && nameLabel.truncated
+                delay: 500
+                text: Models.boundedDisplayText(root.safeItem.name || "", 1024)
+            }
         }
 
         Item {

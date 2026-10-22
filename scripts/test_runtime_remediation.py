@@ -34,7 +34,14 @@ with tempfile.TemporaryDirectory() as temp:
     with open(xdg_user_dir, "w", encoding="utf-8") as f:
         f.write("#!/bin/sh\nsleep 1\nprintf '%s\\n' \"$HOME/Downloads\"\n")
     os.chmod(xdg_user_dir, 0o700)
-    env = os.environ.copy()
+    # The real Panel is instantiated, but must never restore the user's
+    # credentials or make external requests during this synthetic scenario.
+    for name, status in (("secret-tool", 1), ("curl", 7)):
+        path = os.path.join(bin_dir, name)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("#!/bin/sh\nexit %d\n" % status)
+        os.chmod(path, 0o700)
+    env = dict(os.environ, QT_QPA_PLATFORMTHEME="generic", QT_QUICK_CONTROLS_STYLE="Basic")
     env["XDG_CACHE_HOME"] = os.path.join(temp, "fresh-cache-root")
     env["PATH"] = bin_dir + os.pathsep + env["PATH"]
     cache_dir = os.path.join(env["XDG_CACHE_HOME"], "omarseafile")
@@ -50,6 +57,7 @@ with tempfile.TemporaryDirectory() as temp:
     result = subprocess.run(["timeout", "7", qs, "--path", os.path.join(package_dir, "test_remediation.qml")], capture_output=True, timeout=10, env=env)
 output = (result.stdout + result.stderr).decode(errors="replace")
 checks = [
+    "tooltipPlain=true",
     "reserved=2684354560",
     "released=0",
     "deep=false",

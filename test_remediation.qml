@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.Ui as Ui
 import "./js"
 
 ShellRoot {
@@ -26,9 +27,20 @@ ShellRoot {
     property string runtimeCacheDir: ""
     property var protectedProbe: null
 
+    Ui.PanelToolTip {
+        id: tooltipProbe
+        text: Models.boundedDisplayText('<img src="https://example.invalid/probe.png">' + "x".repeat(2048), 1024)
+    }
+
     Panel {
         id: accountPanel
         visible: false
+        settings: ({ autoLogin: false, notifyEnabled: false })
+        bar: QtObject {
+            property color foreground: "white"
+            property color background: "black"
+            property string fontFamily: "sans-serif"
+        }
     }
 
     Timer {
@@ -36,6 +48,9 @@ ShellRoot {
         interval: 1000
         repeat: false
         onTriggered: {
+            console.log("REMEDIATION tooltipPlain=" + (tooltipProbe.contentItem.textFormat === Text.PlainText
+                && tooltipProbe.contentItem.text === tooltipProbe.text && tooltipProbe.text.length === 1024
+                && tooltipProbe.text.indexOf('<img src=') === 0))
             console.log("REMEDIATION reserved=" + root.reserved + " released=" + root.released + " deep=" + root.deepValid + " libraryKeys=" + root.libraryKeysUnique + " visualRange=" + root.visualRange + " freshCache=" + root.freshCache + " pendingOpenCancelled=" + root.pendingOpenCancelled + " xdgOpenFailed=" + root.xdgOpenFailed + " xdgOpenCancel=" + root.xdgOpenCancel + " xdgOpenLogout=" + root.xdgOpenLogout + " xdgOpenReleased=" + root.xdgOpenReleased + " xdgOpenSuccess=" + root.xdgOpenSuccess + " accountSwitchSafe=" + root.accountSwitchSafe + " openingCacheProtected=" + root.openingCacheProtected + " protectionReleased=" + root.protectionReleased + " protectedClearResult=" + root.protectedClearResult + " postReleaseClearResult=" + root.postReleaseClearResult + " uploadStatSafe=" + root.uploadStatSafe)
             Qt.quit()
         }
@@ -150,28 +165,29 @@ ShellRoot {
         }
     }
 
+    // Match signal payloads by stable transfer ID across QML contexts.
     Connections {
         target: TransferService
         function onTransferStateChanged(transfer) {
-            if (transfer === root.protectedProbe && transfer.state === "cancelled") {
+            if (root.protectedProbe && transfer.id === root.protectedProbe.id && transfer.state === "cancelled") {
                 root.checkProductionRelease()
-            } else if (transfer === root.openProbe && transfer.state === "failed") {
+            } else if (root.openProbe && transfer.id === root.openProbe.id && transfer.state === "failed") {
                 root.xdgOpenFailed = true
                 root.cancelProbe = root.openProbeTransfer("open-cancel", "/probe-cancel")
                 root.startProbe(root.cancelProbe)
                 cancelTimer.start()
-            } else if (transfer === root.cancelProbe && transfer.state === "cancelled") {
+            } else if (root.cancelProbe && transfer.id === root.cancelProbe.id && transfer.state === "cancelled") {
                 root.xdgOpenCancel = true
                 root.xdgOpenReleased = TransferService._activeReservedBytes === 0 && !transfer._reserved
                 root.logoutProbe = root.openProbeTransfer("open-logout", "/probe-logout")
                 root.startProbe(root.logoutProbe)
                 logoutTimer.start()
-            } else if (transfer === root.logoutProbe && transfer.state === "cancelled") {
+            } else if (root.logoutProbe && transfer.id === root.logoutProbe.id && transfer.state === "cancelled") {
                 root.xdgOpenLogout = true
                 root.xdgOpenReleased = root.xdgOpenReleased && TransferService._activeReservedBytes === 0 && !transfer._reserved
                 root.successProbe = root.openProbeTransfer("open-success", "/probe-success")
                 root.startProbe(root.successProbe)
-            } else if (transfer === root.successProbe && transfer.state === "completed") {
+            } else if (root.successProbe && transfer.id === root.successProbe.id && transfer.state === "completed") {
                 root.xdgOpenSuccess = true
                 root.xdgOpenReleased = root.xdgOpenReleased && TransferService._activeReservedBytes === 0 && !transfer._reserved
                 root.successOpenComplete = true

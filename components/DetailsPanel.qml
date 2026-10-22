@@ -109,9 +109,11 @@ Item {
                         elide: Text.ElideRight
                         width: parent.width - labelText.width - Style.space(8)
                         textFormat: Text.PlainText
-                        ToolTip.visible: nameHover.containsMouse && truncated
-                        ToolTip.delay: 500
-                        ToolTip.text: root.item ? Models.boundedDisplayText(root.item.name, 1024) : ""
+                        PanelToolTip {
+                            visible: nameHover.containsMouse && valueText.truncated
+                            delay: 500
+                            text: root.item ? Models.boundedDisplayText(root.item.name, 1024) : ""
+                        }
                         MouseArea {
                             id: nameHover
                             anchors.fill: parent
@@ -288,9 +290,11 @@ Item {
                         elide: Text.ElideRight
                         width: parent.width - labelText6.width - Style.space(8)
                         textFormat: Text.PlainText
-                        ToolTip.visible: pathHover.containsMouse && truncated
-                        ToolTip.delay: 500
-                        ToolTip.text: root.item ? Models.boundedDisplayText(root.currentPath === "/" ? "/" + root.item.name : root.currentPath + "/" + root.item.name, 1024) : ""
+                        PanelToolTip {
+                            visible: pathHover.containsMouse && valueText6.truncated
+                            delay: 500
+                            text: root.item ? Models.boundedDisplayText(root.currentPath === "/" ? "/" + root.item.name : root.currentPath + "/" + root.item.name, 1024) : ""
+                        }
                         MouseArea {
                             id: pathHover
                             anchors.fill: parent
