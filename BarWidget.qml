@@ -76,9 +76,8 @@ BarWidget {
                 sourceSize.width: 64
                 sourceSize.height: 64
                 fillMode: Image.PreserveAspectFit
-                asynchronous: true
+                asynchronous: false
                 cache: false
-                visible: status === Image.Ready
             }
         }
         onPressed: function(b) {
