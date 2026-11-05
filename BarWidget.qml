@@ -66,8 +66,12 @@ BarWidget {
          tooltipText: "Omarseafile"
         iconComponent: Component {
             Image {
-                anchors.fill: parent
-                anchors.margins: Style.space(1)
+                // The bar measures the icon item and scales it to
+                // Style.bar.iconSize, so the artwork declares its own size.
+                // Anchoring it to the host would make it depend on a size the
+                // host derives from it, and it would paint nothing.
+                width: Style.bar.iconCanvas
+                height: Style.bar.iconCanvas
                 source: root._logoSource
                 sourceSize.width: 64
                 sourceSize.height: 64
