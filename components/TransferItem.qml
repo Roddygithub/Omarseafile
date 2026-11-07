@@ -31,8 +31,8 @@ Item {
     property bool showOpenActions: isCompleted && isDownload
 
     // Human-readable label for queued/validating uploads.
-    property string stateLabel: transfer.state === "queued" ? "Queued..."
-        : (transfer.state === "validating" ? "Validating..." : "")
+    property string stateLabel: transfer.state === "queued" ? L10n.t("Queued...")
+        : (transfer.state === "validating" ? L10n.t("Validating...") : "")
 
     Row {
         id: row
@@ -58,7 +58,7 @@ Item {
 
             Text {
                 id: nameLabel
-                text: Models.boundedDisplayText(root.transfer.fileName || "Unknown", 1024)
+                text: Models.boundedDisplayText(root.transfer.fileName || L10n.t("Unknown"), 1024)
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.body
@@ -71,17 +71,17 @@ Item {
                 id: detailLabel
                 text: Models.boundedDisplayText((function() {
                     if (root.isActive) {
-                        if (root.isCancelling) return "Cancelling..."
-                        if (root.transfer.state === "opening") return "Opening..."
+                        if (root.isCancelling) return L10n.t("Cancelling...")
+                        if (root.transfer.state === "opening") return L10n.t("Opening...")
                         if (root.stateLabel !== "") return root.stateLabel
                         var parts = []
                         if (root.transfer.progress > 0) parts.push(Math.round(root.transfer.progress * 100) + "%")
                         if (root.transfer.speed) parts.push(root.transfer.speed)
-                        return parts.join(" - ") || "Starting..."
+                        return parts.join(" - ") || L10n.t("Starting...")
                     } else if (root.isCompleted) {
-                        return "Completed"
+                        return L10n.t("Completed")
                     } else if (root.isFailed) {
-                        return root.transfer.error || "Failed"
+                        return root.transfer.error || L10n.t("Failed")
                     }
                     return ""
                 })(), 4096)
@@ -142,9 +142,9 @@ Item {
                     font.pixelSize: Style.font.caption
                     activeFocusOnTab: true
                     Accessible.role: Accessible.Button
-                    Accessible.name: "Retry transfer"
+                    Accessible.name: L10n.t("Retry transfer")
                     Accessible.onPressAction: { if (root.onRetry) root.onRetry(root.transfer) }
-                    ToolTip.text: "Retry transfer"
+                    ToolTip.text: L10n.t("Retry transfer")
                     Keys.onReturnPressed: function(event) { if (root.onRetry) root.onRetry(root.transfer); event.accepted = true }
                     Keys.onSpacePressed: function(event) { if (root.onRetry) root.onRetry(root.transfer); event.accepted = true }
                     MouseArea {
@@ -161,9 +161,9 @@ Item {
                     font.pixelSize: Style.font.caption
                     activeFocusOnTab: true
                     Accessible.role: Accessible.Button
-                    Accessible.name: "Remove transfer from history"
+                    Accessible.name: L10n.t("Remove transfer from history")
                     Accessible.onPressAction: { if (root.onClear) root.onClear(root.transfer) }
-                    ToolTip.text: "Remove from history"
+                    ToolTip.text: L10n.t("Remove from history")
                     Keys.onReturnPressed: function(event) { if (root.onClear) root.onClear(root.transfer); event.accepted = true }
                     Keys.onSpacePressed: function(event) { if (root.onClear) root.onClear(root.transfer); event.accepted = true }
                     MouseArea {
@@ -181,9 +181,9 @@ Item {
                 font.pixelSize: Style.font.caption
                 activeFocusOnTab: true
                 Accessible.role: Accessible.Button
-                Accessible.name: "Cancel transfer"
+                Accessible.name: L10n.t("Cancel transfer")
                 Accessible.onPressAction: { if (root.onCancel) root.onCancel(root.transfer) }
-                ToolTip.text: "Cancel transfer"
+                ToolTip.text: L10n.t("Cancel transfer")
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 visible: root.isActive && !root.isCancelling
@@ -207,9 +207,9 @@ Item {
                     font.pixelSize: Style.font.caption
                     activeFocusOnTab: true
                     Accessible.role: Accessible.Button
-                    Accessible.name: "Open downloaded file"
+                    Accessible.name: L10n.t("Open downloaded file")
                     Accessible.onPressAction: { if (root.onOpen) root.onOpen(root.transfer) }
-                    ToolTip.text: "Open file"
+                    ToolTip.text: L10n.t("Open file")
                     Keys.onReturnPressed: function(event) { if (root.onOpen) root.onOpen(root.transfer); event.accepted = true }
                     Keys.onSpacePressed: function(event) { if (root.onOpen) root.onOpen(root.transfer); event.accepted = true }
                     MouseArea {
@@ -226,9 +226,9 @@ Item {
                     font.pixelSize: Style.font.caption
                     activeFocusOnTab: true
                     Accessible.role: Accessible.Button
-                    Accessible.name: "Show downloaded file in folder"
+                    Accessible.name: L10n.t("Show downloaded file in folder")
                     Accessible.onPressAction: { if (root.onShowInFolder) root.onShowInFolder(root.transfer) }
-                    ToolTip.text: "Show in file manager"
+                    ToolTip.text: L10n.t("Show in file manager")
                     Keys.onReturnPressed: function(event) { if (root.onShowInFolder) root.onShowInFolder(root.transfer); event.accepted = true }
                     Keys.onSpacePressed: function(event) { if (root.onShowInFolder) root.onShowInFolder(root.transfer); event.accepted = true }
                     MouseArea {

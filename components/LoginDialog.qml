@@ -33,17 +33,17 @@ Item {
     function submit() {
         if (root.loading) return
         if (!serverField.text.trim()) {
-            root.validationMessage = "Enter your Seafile server URL."
+            root.validationMessage = L10n.t("Enter your Seafile server URL.")
             serverField.forceActiveFocus()
             return
         }
         if (!emailField.text.trim()) {
-            root.validationMessage = "Enter your email address."
+            root.validationMessage = L10n.t("Enter your email address.")
             emailField.forceActiveFocus()
             return
         }
         if (!passwordField.text) {
-            root.validationMessage = "Enter your password."
+            root.validationMessage = L10n.t("Enter your password.")
             passwordField.forceActiveFocus()
             return
         }
@@ -122,12 +122,12 @@ Item {
         root.pasteTarget = null
         var text = pasteProcess.stdout.text
         if (root.pasteByteLength(text) > root.pasteMaxBytes) {
-            root.validationMessage = "Clipboard content exceeds the 16 KiB limit."
+            root.validationMessage = L10n.t("Clipboard content exceeds the 16 KiB limit.")
         } else if (exitCode !== 0) {
             root.validationMessage = exitCode === 124 || exitCode === 137
-                ? "Clipboard read timed out."
-                : (exitCode === 127 ? "Paste unavailable: install wl-clipboard (wl-paste)."
-                   : "Paste unavailable (exit " + exitCode + ").")
+                ? L10n.t("Clipboard read timed out.")
+                : (exitCode === 127 ? L10n.t("Paste unavailable: install wl-clipboard (wl-paste).")
+                   : L10n.t("Paste unavailable (exit ") + exitCode + ").")
         } else if (field) {
             root.insertText(field, text)
         }
@@ -176,7 +176,7 @@ Item {
         }
 
         Text {
-            text: "Connect to your Seafile server"
+            text: L10n.t("Connect to your Seafile server")
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
@@ -198,8 +198,8 @@ Item {
         TextField {
             id: serverField
             width: parent.width
-            placeholderText: "Server URL (e.g. https://seafile.example.com)"
-            Accessible.name: "Seafile server URL"
+            placeholderText: L10n.t("Server URL (e.g. https://seafile.example.com)")
+            Accessible.name: L10n.t("Seafile server URL")
             text: root.serverUrl
             readOnly: true
             cursorVisible: activeFocus
@@ -223,8 +223,8 @@ Item {
         TextField {
             id: emailField
             width: parent.width
-            placeholderText: "Email"
-            Accessible.name: "Email address"
+            placeholderText: L10n.t("Email")
+            Accessible.name: L10n.t("Email address")
             readOnly: true
             cursorVisible: activeFocus
             font.family: root.bar.fontFamily
@@ -247,8 +247,8 @@ Item {
         TextField {
             id: passwordField
             width: parent.width
-            placeholderText: "Password"
-            Accessible.name: "Password"
+            placeholderText: L10n.t("Password")
+            Accessible.name: L10n.t("Password")
             echoMode: TextField.Password
             readOnly: true
             cursorVisible: activeFocus
@@ -285,8 +285,8 @@ Item {
         Button {
             id: loginButton
             width: parent.width
-            text: root.loading ? "Connecting…" : "Connect"
-            Accessible.name: root.loading ? "Connecting to Seafile" : "Connect to Seafile"
+            text: root.loading ? L10n.t("Connecting…") : L10n.t("Connect")
+            Accessible.name: root.loading ? L10n.t("Connecting to Seafile") : L10n.t("Connect to Seafile")
             enabled: !root.loading
             onClicked: root.submit()
         }

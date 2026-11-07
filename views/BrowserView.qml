@@ -77,7 +77,7 @@ Item {
             id: loadingIndicator
             width: parent.width
             visible: root.loading
-            message: root.searchActive ? "Searching..." : "Loading..."
+            message: root.searchActive ? L10n.t("Searching...") : L10n.t("Loading...")
             bar: root.bar
         }
 
@@ -94,7 +94,7 @@ Item {
             id: offlineBanner
             width: parent.width
             visible: offlineBannerVisible
-            message: "Offline - unreachable"
+            message: L10n.t("Offline - unreachable")
             bar: root.bar
             readonly property bool offlineBannerVisible: root.connectionService && !root.connectionService.online
         }
@@ -105,12 +105,12 @@ Item {
             height: visible ? contentHeight + topPadding : 0
             visible: root.searchActive && (root.searchState === "loading" || root.searchState === "results" || root.searchState === "empty")
             text: root.searchState === "loading"
-                ? ("Searching " + (root.searchableLibraryCount - root.searchPendingCount) + " of " + root.searchableLibraryCount + " libraries...")
+                ? (L10n.t("Searching %1 of %2 libraries…", [root.searchableLibraryCount - root.searchPendingCount, root.searchableLibraryCount]))
                 : (root.searchState === "results"
                     ? (root.searchTruncated
-                        ? "Showing first " + root.maxSearchResults + " results. Refine your search."
-                        : root.searchResults.length + " result(s) found")
-                    : "No results found")
+                        ? L10n.t("Showing first %1 results. Refine your search.", [root.maxSearchResults])
+                        : L10n.t("%1 result(s) found", [root.searchResults.length]))
+                    : L10n.t("No results found"))
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption

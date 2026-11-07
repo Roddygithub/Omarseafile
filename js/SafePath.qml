@@ -77,29 +77,29 @@ QtObject {
 
     function sanitizeBasename(name) {
         if (!name || typeof name !== "string") {
-            return { valid: false, error: "Empty filename" }
+            return { valid: false, error: L10n.t("Empty filename") }
         }
         var trimmed = name.trim()
         if (trimmed === "") {
-            return { valid: false, error: "Filename is whitespace only" }
+            return { valid: false, error: L10n.t("Filename is whitespace only") }
         }
         if (name === "." || name === "..") {
-            return { valid: false, error: "Reserved filename: " + name }
+            return { valid: false, error: L10n.t("Reserved filename: ") + name }
         }
         if (name.indexOf("/") !== -1 || name.indexOf("\\") !== -1) {
-            return { valid: false, error: "Path separators not allowed in filename" }
+            return { valid: false, error: L10n.t("Path separators not allowed in filename") }
         }
         if (name.indexOf("\0") !== -1) {
-            return { valid: false, error: "NUL character not allowed" }
+            return { valid: false, error: L10n.t("NUL character not allowed") }
         }
         for (var i = 0; i < name.length; i++) {
             var code = name.charCodeAt(i)
             if (code < 0x20 || code === 0x7F) {
-                return { valid: false, error: "Control characters not allowed" }
+                return { valid: false, error: L10n.t("Control characters not allowed") }
             }
         }
         if (name.length > root.maxBasenameLength) {
-            return { valid: false, error: "Filename exceeds maximum length of " + root.maxBasenameLength }
+            return { valid: false, error: L10n.t("Filename exceeds maximum length of ") + root.maxBasenameLength }
         }
         // Whitespace at either edge is valid filename data; trim is used only
         // to detect an all-whitespace name, never to rewrite the basename.
@@ -117,7 +117,7 @@ QtObject {
 
     function validateDirectory(dir, callback) {
         if (!dir || typeof dir !== "string") {
-            callback({ valid: false, error: "Empty directory" })
+            callback({ valid: false, error: L10n.t("Empty directory") })
             return
         }
         var expanded = dir
@@ -127,7 +127,7 @@ QtObject {
         }
         var proc = _realpathFactory.createObject(root, {
             onDone: function(path) {
-                if (!path) { callback({ valid: false, error: "Cannot resolve directory" }); return }
+                if (!path) { callback({ valid: false, error: L10n.t("Cannot resolve directory") }); return }
                 callback({ valid: true, resolved: path })
             }
         })
@@ -137,7 +137,7 @@ QtObject {
 
     function getRuntimeSubdir(subdir, callback) {
         if (!subdir || !/^[A-Za-z0-9_-]{1,64}$/.test(subdir)) {
-            callback({ valid: false, error: "Invalid runtime subdirectory" })
+            callback({ valid: false, error: L10n.t("Invalid runtime subdirectory") })
             return
         }
         // Return cached result immediately — no process spawns.
@@ -151,13 +151,13 @@ QtObject {
         }
         var runtimeDir = Quickshell.env("XDG_RUNTIME_DIR")
         if (!runtimeDir) {
-            callback({ valid: false, error: "XDG_RUNTIME_DIR not set" })
+            callback({ valid: false, error: L10n.t("XDG_RUNTIME_DIR not set") })
             return
         }
         var uidProc = _statFactory.createObject(root, {
             onDone: function(expectedUidOutput) {
                 if (!expectedUidOutput || !/^\d+$/.test(expectedUidOutput)) {
-                    callback({ valid: false, error: "Cannot determine current user UID" })
+                    callback({ valid: false, error: L10n.t("Cannot determine current user UID") })
                     return
                 }
                 var expectedUid = parseInt(expectedUidOutput, 10)
@@ -165,34 +165,34 @@ QtObject {
                     onDone: function(out) {
                         var parts = out ? out.split(" ") : []
                         if (parts.length !== 2 || !/^\d+$/.test(parts[0]) || !/^[0-7]+$/.test(parts[1])) {
-                            callback({ valid: false, error: "Cannot stat XDG_RUNTIME_DIR" })
+                            callback({ valid: false, error: L10n.t("Cannot stat XDG_RUNTIME_DIR") })
                             return
                         }
                         var uid = parseInt(parts[0], 10)
                         var perm = parseInt(parts[1], 8)
                         if (uid !== expectedUid) {
-                            callback({ valid: false, error: "XDG_RUNTIME_DIR not owned by current user" })
+                            callback({ valid: false, error: L10n.t("XDG_RUNTIME_DIR not owned by current user") })
                             return
                         }
                         if (perm & 0o022) {
-                            callback({ valid: false, error: "XDG_RUNTIME_DIR has unsafe permissions" })
+                            callback({ valid: false, error: L10n.t("XDG_RUNTIME_DIR has unsafe permissions") })
                             return
                         }
                         var dir = runtimeDir + "/omarseafile/" + subdir
                         var mk = _mkdirFactory.createObject(root, {
                             onDone: function(ok) {
-                                if (!ok) { callback({ valid: false, error: "Cannot create runtime subdir" }); return }
+                                if (!ok) { callback({ valid: false, error: L10n.t("Cannot create runtime subdir") }); return }
                                 var verify = _statFactory.createObject(root, {
                                     onDone: function(out2) {
                                         var parts2 = out2 ? out2.split(" ") : []
                                         if (parts2.length !== 2 || !/^\d+$/.test(parts2[0]) || !/^[0-7]+$/.test(parts2[1])) {
-                                            callback({ valid: false, error: "Cannot verify runtime subdir" })
+                                            callback({ valid: false, error: L10n.t("Cannot verify runtime subdir") })
                                             return
                                         }
                                         var uid2 = parseInt(parts2[0], 10)
                                         var perm2 = parseInt(parts2[1], 8)
                                         if (uid2 !== expectedUid || perm2 !== 0o700) {
-                                            callback({ valid: false, error: "Runtime subdir has incorrect ownership or permissions" })
+                                            callback({ valid: false, error: L10n.t("Runtime subdir has incorrect ownership or permissions") })
                                             return
                                         }
                                         var result = { valid: true, path: dir }
@@ -221,13 +221,13 @@ QtObject {
         if (!cacheRoot) {
             var home = Quickshell.env("HOME")
             if (!home) {
-                callback({ valid: false, error: "No cache directory available" })
+                callback({ valid: false, error: L10n.t("No cache directory available") })
                 return
             }
             cacheRoot = home + "/.cache"
         }
         if (!cacheRoot.startsWith("/")) {
-            callback({ valid: false, error: "XDG_CACHE_HOME must be absolute" })
+            callback({ valid: false, error: L10n.t("XDG_CACHE_HOME must be absolute") })
             return
         }
         // Create the configured root on first use, then canonicalize it before
@@ -235,13 +235,13 @@ QtObject {
         // validation and cannot become Omarseafile's private directory.
         var ensure = _mkdirFactory.createObject(root, {
             onDone: function(ok) {
-                if (!ok) { callback({ valid: false, error: "Cannot create cache root" }); return }
+                if (!ok) { callback({ valid: false, error: L10n.t("Cannot create cache root") }); return }
                 var checkRoot = _statFactory.createObject(root, {
                     onDone: function(kind) {
-                        if (kind !== "directory") { callback({ valid: false, error: "Cache root must be a directory" }); return }
+                        if (kind !== "directory") { callback({ valid: false, error: L10n.t("Cache root must be a directory") }); return }
                         var canonicalize = _realpathFactory.createObject(root, {
                             onDone: function(path) {
-                                if (!path) { callback({ valid: false, error: "Cannot resolve cache directory" }); return }
+                                if (!path) { callback({ valid: false, error: L10n.t("Cannot resolve cache directory") }); return }
                                 root._getCacheDirAt(path, callback)
                             }
                         })
@@ -272,7 +272,7 @@ QtObject {
         var uidProc = _statFactory.createObject(root, {
             onDone: function(expectedUidOutput) {
                 if (!expectedUidOutput || !/^\d+$/.test(expectedUidOutput)) {
-                    callback({ valid: false, error: "Cannot determine current user UID" })
+                    callback({ valid: false, error: L10n.t("Cannot determine current user UID") })
                     return
                 }
                 var expectedUid = parseInt(expectedUidOutput, 10)
@@ -280,28 +280,28 @@ QtObject {
                     onDone: function(out) {
                         var parts = out ? out.split(" ") : []
                         if (parts.length !== 2 || !/^\d+$/.test(parts[0]) || !/^[0-7]+$/.test(parts[1])) {
-                            callback({ valid: false, error: "Cannot stat cache directory" })
+                            callback({ valid: false, error: L10n.t("Cannot stat cache directory") })
                             return
                         }
                         var uid = parseInt(parts[0], 10)
                         var perm = parseInt(parts[1], 8)
                         if (uid !== expectedUid || perm & 0o022) {
-                            callback({ valid: false, error: "Cache directory has unsafe ownership or permissions" })
+                            callback({ valid: false, error: L10n.t("Cache directory has unsafe ownership or permissions") })
                             return
                         }
                         var dir = cacheRoot + "/omarseafile"
                         var mk = _mkdirFactory.createObject(root, {
                             onDone: function(ok) {
-                                if (!ok) { callback({ valid: false, error: "Cannot create cache directory" }); return }
+                                if (!ok) { callback({ valid: false, error: L10n.t("Cannot create cache directory") }); return }
                                 var verify = _statFactory.createObject(root, {
                                     onDone: function(out2) {
                                         var parts2 = out2 ? out2.split(" ") : []
                                         if (parts2.length !== 2 || !/^\d+$/.test(parts2[0]) || !/^[0-7]+$/.test(parts2[1])) {
-                                            callback({ valid: false, error: "Cannot verify cache directory" })
+                                            callback({ valid: false, error: L10n.t("Cannot verify cache directory") })
                                             return
                                         }
                                         if (parseInt(parts2[0], 10) !== expectedUid || parseInt(parts2[1], 8) !== 0o700) {
-                                            callback({ valid: false, error: "Cache directory has incorrect ownership or permissions" })
+                                            callback({ valid: false, error: L10n.t("Cache directory has incorrect ownership or permissions") })
                                             return
                                         }
                                         callback({ valid: true, path: dir })
@@ -450,7 +450,7 @@ QtObject {
             var proc = _atomicWriterFactory.createObject(root, {
                 onDone: function(path) {
                     if (!path) {
-                        callback({ valid: false, error: "Atomic write failed" })
+                        callback({ valid: false, error: L10n.t("Atomic write failed") })
                     } else {
                         callback({ valid: true, path: path })
                     }

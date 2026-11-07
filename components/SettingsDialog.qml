@@ -35,7 +35,7 @@ Item {
 
     property string serverUrl: ""
     property string accountEmail: ""
-    property string pluginVersion: "1.2.3"
+    property string pluginVersion: "1.3.0"
     property bool autoLogin: true
     property bool singleClickOpen: false
     property string sortColumn: "name"
@@ -60,7 +60,7 @@ Item {
             width: parent.width
 
             Text {
-                text: "Connection"
+                text: L10n.t("Connection")
                 color: Qt.darker(root.bar.foreground, 1.3)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -71,7 +71,7 @@ Item {
                 id: serverUrlField
                 width: parent.width
                 placeholderText: "https://seafile.example.com"
-                Accessible.name: "Seafile server URL"
+                Accessible.name: L10n.t("Seafile server URL")
                 text: root.serverUrl
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.body
@@ -97,7 +97,7 @@ Item {
                 Button {
                     id: testConnectionButton
                     width: parent.width / 2 - Style.space(4)
-                    text: "Test Connection"
+                    text: L10n.t("Test Connection")
                     enabled: !root.connectionTestRunning
                     onClicked: {
                         if (root.onTestConnection) root.onTestConnection(serverUrlField.text)
@@ -106,7 +106,7 @@ Item {
                 Button {
                     id: applyServerButton
                     width: parent.width / 2 - Style.space(4)
-                    text: "Apply Server"
+                    text: L10n.t("Apply Server")
                     enabled: !root.connectionTestRunning
                     onClicked: {
                         if (root.onChangeServer) root.onChangeServer(serverUrlField.text, true)
@@ -141,7 +141,7 @@ Item {
             width: parent.width
 
             Text {
-                text: "Account"
+                text: L10n.t("Account")
                 color: Qt.darker(root.bar.foreground, 1.3)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -163,7 +163,7 @@ Item {
                         width: Style.space(24)
                     }
                     Text {
-                        text: Models.boundedDisplayText(root.accountEmail || Auth.cachedEmail || "Not signed in", 320)
+                        text: Models.boundedDisplayText(root.accountEmail || Auth.cachedEmail || L10n.t("Not signed in"), 320)
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.body
@@ -189,7 +189,7 @@ Item {
             width: parent.width
 
             Text {
-                text: "Preferences"
+                text: L10n.t("Preferences")
                 color: Qt.darker(root.bar.foreground, 1.3)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -200,7 +200,7 @@ Item {
                 width: parent.width
                 spacing: Style.space(8)
                 Text {
-                    text: "Auto-login"
+                    text: L10n.t("Auto-login")
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
@@ -210,7 +210,7 @@ Item {
                 }
                 Switch {
                     id: autoLoginSwitch
-                    Accessible.name: "Auto-login"
+                    Accessible.name: L10n.t("Auto-login")
                     checked: root.autoLogin
                     onToggled: {
                         if (root.onAutoLoginToggled) root.onAutoLoginToggled(checked)
@@ -223,7 +223,7 @@ Item {
                 width: parent.width
                 spacing: Style.space(8)
                 Text {
-                    text: "Single-click to open"
+                    text: L10n.t("Single-click to open")
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
@@ -233,7 +233,7 @@ Item {
                 }
                 Switch {
                     id: singleClickOpenSwitch
-                    Accessible.name: "Single-click to open files and folders"
+                    Accessible.name: L10n.t("Single-click to open files and folders")
                     checked: root.singleClickOpen
                     onToggled: {
                         if (root.onSingleClickOpenToggled) root.onSingleClickOpenToggled(checked)
@@ -246,7 +246,7 @@ Item {
                 width: parent.width
                 spacing: Style.space(8)
                 Text {
-                    text: "Default sort"
+                    text: L10n.t("Default sort")
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
@@ -256,9 +256,9 @@ Item {
                 }
                 ComboBox {
                     id: sortColumnCombo
-                    Accessible.name: "Default sort order"
+                    Accessible.name: L10n.t("Default sort order")
                     width: Style.space(120)
-                    model: ["Name", "Size", "Modified", "Type"]
+                    model: [L10n.t("Name"), L10n.t("Size"), L10n.t("Modified"), L10n.t("Type")]
                     currentIndex: ["name", "size", "date", "type"].indexOf(root.sortColumn)
                     onActivated: {
                         if (root.onSortColumnChange) root.onSortColumnChange(["name", "size", "date", "type"][index])
@@ -271,7 +271,7 @@ Item {
                 width: parent.width
                 spacing: Style.space(8)
                 Text {
-                    text: "Folders first"
+                    text: L10n.t("Folders first")
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
@@ -281,7 +281,7 @@ Item {
                 }
                 Switch {
                     id: foldersFirstSwitch
-                    Accessible.name: "Folders first"
+                    Accessible.name: L10n.t("Folders first")
                     // Was a hard-coded, disabled always-true switch: the setting
                     // existed in the UI but did nothing.
                     checked: root.foldersFirst
@@ -296,7 +296,7 @@ Item {
                 width: parent.width
                 spacing: Style.space(8)
                 Text {
-                    text: "Ascending"
+                    text: L10n.t("Ascending")
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
@@ -306,7 +306,7 @@ Item {
                 }
                 Switch {
                     id: sortAscendingSwitch
-                    Accessible.name: "Sort ascending"
+                    Accessible.name: L10n.t("Sort ascending")
                     checked: root.sortAscending
                     onToggled: {
                         if (root.onSortAscendingChange) root.onSortAscendingChange(checked)
@@ -319,7 +319,7 @@ Item {
                 width: parent.width
                 spacing: Style.space(8)
                 Text {
-                    text: "Transfer notifications"
+                    text: L10n.t("Transfer notifications")
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
@@ -329,7 +329,7 @@ Item {
                 }
                 Switch {
                     id: notifySwitch
-                    Accessible.name: "Transfer notifications"
+                    Accessible.name: L10n.t("Transfer notifications")
                     checked: root.notifyEnabled
                     onToggled: {
                         if (root.onNotifyToggled) root.onNotifyToggled(checked)
@@ -352,7 +352,7 @@ Item {
             width: parent.width
 
             Text {
-                text: "Data"
+                text: L10n.t("Data")
                 color: Qt.darker(root.bar.foreground, 1.3)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -365,7 +365,7 @@ Item {
                 Button {
                     id: clearCacheButton
                     width: (parent.width - Style.space(8)) / 2
-                    text: "Clear Cache"
+                    text: L10n.t("Clear Cache")
                     onClicked: {
                         if (root.onClearCache) root.onClearCache()
                     }
@@ -373,7 +373,7 @@ Item {
                 Button {
                     id: logoutButton
                     width: (parent.width - Style.space(8)) / 2
-                    text: "Logout"
+                    text: L10n.t("Logout")
                     color: Color.urgent
                     onClicked: {
                         if (root.onLogout) root.onLogout()
@@ -395,7 +395,7 @@ Item {
             width: parent.width
 
             Text {
-                text: "About"
+                text: L10n.t("About")
                 color: Qt.darker(root.bar.foreground, 1.3)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -405,7 +405,7 @@ Item {
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: Models.boundedDisplayText("Omarseafile v" + root.pluginVersion + "\nSeafile client for Omarchy\n\nReport issues: https://github.com/Roddygithub/Omarseafile/issues", 1024)
+                text: Models.boundedDisplayText(L10n.t("Omarseafile v%1\nSeafile client for Omarchy\n\nReport issues: %2", [root.pluginVersion, "https://github.com/Roddygithub/Omarseafile/issues"]), 1024)
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
@@ -418,7 +418,7 @@ Item {
 
         Button {
             width: parent.width
-            text: "Close"
+            text: L10n.t("Close")
             onClicked: {
                 if (root.onClose) root.onClose()
             }

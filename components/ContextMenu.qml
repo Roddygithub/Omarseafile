@@ -1,4 +1,5 @@
 import QtQuick
+import "../js"
 import QtQuick.Controls
 import qs.Commons
 import qs.Ui
@@ -125,7 +126,7 @@ Popup {
         Button {
             id: openFileButton
             width: parent.width
-            text: "Open"
+            text: L10n.t("Open")
             visible: !root.libraryMode && !root.batchMode && !root.isDir
             onClicked: {
                 root.openClicked(root.item)
@@ -136,7 +137,7 @@ Popup {
         Button {
             id: openFolderButton
             width: parent.width
-            text: "Open"
+            text: L10n.t("Open")
             visible: !root.batchMode && (root.libraryMode || root.isDir)
             onClicked: {
                 root.openClicked(root.item)
@@ -147,7 +148,7 @@ Popup {
         Button {
             id: downloadButton
             width: parent.width
-            text: "Download"
+            text: L10n.t("Download")
             visible: !root.libraryMode && !root.batchMode && !root.isDir
             onClicked: {
                 root.downloadClicked(root.item)
@@ -158,7 +159,7 @@ Popup {
         Button {
             id: shareButton
             width: parent.width
-            text: "Share"
+            text: L10n.t("Share")
             visible: !root.libraryMode && !root.batchMode
             onClicked: {
                 root.shareClicked(root.item)
@@ -177,7 +178,7 @@ Popup {
         Button {
             id: renameButton
             width: parent.width
-            text: "Rename"
+            text: L10n.t("Rename")
             visible: !root.libraryMode && !root.batchMode
             onClicked: {
                 root.renameClicked(root.item)
@@ -188,7 +189,7 @@ Popup {
         Button {
             id: moveButton
             width: parent.width
-            text: root.batchMode ? "Move " + root.selectionCount + " items" : "Move"
+            text: root.batchMode ? L10n.t("Move %1 items", [root.selectionCount]) : L10n.t("Move")
             visible: !root.libraryMode
             onClicked: {
                 root.moveClicked(root.item)
@@ -199,7 +200,7 @@ Popup {
         Button {
             id: copyButton
             width: parent.width
-            text: root.batchMode ? "Copy " + root.selectionCount + " items" : "Copy"
+            text: root.batchMode ? L10n.t("Copy %1 items", [root.selectionCount]) : L10n.t("Copy")
             visible: !root.libraryMode
             onClicked: {
                 root.copyClicked(root.item)
@@ -218,7 +219,7 @@ Popup {
         Button {
             id: historyButton
             width: parent.width
-            text: "History"
+            text: L10n.t("History")
             visible: !root.libraryMode && !root.batchMode && !root.isDir
             onClicked: {
                 root.historyClicked(root.item)
@@ -229,7 +230,7 @@ Popup {
         Button {
             id: favoritesButton
             width: parent.width
-            text: root.isFavorite ? "Remove from Quick Access" : "Add to Quick Access"
+            text: root.isFavorite ? L10n.t("Remove from Quick Access") : L10n.t("Add to Quick Access")
             // Quick Access targets are libraries and folders only in v1.1.
             // At the Libraries root (libraryMode) the item is a library, so the
             // action is available there too; for files it is hidden rather than
@@ -256,7 +257,7 @@ Popup {
         Button {
             id: deleteButton
             width: parent.width
-            text: "Delete"
+            text: L10n.t("Delete")
             color: Color.urgent
             visible: !root.libraryMode
             onClicked: {

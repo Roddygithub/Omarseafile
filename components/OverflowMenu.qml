@@ -37,17 +37,17 @@ Popup {
     property var actions: {
         var out = []
         if (popup.showCreateFolder && !popup.searchActive && popup.selectionCount === 0)
-            out.push({ label: "New folder", urgent: false, action: popup.onCreateFolderClicked })
+            out.push({ label: L10n.t("New folder"), urgent: false, action: popup.onCreateFolderClicked })
         if (popup.showRefresh && !popup.searchActive && popup.selectionCount === 0)
-            out.push({ label: "Refresh", urgent: false, action: popup.onRefreshClicked })
+            out.push({ label: L10n.t("Refresh"), urgent: false, action: popup.onRefreshClicked })
         if (popup.showTransfers && popup.selectionCount === 0)
-            out.push({ label: "Transfers", urgent: false, action: popup.onTransfersClicked })
+            out.push({ label: L10n.t("Transfers"), urgent: false, action: popup.onTransfersClicked })
         if (popup.showTrash && popup.selectionCount === 0)
-            out.push({ label: "Trash", urgent: false, action: popup.onTrashClicked })
+            out.push({ label: L10n.t("Trash"), urgent: false, action: popup.onTrashClicked })
         if (popup.showSettings && popup.selectionCount === 0)
-            out.push({ label: "Settings", urgent: false, action: popup.onSettingsClicked })
+            out.push({ label: L10n.t("Settings"), urgent: false, action: popup.onSettingsClicked })
         if (popup.showLogout && popup.selectionCount === 0)
-            out.push({ label: "Logout", urgent: true, action: popup.onLogoutClicked })
+            out.push({ label: L10n.t("Logout"), urgent: true, action: popup.onLogoutClicked })
         return out
     }
 

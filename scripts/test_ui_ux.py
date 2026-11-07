@@ -125,15 +125,15 @@ print("PASS long-name tooltip and focus styling")
 bar = (ROOT / "components/BatchActionBar.qml").read_text()
 toolbar = (ROOT / "components/ToolBar.qml").read_text()
 panel = (ROOT / "Panel.qml").read_text()
-assert 'text: "More"' in bar and 'text: "Copy"' in bar
-assert 'text: "Delete"' in bar and 'text: "Clear"' in bar
+assert 'text: L10n.t("More")' in bar and 'text: L10n.t("Copy")' in bar
+assert 'text: L10n.t("Delete")' in bar and 'text: L10n.t("Clear")' in bar
 assert "hoverEnabled: true" in toolbar
 assert "readonly property bool overflowAvailable: overflowMenu.itemCount > 0" in toolbar
 assert "visible: root.overflowAvailable" in toolbar
 assert "if (root.overflowAvailable) root.overflowOpen = !root.overflowOpen" in toolbar
 assert 'ToolbarToolTip' not in toolbar
 assert toolbar.count('PanelToolTip {') == 5
-assert 'text: "More"' not in toolbar
+assert 'text: L10n.t("More")' not in toolbar
 assert 'ToolTip.visible:' not in toolbar
 assert 'showUpload: root.state === "browse" && root.currentRepo !== null' in panel
 assert 'showTransfers: root.state === "browse" && !root.dialogOpen && !root.destinationMode && !root.showTransfers' in panel

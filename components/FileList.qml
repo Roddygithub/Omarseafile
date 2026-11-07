@@ -142,8 +142,8 @@ delegate: FileItem {
                 activeFocusOnTab: true
                 Accessible.role: Accessible.Button
                 Accessible.name: root.sortColumn === "type"
-                    ? (root.sortAscending ? "Sort by type, ascending" : "Sort by type, descending")
-                    : "Sort by type"
+                    ? (root.sortAscending ? L10n.t("Sort by type, ascending") : L10n.t("Sort by type, descending"))
+                    : L10n.t("Sort by type")
                 Accessible.onPressAction: root.toggleSort("type")
                 onClicked: { root.toggleSort("type"); }
                 Keys.onReturnPressed: function(event) { root.toggleSort("type"); event.accepted = true }
@@ -152,7 +152,7 @@ delegate: FileItem {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width
                     horizontalAlignment: Text.AlignHCenter
-                    text: root.sortColumn === "type" ? (root.sortAscending ? "Type ▲" : "Type ▼") : "Type"
+                    text: root.sortColumn === "type" ? (root.sortAscending ? L10n.t("Type") + " ▲" : L10n.t("Type") + " ▼") : L10n.t("Type")
                     color: root.sortColumn === "type" ? Color.accent : root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.caption
@@ -170,8 +170,8 @@ delegate: FileItem {
                 activeFocusOnTab: true
                 Accessible.role: Accessible.Button
                 Accessible.name: root.sortColumn === "name"
-                    ? (root.sortAscending ? "Sort by name, ascending" : "Sort by name, descending")
-                    : "Sort by name"
+                    ? (root.sortAscending ? L10n.t("Sort by name, ascending") : L10n.t("Sort by name, descending"))
+                    : L10n.t("Sort by name")
                 Accessible.onPressAction: root.toggleSort("name")
                 onClicked: { root.toggleSort("name"); }
                 Keys.onReturnPressed: function(event) { root.toggleSort("name"); event.accepted = true }
@@ -179,7 +179,7 @@ delegate: FileItem {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width
-                    text: root.sortColumn === "name" ? (root.sortAscending ? "Name ▲" : "Name ▼") : "Name"
+                    text: root.sortColumn === "name" ? (root.sortAscending ? L10n.t("Name") + " ▲" : L10n.t("Name") + " ▼") : L10n.t("Name")
                     color: root.sortColumn === "name" ? Color.accent : root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.caption
@@ -197,8 +197,8 @@ delegate: FileItem {
                 activeFocusOnTab: true
                 Accessible.role: Accessible.Button
                 Accessible.name: root.sortColumn === "size"
-                    ? (root.sortAscending ? "Sort by size, ascending" : "Sort by size, descending")
-                    : "Sort by size"
+                    ? (root.sortAscending ? L10n.t("Sort by size, ascending") : L10n.t("Sort by size, descending"))
+                    : L10n.t("Sort by size")
                 Accessible.onPressAction: root.toggleSort("size")
                 onClicked: { root.toggleSort("size"); }
                 Keys.onReturnPressed: function(event) { root.toggleSort("size"); event.accepted = true }
@@ -207,7 +207,7 @@ delegate: FileItem {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width
                     horizontalAlignment: Text.AlignRight
-                    text: root.sortColumn === "size" ? (root.sortAscending ? "Size ▲" : "Size ▼") : "Size"
+                    text: root.sortColumn === "size" ? (root.sortAscending ? L10n.t("Size") + " ▲" : L10n.t("Size") + " ▼") : L10n.t("Size")
                     color: root.sortColumn === "size" ? Color.accent : root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.caption
@@ -224,8 +224,8 @@ delegate: FileItem {
                 activeFocusOnTab: true
                 Accessible.role: Accessible.Button
                 Accessible.name: root.sortColumn === "date"
-                    ? (root.sortAscending ? "Sort by modified date, ascending" : "Sort by modified date, descending")
-                    : "Sort by modified date"
+                    ? (root.sortAscending ? L10n.t("Sort by modified date, ascending") : L10n.t("Sort by modified date, descending"))
+                    : L10n.t("Sort by modified date")
                 Accessible.onPressAction: root.toggleSort("date")
                 onClicked: { root.toggleSort("date"); }
                 Keys.onReturnPressed: function(event) { root.toggleSort("date"); event.accepted = true }
@@ -234,7 +234,7 @@ delegate: FileItem {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width
                     horizontalAlignment: Text.AlignRight
-                    text: root.sortColumn === "date" ? (root.sortAscending ? "Modified ▲" : "Modified ▼") : "Modified"
+                    text: root.sortColumn === "date" ? (root.sortAscending ? L10n.t("Modified") + " ▲" : L10n.t("Modified") + " ▼") : L10n.t("Modified")
                     color: root.sortColumn === "date" ? Color.accent : root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.caption

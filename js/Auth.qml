@@ -203,12 +203,12 @@ QtObject {
                 { cmd: "curl", name: "curl", install: "sudo pacman -S curl", required: true },
                 { cmd: "secret-tool", name: "secret-tool (libsecret)", install: "sudo pacman -S libsecret", required: true },
                 { cmd: "python3", name: "python3", install: "sudo pacman -S python", required: true },
-                { cmd: "zenity", name: "zenity (graphical file picker)", install: "sudo pacman -S zenity", required: false },
-                { cmd: "wl-copy", name: "wl-copy (share-link copy)", install: "sudo pacman -S wl-clipboard", required: false },
-                { cmd: "wl-paste", name: "wl-paste (login paste)", install: "sudo pacman -S wl-clipboard", required: false },
-                { cmd: "xdg-open", name: "xdg-open (open files)", install: "sudo pacman -S xdg-utils", required: false },
-                { cmd: "xdg-mime", name: "xdg-mime (open files)", install: "sudo pacman -S xdg-utils", required: false },
-                { cmd: "uwsm-app", name: "uwsm-app (open files)", install: "install Omarchy/UWSM", required: false },
+                { cmd: "zenity", name: L10n.t("zenity (graphical file picker)"), install: "sudo pacman -S zenity", required: false },
+                { cmd: "wl-copy", name: L10n.t("wl-copy (share-link copy)"), install: "sudo pacman -S wl-clipboard", required: false },
+                { cmd: "wl-paste", name: L10n.t("wl-paste (login paste)"), install: "sudo pacman -S wl-clipboard", required: false },
+                { cmd: "xdg-open", name: L10n.t("xdg-open (open files)"), install: "sudo pacman -S xdg-utils", required: false },
+                { cmd: "xdg-mime", name: L10n.t("xdg-mime (open files)"), install: "sudo pacman -S xdg-utils", required: false },
+                { cmd: "uwsm-app", name: L10n.t("uwsm-app (open files)"), install: "install Omarchy/UWSM", required: false },
                 { cmd: "notify-send", name: "notify-send (notifications)", install: "sudo pacman -S libnotify", required: false }
             ]
             var missing = []

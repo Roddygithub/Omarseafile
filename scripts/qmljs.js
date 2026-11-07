@@ -22,6 +22,9 @@
  */
 const fs = require('fs');
 const vm = require('vm');
+const translation = {};
+vm.createContext(translation);
+vm.runInContext(fs.readFileSync(require('path').join(__dirname, '../js/Translation.js'), 'utf8'), translation);
 
 // Remove comments while preserving line/character offsets, so a brace or quote
 // inside a comment cannot confuse the scanner. Regex literals are tracked
@@ -198,7 +201,7 @@ function loadQmlObject(path, env) {
   const members = topLevelMembers(src.slice(start));
 
   // Web/JS globals the QML engine provides and our singletons rely on.
-  const ctx = Object.assign({ console: console, Math: Math, JSON: JSON, Date: Date,
+  const ctx = Object.assign({ L10n: {t: (source, args) => translation.translate({}, source, args), formatLocale: "en-US", rightToLeft: false}, console: console, Math: Math, JSON: JSON, Date: Date,
                               Array: Array, Object: Object, String: String, Number: Number,
                               Boolean: Boolean, RegExp: RegExp, Error: Error,
                               parseInt: parseInt, parseFloat: parseFloat, isNaN: isNaN,

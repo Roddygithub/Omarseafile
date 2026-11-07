@@ -14,12 +14,7 @@ QtObject {
     function formatDate(timestamp) {
         if (!timestamp) return ""
         var date = new Date(timestamp * 1000)
-        var y = date.getFullYear()
-        var m = ("0" + (date.getMonth() + 1)).slice(-2)
-        var d = ("0" + date.getDate()).slice(-2)
-        var h = ("0" + date.getHours()).slice(-2)
-        var mi = ("0" + date.getMinutes()).slice(-2)
-        return y + "-" + m + "-" + d + " " + h + ":" + mi
+        return date.toLocaleString(Qt.locale(L10n.formatLocale), Locale.ShortFormat)
     }
 
     // Safe file:// URL construction from absolute POSIX path

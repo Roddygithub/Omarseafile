@@ -21,13 +21,13 @@ check("Enter submission has one shared path",
       and login.count("event.key === Qt.Key_Return || event.key === Qt.Key_Enter") == 1
       and login.count("root.handleKeys(") == 3)
 check("empty fields show inline validation and are not submitted",
-      'root.validationMessage = "Enter your Seafile server URL."' in login
-      and 'root.validationMessage = "Enter your email address."' in login
-      and 'root.validationMessage = "Enter your password."' in login
+      'root.validationMessage = L10n.t("Enter your Seafile server URL.")' in login
+      and 'root.validationMessage = L10n.t("Enter your email address.")' in login
+      and 'root.validationMessage = L10n.t("Enter your password.")' in login
       and "root.onLogin(serverField.text, emailField.text.trim(), passwordField.text)" in login)
 check("login errors are displayed", "root.validationMessage || errorText._raw" in login and "errorMessage: root.errorMessage" in panel)
 check("busy login disables submit", "enabled: !root.loading" in login and "if (root.loading) return" in login)
-check("busy state is visible", 'text: root.loading ? "Connecting…" : "Connect"' in login)
+check("busy state is visible", 'text: root.loading ? L10n.t("Connecting…") : L10n.t("Connect")' in login)
 check("Escape still dismisses login", login.count("root.onDismiss()") == 3)
 check("Qt text inputs stay read-only and intercept explicit paste",
       login.count("readOnly: true") == 3

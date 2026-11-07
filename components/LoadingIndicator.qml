@@ -5,7 +5,7 @@ import "../js"
 
 Item {
     id: root
-    property string message: "Loading..."
+    property string message: L10n.t("Loading...")
     property bool indeterminate: true
     property real progress: 0
     property QtObject bar: null

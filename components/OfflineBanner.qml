@@ -5,7 +5,7 @@ import "../js"
 
 Item {
     id: root
-    property string message: "Offline"
+    property string message: L10n.t("Offline")
     property QtObject bar: null
 
     implicitHeight: banner.implicitHeight

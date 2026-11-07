@@ -6,8 +6,8 @@ import "../js"
 Item {
     id: root
     property QtObject bar: null
-    property string message: "Are you sure?"
-    property string confirmText: "Delete"
+    property string message: L10n.t("Are you sure?")
+    property string confirmText: L10n.t("Delete")
     property var onConfirm: null
     property var onCancel: null
 
@@ -32,7 +32,7 @@ Item {
         width: Math.min(parent.width, Style.space(400))
 
         Text {
-            text: "Confirm"
+            text: L10n.t("Confirm")
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.display
@@ -56,7 +56,7 @@ Item {
             Button {
                 id: cancelButton
                 width: parent.width / 2 - Style.space(6)
-                text: "Cancel"
+                text: L10n.t("Cancel")
                 Keys.onEscapePressed: function(event) {
                     event.accepted = true
                     if (root.onCancel) root.onCancel()

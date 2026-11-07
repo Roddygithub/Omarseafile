@@ -18,7 +18,7 @@ ListView {
     spacing: Style.space(2)
     keyNavigationEnabled: true
     activeFocusOnTab: true
-    Accessible.name: "Search results"
+    Accessible.name: L10n.t("Search results")
     onActiveFocusChanged: {
         if (activeFocus && root.currentIndex < 0 && root.count > 0) root.currentIndex = 0
     }
@@ -78,7 +78,7 @@ ListView {
             spacing: Style.space(8)
 
             Text {
-                text: "Filter:"
+                text: L10n.t("Filter:")
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
@@ -89,8 +89,8 @@ ListView {
             ComboBox {
                 id: typeFilter
                 width: Style.space(100)
-                model: ["All", "Files", "Folders"]
-                Accessible.name: "Filter search results by type"
+                model: [L10n.t("All"), L10n.t("Files"), L10n.t("Folders")]
+                Accessible.name: L10n.t("Filter search results by type")
                 currentIndex: root.filterType === "all" ? 0 : (root.filterType === "file" ? 1 : 2)
                 onActivated: function(index) {
                     root.filterType = ["all", "file", "folder"][index]
@@ -100,8 +100,8 @@ ListView {
             ComboBox {
                 id: libraryFilter
                 width: Style.space(140)
-                model: ["All libraries"].concat(root.libraryNames)
-                Accessible.name: "Filter search results by library"
+                model: [L10n.t("All libraries")].concat(root.libraryNames)
+                Accessible.name: L10n.t("Filter search results by library")
                 currentIndex: root.filterLibrary === "" ? 0 : Math.max(0, root.libraryNames.indexOf(root.filterLibrary) + 1)
                 onActivated: function(index) {
                     root.filterLibrary = index === 0 ? "" : (root.libraryNames[index - 1] || "")
@@ -109,7 +109,7 @@ ListView {
             }
 
             Button {
-                text: "Clear"
+                text: L10n.t("Clear")
                 width: Style.space(50)
                 onClicked: {
                     root.filterType = "all"
@@ -138,7 +138,7 @@ ListView {
         width: ListView.view ? ListView.view.width : parent.width
         Accessible.role: Accessible.ListItem
         Accessible.focusable: true
-        Accessible.name: (delegate.isDir ? "Folder " : "File ") + (delegate.modelData.name || "") + ", " + delegate.repoName
+        Accessible.name: L10n.t(delegate.isDir ? "Folder %1, %2" : "File %1, %2", [delegate.modelData.name || "", delegate.repoName])
         focus: ListView.isCurrentItem
         Accessible.onPressAction: root.onResultClicked(delegate.modelData)
 
@@ -221,8 +221,8 @@ ListView {
         id: emptyState
         bar: root.bar
         icon: Icons.search
-        title: root.results.length === 0 ? "No results" : "No matching results"
-        subtitle: root.results.length === 0 ? "Try different search terms" : "Adjust filters or search terms"
+        title: root.results.length === 0 ? L10n.t("No results") : L10n.t("No matching results")
+        subtitle: root.results.length === 0 ? L10n.t("Try different search terms") : L10n.t("Adjust filters or search terms")
         // Positioned explicitly rather than anchors.centerIn: parent. Anchors are
         // unsupported on ListView children, and centering against the ListView
         // would place this in the middle of the (header-sized) content item

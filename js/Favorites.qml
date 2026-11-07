@@ -326,8 +326,8 @@ QtObject {
     // persist only on a real change and surface a useful message otherwise.
 
     function addLibrary(repoId, repoName) {
-        if (root.activeKey === "") return { changed: false, error: "Not signed in" }
-        if (!repoId) return { changed: false, error: "Missing library identity" }
+        if (root.activeKey === "") return { changed: false, error: L10n.t("Not signed in") }
+        if (!repoId) return { changed: false, error: L10n.t("Missing library identity") }
         if (root.isLibraryFavorite(repoId)) return { changed: false, error: "" }
         var list = root._currentList().slice()
         list.push({ type: "library", repoId: String(repoId), repoName: repoName || "", path: "", name: repoName || "" })
@@ -337,10 +337,10 @@ QtObject {
 
     // `fullPath` must be the folder's own full path, not its parent.
     function addFolder(repoId, repoName, fullPath, name) {
-        if (root.activeKey === "") return { changed: false, error: "Not signed in" }
-        if (!repoId) return { changed: false, error: "Missing library identity" }
+        if (root.activeKey === "") return { changed: false, error: L10n.t("Not signed in") }
+        if (!repoId) return { changed: false, error: L10n.t("Missing library identity") }
         var path = root.normalizePath(fullPath)
-        if (path === "") return { changed: false, error: "Folder path cannot be the library root" }
+        if (path === "") return { changed: false, error: L10n.t("Folder path cannot be the library root") }
         if (root.isFolderFavorite(repoId, path)) return { changed: false, error: "" }
         var leaf = name || path.substring(path.lastIndexOf("/") + 1)
         var list = root._currentList().slice()
@@ -352,9 +352,9 @@ QtObject {
     // Identity comes from the record itself, never from the current browsing
     // context — removal must work from Home while currentRepo is null.
     function removeEntry(entry) {
-        if (root.activeKey === "") return { changed: false, error: "Not signed in" }
+        if (root.activeKey === "") return { changed: false, error: L10n.t("Not signed in") }
         var target = root.keyFor(entry)
-        if (target === "") return { changed: false, error: "Not a Quick Access entry" }
+        if (target === "") return { changed: false, error: L10n.t("Not a Quick Access entry") }
         var list = root._currentList()
         var next = []
         var removed = false
@@ -362,7 +362,7 @@ QtObject {
             if (!removed && root.keyFor(list[i]) === target) { removed = true; continue }
             next.push(list[i])
         }
-        if (!removed) return { changed: false, error: "Entry not found" }
+        if (!removed) return { changed: false, error: L10n.t("Entry not found") }
         root._replaceCurrent(next)
         return { changed: true, error: "" }
     }

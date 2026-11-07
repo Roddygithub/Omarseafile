@@ -22,7 +22,7 @@ Column {
             if (success) {
                 root.trashData = data
             } else {
-                root.errorMessage = "Failed to load trash: " + error
+                root.errorMessage = L10n.t("Failed to load trash: ") + error
             }
         })
     }
@@ -44,7 +44,7 @@ Column {
             spacing: Style.space(8)
 
             Text {
-                text: "Trash"
+                text: L10n.t("Trash")
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.title
@@ -75,7 +75,7 @@ Column {
                     height: row.implicitHeight + Style.space(8)
                     required property var modelData
                     Accessible.role: Accessible.ListItem
-                    Accessible.name: (isDir ? "Folder " : "File ") + (trashItem.objName || "") + ", deleted " + detailLabel.text
+                    Accessible.name: L10n.t(isDir ? "Folder %1, deleted %2" : "File %1, deleted %2", [trashItem.objName || "", detailLabel.text])
 
                     property var trashItem: modelData
                     property bool isDir: modelData.isDir === true
@@ -119,12 +119,12 @@ Column {
                                     var parts = []
                                     if (trashItem.deletedTime) {
                                         var date = new Date(trashItem.deletedTime)
-                                        parts.push(date.toLocaleDateString() + " " + date.toLocaleTimeString())
+                                        parts.push(date.toLocaleString(Qt.locale(L10n.formatLocale), Locale.ShortFormat))
                                     }
                                     if (!isDir && trashItem.size) {
                                         parts.push(Models.formatSize(trashItem.size))
                                     }
-                                    parts.push(isDir ? "Folder" : "File")
+                                    parts.push(isDir ? L10n.t("Folder") : L10n.t("File"))
                                     return parts.join(" \u2022 ")
                                 })(), 1024)
                                 color: Qt.darker(root.bar.foreground, 1.4)
@@ -144,7 +144,7 @@ Column {
 
                             Text {
                                 id: fileRestoreLabel
-                                text: "Restore unavailable"
+                                text: L10n.t("Restore unavailable")
                                 color: Qt.darker(root.bar.foreground, 1.4)
                                 font.family: root.bar.fontFamily
                                 font.pixelSize: Style.font.caption
@@ -175,8 +175,8 @@ Column {
                 id: emptyState
                 bar: root.bar
                 icon: Icons.trash
-                title: "Trash is empty"
-                subtitle: "Deleted items appear here"
+                title: L10n.t("Trash is empty")
+                subtitle: L10n.t("Deleted items appear here")
                 width: parent.width
                 anchors.centerIn: parent
                 visible: !root.loading && root.errorMessage === "" && root.trashData.length === 0
@@ -188,7 +188,7 @@ Column {
     Button {
         width: parent.width
         height: Style.space(40)
-        text: "Close"
+        text: L10n.t("Close")
         onClicked: {
             if (root.onClose) root.onClose()
         }

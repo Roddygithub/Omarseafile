@@ -49,7 +49,7 @@ Item {
                 height: Style.space(32)
 
                 Text {
-                    text: root.isMultiSelection ? (root.selectedItems.length + " items selected") : (root.item ? (root.item.type === "dir" ? "Folder" : "File") : "")
+                    text: root.isMultiSelection ? (L10n.t("%1 items selected", [root.selectedItems.length])) : (root.item ? (root.item.type === "dir" ? L10n.t("Folder") : L10n.t("File")) : "")
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.caption
@@ -60,7 +60,7 @@ Item {
                 }
 
                 Text {
-                    text: root.isSingleSelection && root.item ? Models.formatSize(root.item.size || 0) : (root.selectedItems.length + " items")
+                    text: root.isSingleSelection && root.item ? Models.formatSize(root.item.size || 0) : (L10n.t("%1 items", [root.selectedItems.length]))
                     color: Qt.darker(root.bar.foreground, 1.4)
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.caption
@@ -87,7 +87,7 @@ Item {
 
                     Text {
                         id: labelText
-                        text: "Name:"
+                        text: L10n.t("Name:")
                         color: Qt.darker(root.bar.foreground, 1.4)
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -132,7 +132,7 @@ Item {
 
                     Text {
                         id: labelText2
-                        text: "Type:"
+                        text: L10n.t("Type:")
                         color: Qt.darker(root.bar.foreground, 1.4)
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -143,7 +143,7 @@ Item {
 
                     Text {
                         id: valueText2
-                        text: root.item ? (root.item.type === "dir" ? "Folder" : "File") : ""
+                        text: root.item ? (root.item.type === "dir" ? L10n.t("Folder") : L10n.t("File")) : ""
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -166,7 +166,7 @@ Item {
 
                     Text {
                         id: labelText3
-                        text: root.item ? (root.item.type === "dir" ? "Items:" : "Size:") : ""
+                        text: root.item ? (root.item.type === "dir" ? L10n.t("Items:") : L10n.t("Size:")) : ""
                         color: Qt.darker(root.bar.foreground, 1.4)
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -200,7 +200,7 @@ Item {
 
                     Text {
                         id: labelText4
-                        text: "Modified:"
+                        text: L10n.t("Modified:")
                         color: Qt.darker(root.bar.foreground, 1.4)
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -234,7 +234,7 @@ Item {
 
                     Text {
                         id: labelText5
-                        text: "Library:"
+                        text: L10n.t("Library:")
                         color: Qt.darker(root.bar.foreground, 1.4)
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -268,7 +268,7 @@ Item {
 
                     Text {
                         id: labelText6
-                        text: "Path:"
+                        text: L10n.t("Path:")
                         color: Qt.darker(root.bar.foreground, 1.4)
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -321,7 +321,7 @@ Item {
 
                     Text {
                         id: labelTextM1
-                        text: "Items:"
+                        text: L10n.t("Items:")
                         color: Qt.darker(root.bar.foreground, 1.4)
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -332,7 +332,7 @@ Item {
 
                     Text {
                         id: valueTextM1
-                        text: root.selectedItems.length + " selected"
+                        text: L10n.t("%1 selected", [root.selectedItems.length])
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -354,7 +354,7 @@ Item {
 
                     Text {
                         id: labelTextM2
-                        text: "Total size:"
+                        text: L10n.t("Total size:")
                         color: Qt.darker(root.bar.foreground, 1.4)
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -393,7 +393,7 @@ Item {
 
                     Text {
                         id: labelTextM3
-                        text: "Folders / Files:"
+                        text: L10n.t("Folders / Files:")
                         color: Qt.darker(root.bar.foreground, 1.4)
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.caption
@@ -410,7 +410,7 @@ Item {
                                 if (root.selectedItems[i].type === "dir") folders++
                                 else files++
                             }
-                            return folders + " folders, " + files + " files"
+                            return L10n.t("%1 folders, %2 files", [folders, files])
                         })()
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
@@ -439,7 +439,7 @@ Item {
                     spacing: Style.space(8)
 
                     Button {
-                        text: root.item ? (root.item.type === "dir" ? "Open" : "Download") : ""
+                        text: root.item ? (root.item.type === "dir" ? L10n.t("Open") : L10n.t("Download")) : ""
                         width: parent.width / 3 - Style.space(5)
                         height: Style.space(28)
                         onClicked: {
@@ -452,7 +452,7 @@ Item {
                     }
 
                     Button {
-                        text: "Share"
+                        text: L10n.t("Share")
                         width: parent.width / 3 - Style.space(5)
                         height: Style.space(28)
                         onClicked: {
@@ -461,7 +461,7 @@ Item {
                     }
 
                     Button {
-                        text: "History"
+                        text: L10n.t("History")
                         visible: root.item && root.item.type === "file"
                         width: parent.width / 3 - Style.space(5)
                         height: Style.space(28)
@@ -477,7 +477,7 @@ Item {
                     spacing: Style.space(8)
 
                     Button {
-                        text: "Rename"
+                        text: L10n.t("Rename")
                         width: parent.width / 3 - Style.space(5)
                         height: Style.space(28)
                         onClicked: {
@@ -486,7 +486,7 @@ Item {
                     }
 
                     Button {
-                        text: "Move"
+                        text: L10n.t("Move")
                         width: parent.width / 3 - Style.space(5)
                         height: Style.space(28)
                         onClicked: {
@@ -495,7 +495,7 @@ Item {
                     }
 
                     Button {
-                        text: "Delete"
+                        text: L10n.t("Delete")
                         width: parent.width / 3 - Style.space(5)
                         height: Style.space(28)
                         color: Color.urgent
@@ -515,7 +515,7 @@ Item {
                 Button {
                     width: parent.width
                     height: Style.space(28)
-                    text: "Download selected files"
+                    text: L10n.t("Download selected files")
                     enabled: (function() {
                         for (var i = 0; i < root.selectedItems.length; i++) {
                             if (root.selectedItems[i].type !== "dir") return true

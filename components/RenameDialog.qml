@@ -10,7 +10,7 @@ Item {
     property alias renameButton: renameButton
     property alias cancelButton: cancelButton
     property alias errorText: errorText
-    property string title: "Rename"
+    property string title: L10n.t("Rename")
     property var onRename: null
     property var onCancel: null
 
@@ -42,8 +42,8 @@ Item {
         TextField {
             id: nameField
             width: parent.width
-            placeholderText: "New name"
-            Accessible.name: "New name"
+            placeholderText: L10n.t("New name")
+            Accessible.name: L10n.t("New name")
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
             // Escape closes this dialog only — never the whole panel.
@@ -73,7 +73,7 @@ Item {
             Button {
                 id: cancelButton
                 width: parent.width / 2 - Style.space(6)
-                text: "Cancel"
+                text: L10n.t("Cancel")
                 onClicked: {
                     if (root.onCancel) root.onCancel()
                 }
@@ -82,7 +82,7 @@ Item {
             Button {
                 id: renameButton
                 width: parent.width / 2 - Style.space(6)
-                text: "Rename"
+                text: L10n.t("Rename")
                 onClicked: {
                     if (root.onRename) root.onRename()
                 }

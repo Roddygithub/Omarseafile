@@ -20,7 +20,7 @@ check("search opens folders and files", "if (result.type === \"folder\")" in pan
 check("search navigation invalidates callbacks", "root.searchGeneration++" in panel.split("function onSearchResultClicked", 1)[1])
 check("search parser validates result types", 'item.type !== "file" && item.type !== "folder"' in (ROOT / "js/SeafileAPI.qml").read_text())
 check("search counts searchable libraries", "searchableLibraryCount" in browser and "encrypted !== true" in browser)
-check("details keeps the unique multi-file download action", 'text: "Download selected files"' in details and "root.onDownload(root.selectedItems[i])" in details)
+check("details keeps the unique multi-file download action", 'text: L10n.t("Download selected files")' in details and "root.onDownload(root.selectedItems[i])" in details)
 check("batch move/delete stay in the selection toolbar", "onMoveBatch: root.moveItems" in panel and "onDeleteBatch: root.deleteItems" in panel and "onMoveBatch" not in details)
 check("selection toolbar appears only for multi-selection", "root.selectedItems.length > 1" in panel and "root.selectedItems.length : 0" in panel)
 check("panel wires batch actions", panel.count("onMoveBatch: root.moveItems") >= 1 and panel.count("onDeleteBatch: root.deleteItems") >= 1)

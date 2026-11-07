@@ -66,10 +66,10 @@ if __name__ == "__main__":
          "root.item ? Models.boundedDisplayText(root.item.name, 1024) : \"\"" in read_file("components/DetailsPanel.qml"))
 
     test("DetailsPanel: root.item.type null guard (Folder/File)",
-         "root.item ? (root.item.type === \"dir\" ? \"Folder\" : \"File\") : \"\"" in read_file("components/DetailsPanel.qml"))
+         "root.item ? (root.item.type === \"dir\" ? L10n.t(\"Folder\") : L10n.t(\"File\")) : \"\"" in read_file("components/DetailsPanel.qml"))
 
     test("DetailsPanel: root.item.type null guard (Items/Size)",
-         "root.item ? (root.item.type === \"dir\" ? \"Items:\" : \"Size:\") : \"\"" in read_file("components/DetailsPanel.qml"))
+         "root.item ? (root.item.type === \"dir\" ? L10n.t(\"Items:\") : L10n.t(\"Size:\")) : \"\"" in read_file("components/DetailsPanel.qml"))
 
     test("DetailsPanel: root.item.type null guard (size)",
          "root.item ? (root.item.type === \"dir\" ? (root.item.sizeFormatted || \"—\") : Models.formatSize(root.item.size || 0)) : \"\"" in read_file("components/DetailsPanel.qml"))
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     test("DetailsPanel: root.item.name null guard (path)",
          "root.item ? Models.boundedDisplayText(root.currentPath === \"/\" ? \"/\" + root.item.name : root.currentPath + \"/\" + root.item.name, 1024) : \"\"" in read_file("components/DetailsPanel.qml"))
 
-    test("DetailsPanel: action buttons guard cleared item", "root.item ? (root.item.type === \"dir\" ? \"Open\" : \"Download\") : \"\"" in details_src)
+    test("DetailsPanel: action buttons guard cleared item", "root.item ? (root.item.type === \"dir\" ? L10n.t(\"Open\") : L10n.t(\"Download\")) : \"\"" in details_src)
     test("LoadingIndicator imports Icons singleton module", 'import "../js"' in read_file("components/LoadingIndicator.qml"))
     test("Panel passes named connection service explicitly", "connectionService: panelConnectionService" in read_file("Panel.qml"))
     test("ToolBar Row has explicit parent width", "id: row\n        width: parent.width" in read_file("components/ToolBar.qml"))

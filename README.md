@@ -20,7 +20,7 @@ Omarseafile is an [Omarchy](https://omarchy.org) bar-widget plugin for browsing 
 
 > **Install:** `omarchy plugin add https://github.com/Roddygithub/Omarseafile.git --enable`
 
-## Features (v1.2.3)
+## Features (v1.3.0)
 
 - **Home / Quick Access**: Pin libraries and folders for instant access. See active transfers at a glance.
 - Browse accessible Seafile libraries and folders with breadcrumbs.
@@ -117,7 +117,15 @@ To update an installed plugin:
 omarchy plugin update roddy.seafile
 ```
 
-Omarseafile checks the latest GitHub release at startup and every 24 hours. If a newer version is available, it reports the update through the configured notification channel. The check sends no credentials or Seafile data.
+Omarseafile checks the latest GitHub release at startup and every 24 hours. If a newer version is available, it shows a desktop notification once per release and a persistent dot on the bar icon. Hover the icon for the translated update command. The check sends no credentials or Seafile data.
+
+## Languages
+
+The interface follows the language selected in Omarchy and ships all 50
+languages and regional variants locally, with English fallback and right-to-left
+layouts where appropriate. Catalogs are machine-translated with common French
+terminology reviewed manually. Background checks can be disabled with the widget’s `checkUpdates` setting.
+See [localization and update notices](docs/LOCALIZATION.md).
 
 ## First Login
 
@@ -174,7 +182,7 @@ Search is available from the toolbar. It searches as you type, with a short debo
 
 - **Connection**: Server URL, Test Connection, Auto-login.
 - **Account**: Shows signed-in email.
-- **Preferences**: Single-click to open, Default sort (Name/Size/Modified/Type), Ascending/Descending, **Folders first**, Transfer notifications. Update notices use the same notification preference.
+- **Preferences**: Single-click to open, Default sort (Name/Size/Modified/Type), Ascending/Descending, **Folders first**, Transfer notifications. Update notices are independent of transfer notifications.
 
 `Folders first` puts directories ahead of files when sorting by Name, Size or Modified. Turning it off orders every entry purely by the selected column and direction. Sorting by the Type column always groups directories first regardless of this switch. The setting is persisted across shell restarts.
 - **Data**: Clear Cache, Logout.

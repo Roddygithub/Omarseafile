@@ -1,4 +1,5 @@
 import QtQuick
+import "./js"
 import QtQuick.Controls
 import Quickshell
 import qs.Commons
@@ -6,6 +7,11 @@ import qs.Ui
 
 BarWidget {
     id: root
+    Binding {
+        target: UpdateService
+        property: "enabled"
+        value: root.setting("checkUpdates", true) === true
+    }
     moduleName: "roddy.seafile"
 
     // Seafile mark (Simple Icons, CC0) tinted with the bar foreground color
@@ -63,7 +69,7 @@ BarWidget {
         id: button
         anchors.fill: parent
         bar: root.bar
-         tooltipText: "Omarseafile"
+         tooltipText: UpdateService.available ? "Omarseafile\n" + UpdateService.notice : "Omarseafile"
         iconComponent: Component {
             Image {
                 anchors.fill: parent
@@ -104,5 +110,15 @@ BarWidget {
             font.bold: true
             anchors.centerIn: parent
         }
+    }
+    Rectangle {
+        width: 7
+        height: 7
+        radius: 4
+        color: Color.accent
+        visible: UpdateService.available
+        anchors.left: button.left
+        anchors.top: button.top
+        z: 11
     }
 }

@@ -62,7 +62,7 @@ Item {
     function openPicker() {
         if (pickerProcess.running) return
         pickerProcess.command = ["zenity", "--file-selection", "--multiple",
-            "--separator=" + root.pickerSeparator, "--file-filter=All files | *"]
+            "--separator=" + root.pickerSeparator, "--file-filter=" + L10n.t("All files") + " | *"]
         pickerProcess.running = true
     }
 
@@ -111,7 +111,7 @@ Item {
         width: Math.min(parent.width, Style.space(400))
 
         Text {
-            text: "Upload File"
+            text: L10n.t("Upload File")
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.display
@@ -119,7 +119,7 @@ Item {
         }
 
         Text {
-            text: "Choose files to upload"
+            text: L10n.t("Choose files to upload")
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
@@ -135,7 +135,7 @@ Item {
                 id: pathField
                 width: parent.width - Style.space(8) - browseButton.width
                 placeholderText: "/home/user/file.txt"
-                Accessible.name: "File path to upload"
+                Accessible.name: L10n.t("File path to upload")
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.body
                 // Escape closes this dialog only — never the whole panel.
@@ -149,8 +149,8 @@ Item {
                 id: browseButton
                 width: Style.space(80)
                 height: Style.space(32)
-                text: "Browse..."
-                tooltipText: "Open graphical file picker"
+                text: L10n.t("Browse...")
+                tooltipText: L10n.t("Open graphical file picker")
                 enabled: root.pickerAvailable
                 onClicked: root.openPicker()
             }
@@ -164,7 +164,7 @@ Item {
             font.pixelSize: Style.font.caption
             wrapMode: Text.WordWrap
             textFormat: Text.PlainText
-            text: "Zenity is not installed; enter the path manually."
+            text: L10n.t("Zenity is not installed; enter the path manually.")
             visible: !root.pickerAvailable
         }
 
@@ -188,7 +188,7 @@ Item {
             Button {
                 id: cancelButton
                 width: parent.width / 2 - Style.space(6)
-                text: "Cancel"
+                text: L10n.t("Cancel")
                 onClicked: {
                     if (root.onCancel) root.onCancel()
                 }
@@ -197,7 +197,7 @@ Item {
             Button {
                 id: uploadButton
                 width: parent.width / 2 - Style.space(6)
-                text: "Upload"
+                text: L10n.t("Upload")
                 onClicked: {
                     if (root.onUpload) root.onUpload()
                 }

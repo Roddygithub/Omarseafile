@@ -10,6 +10,8 @@ import "./views"
 
 Panel {
     id: root
+    LayoutMirroring.enabled: L10n.rightToLeft
+    LayoutMirroring.childrenInherit: true
     moduleName: "roddy.seafile"
     manageIpc: false
 
@@ -59,14 +61,6 @@ Panel {
     property int transferRevision: 0
     property bool showTransfers: false
 
-    // ===== UPDATE CHECK =====
-    readonly property string updateApiUrl: "https://api.github.com/repos/Roddygithub/Omarseafile/releases/latest"
-    readonly property string updateCommand: "omarchy plugin update roddy.seafile"
-    property string availableUpdateVersion: ""
-    property bool updateNoticeShown: false
-    property bool updateCheckInFlight: false
-    property int updateCheckGeneration: 0
-
     // ===== SEARCH STATE =====
     property string searchQuery: ""
     property string searchState: "idle"
@@ -96,7 +90,6 @@ Panel {
 
     onNotifyEnabledChanged: {
         TransferService.notifyEnabled = root.notifyEnabled
-        Qt.callLater(root.announceAvailableUpdate)
     }
 
     function setSetting(name, value) {
@@ -114,7 +107,7 @@ Panel {
 
     // Single source of truth for the displayed version, kept in step with
     // manifest.json by scripts/test_v11_remediation.py.
-    readonly property string pluginVersion: "1.2.3"
+    readonly property string pluginVersion: "1.3.0"
 
     function selectionKeyForItem(item) {
         return SelectionHelper.makeKey(item)
@@ -184,11 +177,11 @@ Panel {
         if (!root.currentRepo) {
             var libResult = Favorites.addLibrary(item.id, item.name)
             if (libResult.error) root.showToast(libResult.error, "error")
-            else if (libResult.changed) { root.persistFavorites(); root.showToast("Added to Quick Access") }
+            else if (libResult.changed) { root.persistFavorites(); root.showToast(L10n.t("Added to Quick Access")) }
             return
         }
         if (item.type !== "dir") {
-            root.showToast("Only libraries and folders can be added to Quick Access", "warning")
+            root.showToast(L10n.t("Only libraries and folders can be added to Quick Access"), "warning")
             return
         }
         // Identity is the folder's own FULL path, not its parent, so sibling
@@ -196,7 +189,7 @@ Panel {
         var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
         var folderResult = Favorites.addFolder(root.currentRepo.id, root.currentRepo.name, fullPath, item.name)
         if (folderResult.error) root.showToast(folderResult.error, "error")
-        else if (folderResult.changed) { root.persistFavorites(); root.showToast("Added to Quick Access") }
+        else if (folderResult.changed) { root.persistFavorites(); root.showToast(L10n.t("Added to Quick Access")) }
     }
 
     // Accepts either a favorite record (Home's Quick Access rows) or a browsed
@@ -219,7 +212,7 @@ Panel {
             return
         }
         if (result.error) { root.showToast(result.error, "error"); return }
-        if (result.changed) { root.persistFavorites(); root.showToast("Removed from Quick Access") }
+        if (result.changed) { root.persistFavorites(); root.showToast(L10n.t("Removed from Quick Access")) }
     }
 
     // Resolve a favorite to a concrete destination. A stale library or folder
@@ -231,7 +224,7 @@ Panel {
             if (root.libraries[i].id === entry.repoId) { repo = root.libraries[i]; break }
         }
         if (!repo) {
-            root.showToast("Library is no longer available. You can remove this entry from Quick Access.", "error")
+            root.showToast(L10n.t("Library is no longer available. You can remove this entry from Quick Access."), "error")
             return
         }
         root.clearSelection()
@@ -243,7 +236,7 @@ Panel {
         }
         var fullPath = Favorites.normalizePath(entry.path)
         if (fullPath === "") {
-            root.showToast("This Quick Access entry has no folder path", "error")
+            root.showToast(L10n.t("This Quick Access entry has no folder path"), "error")
             return
         }
         root.buildPathHistory(repo, fullPath)
@@ -362,7 +355,6 @@ Panel {
             root.loadLibraries()
         }
         root.controller.show()
-        Qt.callLater(root.announceAvailableUpdate)
     }
     function close() { root.controller.hide() }
     function toggle() { root.opened ? close() : open() }
@@ -372,66 +364,6 @@ Panel {
 
     function showToast(message, type) {
         toast.show(message, type || "success")
-    }
-
-    function normalizeReleaseVersion(tag) {
-        if (typeof tag !== "string" || tag.length > 32) return ""
-        var version = tag.replace(/^v/, "")
-        return /^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(version) ? version : ""
-    }
-
-    function isNewerVersion(candidate, current) {
-        var next = root.normalizeReleaseVersion(candidate)
-        var installed = root.normalizeReleaseVersion(current)
-        if (!next || !installed) return false
-        var a = next.split(".")
-        var b = installed.split(".")
-        for (var i = 0; i < 3; i++) {
-            var left = parseInt(a[i], 10)
-            var right = parseInt(b[i], 10)
-            if (left !== right) return left > right
-        }
-        return false
-    }
-
-    function announceAvailableUpdate() {
-        if (!root.availableUpdateVersion || root.updateNoticeShown) return
-        var message = "v" + root.availableUpdateVersion + " is available. Run: " + root.updateCommand
-        if (TransferService.notify("Omarseafile update available", message, "low")) {
-            root.updateNoticeShown = true
-        } else if (root.opened) {
-            root.showToast("Update available: v" + root.availableUpdateVersion + " — " + root.updateCommand, "info")
-            root.updateNoticeShown = true
-        }
-    }
-
-    function checkForUpdate() {
-        if (root.updateCheckInFlight) return
-        root.updateCheckInFlight = true
-        var requestGeneration = ++root.updateCheckGeneration
-        HttpTransport.get(root.updateApiUrl, {
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "Omarseafile/" + root.pluginVersion
-        }, function(success, data) {
-            if (requestGeneration !== root.updateCheckGeneration) return
-            root.updateCheckInFlight = false
-            if (!success || !data || typeof data !== "object") return
-            var candidate = root.normalizeReleaseVersion(data.tag_name)
-            if (!root.isNewerVersion(candidate, root.pluginVersion)) return
-            if (root.availableUpdateVersion !== candidate) {
-                root.availableUpdateVersion = candidate
-                root.updateNoticeShown = false
-            }
-            root.announceAvailableUpdate()
-        })
-    }
-
-    Timer {
-        id: updateCheckTimer
-        interval: 24 * 60 * 60 * 1000
-        repeat: true
-        running: true
-        onTriggered: root.checkForUpdate()
     }
 
     // Own the IPC target (manageIpc:false above) — same pattern as the
@@ -539,6 +471,8 @@ Panel {
 
         PanelKeyCatcher {
             id: keyCatcher
+            LayoutMirroring.enabled: L10n.rightToLeft
+            LayoutMirroring.childrenInherit: true
             anchors.fill: parent
             blocked: root.textInputActive
             onCloseRequested: {
@@ -645,7 +579,7 @@ Panel {
                     bar: root.bar
                     overlay: keyCatcher.Overlay.overlay
                     visible: root.state !== "login"
-                    title: root.settingsOpen ? "Settings" : (root.showTransfers ? "Transfers" : (root.searchActive ? "Search" : (root.currentRepo ? root.currentRepo.name : "Libraries")))
+                    title: root.settingsOpen ? L10n.t("Settings") : (root.showTransfers ? L10n.t("Transfers") : (root.searchActive ? L10n.t("Search") : (root.currentRepo ? root.currentRepo.name : L10n.t("Libraries"))))
                     showBack: root.state === "browse" && !root.searchActive && (!root.dialogOpen || root.settingsOpen) && (root.pathHistory.length > 0 || root.settingsOpen || root.showTransfers)
                     // While the Transfers surface is active the underlying
                     // browser view is hidden, so only intentional global actions
@@ -752,7 +686,7 @@ Panel {
                             }
                             Text {
                                 width: parent.width
-                                text: (root.destinationOperation === "move" ? "Moving " : "Copying ") + root.destinationSources.length + (root.destinationSources.length === 1 ? " item to:" : " items to:")
+                                text: L10n.t(root.destinationOperation === "move" ? "Move %1 item(s) to:" : "Copy %1 item(s) to:", [root.destinationSources.length])
                                 color: root.bar.foreground
                                 font.family: root.bar.fontFamily
                                 font.pixelSize: Style.font.caption
@@ -776,7 +710,7 @@ Panel {
                                 spacing: Style.space(8)
                                 Button {
                                     id: cancelBtn
-                                    text: "Cancel"
+                                    text: L10n.t("Cancel")
                                     width: parent.width / 2 - Style.space(4)
                                     height: Style.space(32)
                                     enabled: !root.destinationSubmitting
@@ -784,7 +718,7 @@ Panel {
                                 }
                                 Button {
                                     id: actionBtn
-                                    text: root.destinationOperation === "move" ? "Move here" : "Copy here"
+                                    text: root.destinationOperation === "move" ? L10n.t("Move here") : L10n.t("Copy here")
                                     width: parent.width / 2 - Style.space(4)
                                     height: Style.space(32)
                                     enabled: !root.destinationSubmitting && !root.loading
@@ -979,8 +913,8 @@ Panel {
             bar: root.bar
             title: {
                 var d = root.renameItemData
-                if (!d || d.items.length === 0) return "Rename"
-                return d.items[0].type === "dir" ? "Rename Folder" : "Rename File"
+                if (!d || d.items.length === 0) return L10n.t("Rename")
+                return d.items[0].type === "dir" ? L10n.t("Rename Folder") : L10n.t("Rename File")
             }
             nameField.text: root.renameItemData && root.renameItemData.items.length > 0 ? (root.renameItemData.items[0].name || "") : ""
             onRename: function() { root.confirmRename(nameField.text) }
@@ -996,12 +930,12 @@ Panel {
             // { item } field is honored only as a safety fallback.
             message: Models.boundedDisplayText((function() {
                 var d = root.deleteItemData
-                if (!d) return "Are you sure?"
+                if (!d) return L10n.t("Are you sure?")
                 var list = d.items && d.items.length > 0 ? d.items : (d.item ? [d.item] : [])
-                if (list.length === 0) return "Delete selection?"
-                if (list.length > 1) return "Delete " + list.length + " item(s)?"
+                if (list.length === 0) return L10n.t("Delete selection?")
+                if (list.length > 1) return L10n.t("Delete %1 item(s)?", [list.length])
                 var it = list[0]
-                return "Delete " + (it.type === "dir" ? "folder" : "file") + " \"" + (it.name || "") + "\"?"
+                return L10n.t(it.type === "dir" ? "Delete folder “%1”?" : "Delete file “%1”?", [it.name || ""])
             })(), 4096)
             onConfirm: function() { root.confirmDelete() }
             onCancel: function() { root.cancelDelete() }
@@ -1072,9 +1006,9 @@ Panel {
                         })
                         root.showHistory = false
                         historyLoader.sourceComponent = undefined
-                        root.showToast("Downloading historical revision...")
+                        root.showToast(L10n.t("Downloading historical revision..."))
                     } else {
-                        root.showToast("Failed to download revision: " + error, "error")
+                        root.showToast(L10n.t("Failed to download revision: ") + error, "error")
                     }
                 })
             }
@@ -1125,11 +1059,11 @@ Panel {
             onClearTransfer: function(transfer) { TransferService.clearTransfer(transfer.id) }
             onOpen: function(transfer) {
                 var url = Models.toFileUrl(transfer.destPath)
-                if (!Qt.openUrlExternally(url)) root.showToast("Could not open file", "error")
+                if (!Qt.openUrlExternally(url)) root.showToast(L10n.t("Could not open file"), "error")
             }
             onShowInFolder: function(transfer) {
                 var url = Models.toParentFileUrl(transfer.destPath)
-                if (!Qt.openUrlExternally(url)) root.showToast("Could not open folder", "error")
+                if (!Qt.openUrlExternally(url)) root.showToast(L10n.t("Could not open folder"), "error")
             }
             }
         }
@@ -1171,7 +1105,7 @@ Panel {
         var normalized = normalizeUrl(url)
         if (!normalized) {
             root.loading = false
-            root.errorMessage = "Invalid URL format. Use https://domain.com"
+            root.errorMessage = L10n.t("Invalid URL format. Use https://domain.com")
             return
         }
         var policy = UrlPolicy.validateForAuth(normalized)
@@ -1209,11 +1143,11 @@ Panel {
                     root.loading = false
                     SeafileAPI.setToken("")
                     Auth.clearSession().catch(function() {})
-                    root.errorMessage = "Failed to store credentials: " + err
+                    root.errorMessage = L10n.t("Failed to store credentials: ") + err
                 })
             } else {
                 root.loading = false
-                root.errorMessage = error || "Authentication failed"
+                root.errorMessage = error || L10n.t("Authentication failed")
             }
         })
     }
@@ -1254,7 +1188,7 @@ Panel {
                 root.currentItems = data
                 root.navigationComplete(startedAt, data.length)
             } else {
-                root.errorMessage = error || "Failed to load libraries"
+                root.errorMessage = error || L10n.t("Failed to load libraries")
             }
         })
     }
@@ -1316,7 +1250,7 @@ Panel {
                 root.currentPath = path
                 root.navigationComplete(startedAt, data.length)
             } else {
-                root.errorMessage = error || "Failed to load folder"
+                root.errorMessage = error || L10n.t("Failed to load folder")
             }
         })
     }
@@ -1514,13 +1448,13 @@ Panel {
                     root.searchResults = root.searchResults.concat(resultsToAdd)
                 } else {
                     failedCount++
-                    if (!firstError) firstError = error || "Search request failed"
+                    if (!firstError) firstError = error || L10n.t("Search request failed")
                 }
 
                 if (root.searchPendingCount === 0 || totalResultsCount >= root.maxSearchResults) {
                     if (totalResultsCount >= root.maxSearchResults && (root.searchPendingCount > 0 || queue.length > 0)) root.searchTruncated = true
                     if (failedCount > 0) {
-                        root.searchErrorMessage = failedCount + " librar" + (failedCount === 1 ? "y" : "ies") + " failed: " + firstError
+                        root.searchErrorMessage = L10n.t("%1 library request(s) failed: %2", [failedCount, firstError])
                         root.searchState = "error"
                     } else if (root.searchResults.length === 0) {
                         root.searchState = "empty"
@@ -1607,32 +1541,32 @@ Panel {
     function confirmUpload(filePath) {
         uploadLoader.sourceComponent = undefined
         var normalized = root.normalizeUserPath(filePath)
-        if (normalized === "") { root.showToast("Enter a file path to upload", "error"); return }
+        if (normalized === "") { root.showToast(L10n.t("Enter a file path to upload"), "error"); return }
         startUpload(normalized)
     }
 
     function startUpload(localFilePath) {
-        if (!root.currentRepo) { root.errorMessage = "No library selected"; return }
+        if (!root.currentRepo) { root.errorMessage = L10n.t("No library selected"); return }
         var token = Auth.getToken()
-        if (!token) { root.errorMessage = "Not authenticated"; return }
+        if (!token) { root.errorMessage = L10n.t("Not authenticated"); return }
         var fileName = localFilePath.split("/").pop()
         TransferService.startUpload(localFilePath, token, root.serverUrl, root.currentRepo.id, root.currentPath, fileName)
     }
 
     function openFile(item) {
         if (!item || item.type !== "file") return
-        if (!root.currentRepo) { root.errorMessage = "No library selected"; return }
+        if (!root.currentRepo) { root.errorMessage = L10n.t("No library selected"); return }
         var token = Auth.getToken()
-        if (!token) { root.errorMessage = "Not authenticated"; return }
+        if (!token) { root.errorMessage = L10n.t("Not authenticated"); return }
         var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
         TransferService.startOpen(item, token, root.serverUrl, root.currentRepo.id, fullPath)
     }
 
     function downloadFile(item) {
         if (!item || item.type !== "file") return
-        if (!root.currentRepo) { root.errorMessage = "No library selected"; return }
+        if (!root.currentRepo) { root.errorMessage = L10n.t("No library selected"); return }
         var token = Auth.getToken()
-        if (!token) { root.errorMessage = "Not authenticated"; return }
+        if (!token) { root.errorMessage = L10n.t("Not authenticated"); return }
         var session = root.sessionGeneration
         var serverUrl = root.serverUrl
         var repoId = root.currentRepo.id
@@ -1640,7 +1574,7 @@ Panel {
         var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
         SafePath.getDownloadsDir(function(dir) {
             if (session !== root.sessionGeneration) return
-            if (!dir) { root.errorMessage = "No download directory available"; return }
+            if (!dir) { root.errorMessage = L10n.t("No download directory available"); return }
             TransferService.startDownload(file, token, serverUrl, repoId, dir, fullPath)
         })
     }
@@ -1651,15 +1585,15 @@ Panel {
             if (transfer.type === "upload") {
                 Cache.invalidatePath(transfer.repoId, transfer.destUploadPath)
                 if (root.currentRepo && root.currentRepo.id === transfer.repoId && root.currentPath === transfer.destUploadPath) root.refresh()
-                if (!transfer.notificationSent) root.showToast("Uploaded " + transfer.fileName)
+                if (!transfer.notificationSent) root.showToast(L10n.t("Uploaded %1", [transfer.fileName]))
             } else if (transfer.type === "download") {
-                if (!transfer.notificationSent) root.showToast("Downloaded " + transfer.fileName)
+                if (!transfer.notificationSent) root.showToast(L10n.t("Downloaded %1", [transfer.fileName]))
             }
         } else if (transfer.state === "auth_failed") {
             root.doLogout()
         } else if (transfer.state === "failed") {
             if (!transfer.notificationSent)
-                root.showToast("Transfer failed: " + (transfer.error || "unknown error"), "error")
+                root.showToast(L10n.t("Transfer failed: ") + (transfer.error || L10n.t("unknown error")), "error")
         }
     }
 
@@ -1675,7 +1609,7 @@ Panel {
         var logoutGeneration = root.loginGeneration
         Auth.clearSession().catch(function(error) {
             if (logoutGeneration !== root.loginGeneration) return
-            root.showToast("Signed out, but stored credentials could not be fully cleared: " + error, "error")
+            root.showToast(L10n.t("Signed out, but stored credentials could not be fully cleared: ") + error, "error")
         })
         SeafileAPI.setToken("")
         Cache.clear()
@@ -1732,11 +1666,11 @@ Panel {
         SafePath.clearPersistentCache(function(result) {
             if (session !== root.sessionGeneration) return
             if (result.complete) {
-                root.showToast("Cache cleared", "success")
+                root.showToast(L10n.t("Cache cleared"), "success")
             } else if (result.protected) {
-                root.showToast("Memory cache cleared; active files remain", "warning")
+                root.showToast(L10n.t("Memory cache cleared; active files remain"), "warning")
             } else {
-                root.showToast("Memory cache cleared; persistent cache cleanup could not complete", "warning")
+                root.showToast(L10n.t("Memory cache cleared; persistent cache cleanup could not complete"), "warning")
             }
         })
     }
@@ -1753,7 +1687,7 @@ Panel {
         }
         var normalized = normalizeUrl(newUrl)
         if (!normalized) {
-            root.showToast("Invalid URL format", "error")
+            root.showToast(L10n.t("Invalid URL format"), "error")
             return
         }
         var policy = UrlPolicy.validateForAuth(normalized)
@@ -1764,7 +1698,7 @@ Panel {
         if (normalized !== root.serverUrl) {
             root.doLogout()
             root.serverUrl = normalized
-            root.errorMessage = "Server changed. Please log in again."
+            root.errorMessage = L10n.t("Server changed. Please log in again.")
         }
     }
 
@@ -1789,7 +1723,7 @@ Panel {
 
         var normalized = normalizeUrl(url)
         if (!normalized) {
-            settingsDialog.connectionTestMessage = "Enter a valid server URL."
+            settingsDialog.connectionTestMessage = L10n.t("Enter a valid server URL.")
             return
         }
         var policy = UrlPolicy.validateForAuth(normalized)
@@ -1799,7 +1733,7 @@ Panel {
         }
 
         settingsDialog.connectionTestRunning = true
-        settingsDialog.connectionTestMessage = "Testing connection..."
+        settingsDialog.connectionTestMessage = L10n.t("Testing connection...")
         var xhr = new XMLHttpRequest()
         var testUrl = normalized + "/api2/ping/"
         xhr.open("GET", testUrl, true)
@@ -1811,15 +1745,15 @@ Panel {
                 dialog.connectionTestRunning = false
                 if (xhr.status >= 200 && xhr.status < 300) {
                     dialog.connectionTestSuccess = true
-                    dialog.connectionTestMessage = "Connection successful"
+                    dialog.connectionTestMessage = L10n.t("Connection successful")
                     // Clear offline state - successful connection means we're online
                     panelConnectionService.forceCheck()
                 } else if (xhr.status === 0) {
                     dialog.connectionTestSuccess = false
-                    dialog.connectionTestMessage = "Connection failed: Network error"
+                    dialog.connectionTestMessage = L10n.t("Connection failed: Network error")
                 } else {
                     dialog.connectionTestSuccess = false
-                    dialog.connectionTestMessage = "Connection failed: HTTP " + xhr.status
+                    dialog.connectionTestMessage = L10n.t("Connection failed: HTTP ") + xhr.status
                 }
             }
         }
@@ -1828,14 +1762,14 @@ Panel {
             if (!dialog || dialog !== settingsDialog || generation !== root.connectionTestGeneration) return
             dialog.connectionTestRunning = false
             dialog.connectionTestSuccess = false
-            dialog.connectionTestMessage = "Connection timed out"
+            dialog.connectionTestMessage = L10n.t("Connection timed out")
         }
         xhr.onerror = function() {
             var dialog = settingsLoader.item
             if (!dialog || dialog !== settingsDialog || generation !== root.connectionTestGeneration) return
             dialog.connectionTestRunning = false
             dialog.connectionTestSuccess = false
-            dialog.connectionTestMessage = "Connection error"
+            dialog.connectionTestMessage = L10n.t("Connection error")
         }
         xhr.send()
     }
@@ -1843,18 +1777,18 @@ Panel {
     // ===== CREATE FOLDER =====
 
     function pickCreateFolder() {
-        if (!root.currentRepo) { root.errorMessage = "No library selected"; return }
+        if (!root.currentRepo) { root.errorMessage = L10n.t("No library selected"); return }
         createFolderLoader.sourceComponent = createFolderComponent
     }
 
     function cancelCreateFolder() { createFolderLoader.sourceComponent = undefined }
 
     function confirmCreateFolder(folderName) {
-        if (!folderName || folderName.trim() === "") { if (createFolderLoader.item) createFolderLoader.item.errorText._raw = "Folder name cannot be empty"; return }
-        if (folderName !== folderName.trim()) { if (createFolderLoader.item) createFolderLoader.item.errorText._raw = "Folder names cannot start or end with spaces"; return }
+        if (!folderName || folderName.trim() === "") { if (createFolderLoader.item) createFolderLoader.item.errorText._raw = L10n.t("Folder name cannot be empty"); return }
+        if (folderName !== folderName.trim()) { if (createFolderLoader.item) createFolderLoader.item.errorText._raw = L10n.t("Folder names cannot start or end with spaces"); return }
         createFolderLoader.sourceComponent = undefined
         var token = Auth.getToken()
-        if (!token) { root.errorMessage = "Not authenticated"; return }
+        if (!token) { root.errorMessage = L10n.t("Not authenticated"); return }
         var repoId = root.currentRepo.id
         var parentPath = root.currentPath
         var session = root.sessionGeneration
@@ -1866,9 +1800,9 @@ Panel {
             if (success) {
                 Cache.invalidatePath(repoId, parentPath)
                 if (root.currentRepo && root.currentRepo.id === repoId && root.currentPath === parentPath) root.refresh()
-                root.showToast("Folder created")
+                root.showToast(L10n.t("Folder created"))
             } else {
-                root.errorMessage = error || "Failed to create folder"
+                root.errorMessage = error || L10n.t("Failed to create folder")
             }
         })
     }
@@ -1886,15 +1820,15 @@ Panel {
     function cancelRename() { renameLoader.sourceComponent = undefined; root.renameItemData = null }
 
     function confirmRename(newName) {
-        if (!newName || newName.trim() === "") { if (renameLoader.item) renameLoader.item.errorText._raw = "Name cannot be empty"; return }
-        if (newName !== newName.trim()) { if (renameLoader.item) renameLoader.item.errorText._raw = "Names cannot start or end with spaces"; return }
+        if (!newName || newName.trim() === "") { if (renameLoader.item) renameLoader.item.errorText._raw = L10n.t("Name cannot be empty"); return }
+        if (newName !== newName.trim()) { if (renameLoader.item) renameLoader.item.errorText._raw = L10n.t("Names cannot start or end with spaces"); return }
         var d = root.renameItemData
         var item = d && d.items && d.items.length > 0 ? d.items[0] : null
         if (!item || !root.currentRepo) { cancelRename(); return }
         if (newName === item.name) { cancelRename(); return }
         renameLoader.sourceComponent = undefined
         var token = Auth.getToken()
-        if (!token) { root.errorMessage = "Not authenticated"; return }
+        if (!token) { root.errorMessage = L10n.t("Not authenticated"); return }
         var isDir = d.isDir || item.type === "dir"
         var parentPath = root.currentPath
         var repoId = root.currentRepo.id
@@ -1905,16 +1839,16 @@ Panel {
             SeafileAPI.renameFolder(repoId, parentPath, item.name, newName, token, function(success, error) {
                 if (session !== root.sessionGeneration) return
                 root.loading = false
-                if (success) { Cache.invalidatePath(repoId, parentPath); if (root.currentRepo && root.currentRepo.id === repoId && root.currentPath === parentPath) root.refresh(); root.showToast("Renamed to " + newName) }
-                else { root.errorMessage = error || "Failed to rename folder" }
+                if (success) { Cache.invalidatePath(repoId, parentPath); if (root.currentRepo && root.currentRepo.id === repoId && root.currentPath === parentPath) root.refresh(); root.showToast(L10n.t("Renamed to ") + newName) }
+                else { root.errorMessage = error || L10n.t("Failed to rename folder") }
             })
         } else {
             var fullPath = root.currentPath === "/" ? "/" + item.name : root.currentPath + "/" + item.name
             SeafileAPI.renameFile(repoId, fullPath, newName, token, function(success, error) {
                 if (session !== root.sessionGeneration) return
                 root.loading = false
-                if (success) { Cache.invalidatePath(repoId, parentPath); if (root.currentRepo && root.currentRepo.id === repoId && root.currentPath === parentPath) root.refresh(); root.showToast("Renamed to " + newName) }
-                else { root.errorMessage = error || "Failed to rename file" }
+                if (success) { Cache.invalidatePath(repoId, parentPath); if (root.currentRepo && root.currentRepo.id === repoId && root.currentPath === parentPath) root.refresh(); root.showToast(L10n.t("Renamed to ") + newName) }
+                else { root.errorMessage = error || L10n.t("Failed to rename file") }
             })
         }
     }
@@ -1958,15 +1892,15 @@ Panel {
     function confirmDestination() {
         if (root.destinationSubmitting || root.loading) return
         if (!root.currentRepo) {
-            root.errorMessage = "No library open"
+            root.errorMessage = L10n.t("No library open")
             return
         }
         if (root.currentRepo.id !== root.destinationSourceRepoId) {
-            root.errorMessage = "Cannot move/copy across libraries"
+            root.errorMessage = L10n.t("Cannot move/copy across libraries")
             return
         }
         var token = Auth.getToken()
-        if (!token) { root.errorMessage = "Not authenticated"; return }
+        if (!token) { root.errorMessage = L10n.t("Not authenticated"); return }
         var sources = root.destinationSources.slice()
         if (sources.length === 0) return
         var destPath = root.currentPath
@@ -1976,14 +1910,14 @@ Panel {
             if (srcP !== destPath) { allSameParent = false; break }
         }
         if (allSameParent) {
-            root.showToast("Already in this folder")
+            root.showToast(L10n.t("Already in this folder"))
             root.cancelDestinationMode()
             return
         }
         for (var j = 0; j < sources.length; j++) {
             var source = sources[j]
             if (source.type === "dir" && (destPath === source.fullPath || destPath.indexOf(source.fullPath + "/") === 0)) {
-                root.errorMessage = "Cannot " + root.destinationOperation + " a folder into itself"
+                root.errorMessage = L10n.t(root.destinationOperation === "move" ? "Cannot move a folder into itself" : "Cannot copy a folder into itself")
                 return
             }
         }
@@ -2009,7 +1943,7 @@ Panel {
                 root.destinationSourcePath = "/"
                 root.destinationSourceHistory = []
                 if (root.currentRepo && root.currentRepo.id === destinationRepoId && root.currentPath === destPath) root.refresh()
-                root.showToast(operation === "move" ? "Moved" : "Copied")
+                root.showToast(operation === "move" ? L10n.t("Moved") : L10n.t("Copied"))
             } else {
                 // A failed request can still have reached the server; discard the
                 // snapshot rather than allowing a duplicate retry against stale state.
@@ -2021,7 +1955,7 @@ Panel {
                 root.destinationSourcePath = "/"
                 root.destinationSourceHistory = []
                 if (root.currentRepo && root.currentRepo.id === destinationRepoId && root.currentPath === destPath) root.refresh()
-                root.errorMessage = error || "Failed to " + operation
+                root.errorMessage = error || L10n.t(operation === "move" ? "Failed to move" : "Failed to copy")
             }
         }
         if (sources.length === 1) {
@@ -2041,13 +1975,13 @@ Panel {
     }
 
     function moveItems() {
-        if (!root.currentRepo) { root.errorMessage = "Open a library before moving items"; return }
+        if (!root.currentRepo) { root.errorMessage = L10n.t("Open a library before moving items"); return }
         if (root.selectedItems.length === 0) return
         root.beginDestinationMode("move")
     }
 
     function copyItems() {
-        if (!root.currentRepo) { root.errorMessage = "Open a library before copying items"; return }
+        if (!root.currentRepo) { root.errorMessage = L10n.t("Open a library before copying items"); return }
         if (root.selectedItems.length === 0) return
         root.beginDestinationMode("copy")
     }
@@ -2058,7 +1992,7 @@ Panel {
 
     function pickDelete(item) {
         if (!item) return
-        if (!root.currentRepo) { root.errorMessage = "Libraries cannot be deleted from this view"; return }
+        if (!root.currentRepo) { root.errorMessage = L10n.t("Libraries cannot be deleted from this view"); return }
         root.deleteItemData = { items: [item], isDir: item.type === "dir" }
         confirmLoader.sourceComponent = confirmComponent
     }
@@ -2075,9 +2009,9 @@ Panel {
         var data = root.deleteItemData
         if (!data) { confirmLoader.sourceComponent = undefined; return }
         confirmLoader.sourceComponent = undefined
-        if (!root.currentRepo) { root.errorMessage = "Libraries cannot be deleted from this view"; root.deleteItemData = null; return }
+        if (!root.currentRepo) { root.errorMessage = L10n.t("Libraries cannot be deleted from this view"); root.deleteItemData = null; return }
         var token = Auth.getToken()
-        if (!token) { root.errorMessage = "Not authenticated"; root.deleteItemData = null; return }
+        if (!token) { root.errorMessage = L10n.t("Not authenticated"); root.deleteItemData = null; return }
         var items = (data.items && data.items.length > 0) ? data.items : []
         root.deleteItemData = null
         if (items.length === 0) return
@@ -2092,15 +2026,15 @@ Panel {
             root.loading = true
             root.errorMessage = ""
             if (isDir && fullPath === "/") {
-                root.errorMessage = "Cannot delete root directory"
+                root.errorMessage = L10n.t("Cannot delete root directory")
                 root.loading = false
                 return
             }
             var done = function(success, error) {
                 if (session !== root.sessionGeneration) return
                 root.loading = false
-                if (success) { Cache.invalidatePath(repoId, parentPath); if (root.currentRepo && root.currentRepo.id === repoId && root.currentPath === parentPath) root.refresh(); root.showToast("Deleted") }
-                else { root.errorMessage = error || "Failed to delete" }
+                if (success) { Cache.invalidatePath(repoId, parentPath); if (root.currentRepo && root.currentRepo.id === repoId && root.currentPath === parentPath) root.refresh(); root.showToast(L10n.t("Deleted")) }
+                else { root.errorMessage = error || L10n.t("Failed to delete") }
             }
             if (isDir) SeafileAPI.deleteFolder(repoId, fullPath, token, done)
             else SeafileAPI.deleteFile(repoId, fullPath, token, done)
@@ -2121,8 +2055,8 @@ Panel {
             if (session !== root.sessionGeneration) return
             if (index >= items.length) {
                 root.loading = false
-                var msg = results.success + " deleted"
-                if (results.failed.length > 0) msg += ", " + results.failed.length + " failed"
+                var msg = L10n.t("%1 deleted", [results.success])
+                if (results.failed.length > 0) msg += L10n.t(", %1 failed", [results.failed.length])
                 root.showToast(msg, results.failed.length > 0 ? "error" : "success")
                 Cache.invalidatePath(repoId, parentPath)
                 if (root.currentRepo && root.currentRepo.id === repoId && root.currentPath === parentPath) {
@@ -2173,7 +2107,7 @@ Panel {
 
     function openTrash() {
         if (!root.currentRepo) {
-            root.showToast("Open a library to browse its trash", "error")
+            root.showToast(L10n.t("Open a library to browse its trash"), "error")
             return
         }
         root.showTrash = true
@@ -2185,7 +2119,6 @@ Panel {
     Component.onCompleted: {
         SeafileAPI.setConnectionService(panelConnectionService)
         TransferService.notifyEnabled = root.notifyEnabled
-        root.checkForUpdate()
         updateConnectionServiceUrl()
 
         // Load favorites from settings: the account-scoped store, the legacy
@@ -2213,9 +2146,9 @@ Panel {
                 if (missing[i].required) hasRequiredMissing = true
             }
             if (missing.length > 0) {
-                var msg = "Missing dependencies:\n"
+                var msg = L10n.t("Missing dependencies:\n")
                 for (var j = 0; j < missing.length; j++) {
-                    msg += "  • " + missing[j].name + " — install: " + missing[j].install + (missing[j].required ? " (required)" : " (optional)") + "\n"
+                    msg += L10n.t(missing[j].required ? "• %1 — install: %2 (required)" : "• %1 — install: %2 (optional)", [missing[j].name, missing[j].install]) + "\n"
                 }
                 root.depErrorMessage = msg
             }
@@ -2231,7 +2164,7 @@ Panel {
                     var serverUrl = Auth.getServerUrl()
                     var policy = UrlPolicy.validateForAuth(serverUrl)
                     if (!policy.valid) {
-                        root.errorMessage = "Stored server URL requires HTTPS. Update the server URL in Settings."
+                        root.errorMessage = L10n.t("Stored server URL requires HTTPS. Update the server URL in Settings.")
                         Auth.cachedToken = ""
                         Auth.cachedServerUrl = ""
                         Auth.cachedEmail = ""
@@ -2251,7 +2184,7 @@ Panel {
                 }
             }).catch(function(error) {
                 if (loginAttempt !== root.loginGeneration || root.state !== "login") return
-                root.errorMessage = "Could not restore the saved session: " + (error || "credential lookup failed")
+                root.errorMessage = L10n.t("Could not restore the saved session: ") + (error || L10n.t("credential lookup failed"))
             })
         })
 

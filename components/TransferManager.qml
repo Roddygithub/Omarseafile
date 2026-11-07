@@ -62,7 +62,7 @@ Column {
             leftPadding: Style.space(8)
 
             Text {
-                text: "Active (" + root.activeCount + ")"
+                text: L10n.t("Active (%1)", [root.activeCount])
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
@@ -97,7 +97,7 @@ Column {
 
             Text {
                 id: completedLabel
-                text: "Completed (" + root.completedCount + ")"
+                text: L10n.t("Completed (%1)", [root.completedCount])
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
@@ -111,10 +111,10 @@ Column {
 
             Text {
                 id: clearCompletedBtn
-                text: "Clear Done"
+                text: L10n.t("Clear Done")
                 activeFocusOnTab: true
                 Accessible.role: Accessible.Button
-                Accessible.name: "Clear completed transfers"
+                Accessible.name: L10n.t("Clear completed transfers")
                 Accessible.onPressAction: { if (root.onClearCompleted) root.onClearCompleted() }
                 color: Color.accent
                 font.family: root.bar.fontFamily
@@ -157,7 +157,7 @@ Column {
 
             Text {
                 id: failedLabel
-                text: "Failed (" + root.failedCount + ")"
+                text: L10n.t("Failed (%1)", [root.failedCount])
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
@@ -171,10 +171,10 @@ Column {
 
             Text {
                 id: clearFailedBtn
-                text: "Clear"
+                text: L10n.t("Clear")
                 activeFocusOnTab: true
                 Accessible.role: Accessible.Button
-                Accessible.name: "Clear failed transfers"
+                Accessible.name: L10n.t("Clear failed transfers")
                 Accessible.onPressAction: { if (root.onClearFailed) root.onClearFailed() }
                 color: Color.urgent
                 font.family: root.bar.fontFamily
@@ -215,7 +215,7 @@ Column {
             spacing: Style.space(8)
 
             Button {
-                text: "Retry All Failed"
+                text: L10n.t("Retry All Failed")
                 width: parent.width / 3 - Style.space(5)
                 height: Style.space(28)
                 visible: root.failedCount > 0
@@ -225,7 +225,7 @@ Column {
             }
 
             Button {
-                text: "Clear All Done"
+                text: L10n.t("Clear All Done")
                 width: parent.width / 3 - Style.space(5)
                 height: Style.space(28)
                 visible: root.completedCount > 0
@@ -235,7 +235,7 @@ Column {
             }
 
             Button {
-                text: "Clear All Failed"
+                text: L10n.t("Clear All Failed")
                 width: parent.width / 3 - Style.space(5)
                 height: Style.space(28)
                 color: Color.urgent
@@ -252,8 +252,8 @@ Column {
         id: emptyState
         bar: root.bar
         icon: Icons.exchange
-        title: "No transfers"
-        subtitle: "Downloads and uploads appear here"
+        title: L10n.t("No transfers")
+        subtitle: L10n.t("Downloads and uploads appear here")
         width: parent.width
         visible: root.activeCount === 0 && root.completedCount === 0 && root.failedCount === 0
     }

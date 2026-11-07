@@ -30,7 +30,7 @@ Item {
         width: Math.min(parent.width, Style.space(400))
 
         Text {
-            text: "Create Folder"
+            text: L10n.t("Create Folder")
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.display
@@ -38,7 +38,7 @@ Item {
         }
 
         Text {
-            text: "Enter the name for the new folder"
+            text: L10n.t("Enter the name for the new folder")
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
@@ -49,8 +49,8 @@ Item {
         TextField {
             id: nameField
             width: parent.width
-            placeholderText: "Folder name"
-            Accessible.name: "New folder name"
+            placeholderText: L10n.t("Folder name")
+            Accessible.name: L10n.t("New folder name")
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
             // Escape closes this dialog only — never the whole panel.
@@ -80,7 +80,7 @@ Item {
             Button {
                 id: cancelButton
                 width: parent.width / 2 - Style.space(6)
-                text: "Cancel"
+                text: L10n.t("Cancel")
                 onClicked: {
                     if (root.onCancel) root.onCancel()
                 }
@@ -89,7 +89,7 @@ Item {
             Button {
                 id: createButton
                 width: parent.width / 2 - Style.space(6)
-                text: "Create"
+                text: L10n.t("Create")
                 onClicked: {
                     if (root.onCreate) root.onCreate()
                 }

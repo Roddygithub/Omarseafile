@@ -15,7 +15,7 @@ Please report suspected vulnerabilities privately through the repository's GitHu
 - Temporary authorization header and curl configuration files are created with mode 0600 and removed after use, including failure and cancellation paths.
 - Transfer processes disable user curl configuration and do not follow redirects, so a custom authorization header is not forwarded to another origin.
 - TLS certificate verification is not disabled. HTTPS is required for non-loopback servers; HTTP is accepted only for loopback (localhost, 127.0.0.1, ::1).
-- The plugin has no telemetry service. Network requests are made to the Seafile server configured by the user and to local desktop utilities such as `wl-copy`.
+- The plugin has no telemetry service. Network requests go to the configured Seafile server and, at most once per day, the public GitHub latest-release endpoint. The release check receives no Seafile credentials, server address or file data. Local desktop integration uses utilities such as `wl-copy`. Updates are never installed automatically.
 - File-name and path tooltips use the host `PanelToolTip` with `Text.PlainText` and a 1,024-character display bound, so server-controlled markup is displayed literally.
 - Login fields intercept `Ctrl+V`/`Ctrl+Shift+V`/`Shift+Insert` and middle-click so Qt never reads clipboard contents in-process. A separate `wl-paste` process runs under a 2 s deadline and its output is capped at 16 KiB + 1 byte before entering Quickshell; oversized or stalled reads are rejected without inserting partial data. The extra byte detects truncation, and the kill-on-timeout prevents a clipboard owner from keeping the shell busy.
 

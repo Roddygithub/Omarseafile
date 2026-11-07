@@ -236,7 +236,7 @@ QtObject {
 
     // Defense-in-depth: reject non-loopback HTTP before token-bearing transfer requests.
     function _authUrlPolicy(baseUrl) {
-        if (!baseUrl) return { valid: false, error: "No server URL configured" }
+        if (!baseUrl) return { valid: false, error: L10n.t("No server URL configured") }
         return UrlPolicy.validateForAuth(baseUrl)
     }
 
@@ -329,22 +329,22 @@ QtObject {
 // Validates secure_output.py helper stdout: single basename line matching exactly [A-Za-z0-9_-]+
     // plus: max 128 chars, expected prefix, no multiline, no whitespace, no path separators, no "." or ".."
     function validateHelperOutput(outText, expectedPrefix) {
-        if (!outText) return { valid: false, error: "Empty helper output" }
+        if (!outText) return { valid: false, error: L10n.t("Empty helper output") }
         var trimmed = outText.trim()
-        if (trimmed !== outText) return { valid: false, error: "Helper output has leading/trailing whitespace" }
-        if (trimmed.indexOf("\n") !== -1 || trimmed.indexOf("\r") !== -1) return { valid: false, error: "Helper output contains multiple lines" }
-        if (trimmed.length > 128) return { valid: false, error: "Helper output exceeds maximum length" }
-        if (trimmed === "" || trimmed === "." || trimmed === "..") return { valid: false, error: "Invalid basename" }
-        if (trimmed.indexOf("/") !== -1 || trimmed.indexOf("\\") !== -1) return { valid: false, error: "Path separators not allowed in basename" }
+        if (trimmed !== outText) return { valid: false, error: L10n.t("Helper output has leading/trailing whitespace") }
+        if (trimmed.indexOf("\n") !== -1 || trimmed.indexOf("\r") !== -1) return { valid: false, error: L10n.t("Helper output contains multiple lines") }
+        if (trimmed.length > 128) return { valid: false, error: L10n.t("Helper output exceeds maximum length") }
+        if (trimmed === "" || trimmed === "." || trimmed === "..") return { valid: false, error: L10n.t("Invalid basename") }
+        if (trimmed.indexOf("/") !== -1 || trimmed.indexOf("\\") !== -1) return { valid: false, error: L10n.t("Path separators not allowed in basename") }
         for (var i = 0; i < trimmed.length; i++) {
             var code = trimmed.charCodeAt(i)
             // Only allow A-Z (0x41-0x5A), a-z (0x61-0x7A), 0-9 (0x30-0x39), _ (0x5F), - (0x2D)
             if (!((code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A) || (code >= 0x30 && code <= 0x39) || code === 0x5F || code === 0x2D)) {
-                return { valid: false, error: "Invalid character in basename" }
+                return { valid: false, error: L10n.t("Invalid character in basename") }
             }
         }
         if (expectedPrefix && !trimmed.startsWith(expectedPrefix + "_")) {
-            return { valid: false, error: "Basename does not match expected prefix" }
+            return { valid: false, error: L10n.t("Basename does not match expected prefix") }
         }
         return { valid: true, basename: trimmed }
     }
@@ -517,7 +517,7 @@ QtObject {
             if (epoch !== root.sessionEpoch) return
             if (!destResult.valid) {
                 var errTransfer = { error: destResult.error, state: "failed" }
-                root.reportError("Invalid destination: " + destResult.error)
+                root.reportError(L10n.t("Invalid destination: ") + destResult.error)
                 return
             }
 
@@ -556,7 +556,7 @@ QtObject {
                 var vUrl = UrlPolicy.validateTransferUrl(downloadLink)
                 if (!vUrl.valid) {
                     download.state = "failed"
-                    download.error = "Invalid download URL: " + vUrl.error
+                    download.error = L10n.t("Invalid download URL: ") + vUrl.error
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
@@ -594,7 +594,7 @@ QtObject {
                 if (success) {
                     if (typeof data !== "string" || data === "") {
                         download.state = "failed"
-                        download.error = "Invalid server response"
+                        download.error = L10n.t("Invalid server response")
                         root.sanitizeForHistory(download)
                         root.transferStateChanged(download)
                         root.transfersChanged()
@@ -603,7 +603,7 @@ QtObject {
                     var vUrl = UrlPolicy.validateTransferUrl(data)
                     if (!vUrl.valid) {
                         download.state = "failed"
-                        download.error = "Invalid download URL: " + vUrl.error
+                        download.error = L10n.t("Invalid download URL: ") + vUrl.error
                         root.sanitizeForHistory(download)
                         root.transferStateChanged(download)
                         root.transfersChanged()
@@ -616,7 +616,7 @@ QtObject {
                     root.executeCurlDownload(download)
                 } else if (root.isAuthError(status)) {
                     download.state = "auth_failed"
-                    download.error = "Authentication failed (HTTP " + status + ")"
+                    download.error = L10n.t("Authentication failed (HTTP ") + status + ")"
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
@@ -634,7 +634,7 @@ QtObject {
                     })
                 } else {
                     download.state = "failed"
-                    download.error = root._httpFailureMessage(error, status, "Download link request failed")
+                    download.error = root._httpFailureMessage(error, status, L10n.t("Download link request failed"))
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
@@ -662,7 +662,7 @@ QtObject {
             }
             if (!authHeaderFile) {
                 download.state = "failed"
-                download.error = "Failed to create auth header file"
+                download.error = L10n.t("Failed to create auth header file")
                 root.sanitizeForHistory(download)
                 root.transferStateChanged(download)
                 root.transfersChanged()
@@ -684,7 +684,7 @@ QtObject {
                 if (!curlProc) {
                     root._releaseTransferCapacity(download)
                     download.state = "failed"
-                    download.error = "Failed to create download process"
+                    download.error = L10n.t("Failed to create download process")
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
@@ -740,7 +740,7 @@ QtObject {
             if (!curlProc) {
                 root._releaseTransferCapacity(download)
                 download.state = "failed"
-                download.error = "Failed to create download process"
+                download.error = L10n.t("Failed to create download process")
                 root.sanitizeForHistory(download)
                 root.transferStateChanged(download)
                 root.transfersChanged()
@@ -791,7 +791,7 @@ QtObject {
             var validation = root.validateHelperOutput(outText, "dl")
             if (!validation.valid) {
                 download.state = "failed"
-                download.error = "Invalid helper output: " + validation.error
+                download.error = L10n.t("Invalid helper output: ") + validation.error
                 root.sanitizeForHistory(download)
             } else {
                 var tempPath = download.destDir + "/" + validation.basename
@@ -811,7 +811,7 @@ QtObject {
                 return
             }
             download.state = "failed"
-            download.error = "Download failed (exit code: " + exitCode + ")"
+            download.error = L10n.t("Download failed (exit code: ") + exitCode + ")"
             root.sanitizeForHistory(download)
         }
         deleteFile(download.tempPath)
@@ -823,7 +823,7 @@ QtObject {
         var proc = _finalizeDownloadProcessFactory.createObject(root)
         if (!proc) {
             download.state = "failed"
-            download.error = "Failed to finalize download"
+            download.error = L10n.t("Failed to finalize download")
             deleteFile(download.tempPath)
             root.sanitizeForHistory(download)
             root.transferStateChanged(download)
@@ -847,13 +847,13 @@ QtObject {
             download.speed = ""
             root.sanitizeForHistory(download)
             root.pruneHistory()
-            root.notify("Download completed", download.fileName, "low", download)
+            root.notify(L10n.t("Download completed"), download.fileName, "low", download)
         } else {
             download.state = "failed"
-            download.error = "Download target already exists or could not be finalized"
+            download.error = L10n.t("Download target already exists or could not be finalized")
             deleteFile(download.tempPath)
             root.sanitizeForHistory(download)
-            root.notify("Download failed", download.fileName, "critical", download)
+            root.notify(L10n.t("Download failed"), download.fileName, "critical", download)
         }
         root.transferStateChanged(download)
         root.transfersChanged()
@@ -878,12 +878,12 @@ QtObject {
     // stale callback resurrect the upload with the old token.
     function startUpload(localFilePath, token, baseUrl, repoId, destPath, fileName) {
         if (!localFilePath || typeof localFilePath !== "string" || !localFilePath.startsWith("/")) {
-            root.reportError("Invalid upload source: must be absolute path")
+            root.reportError(L10n.t("Invalid upload source: must be absolute path"))
             return null
         }
         var pendingQueued = root.getQueuedUploads().length
         if (pendingQueued >= root.maxQueuedUploads) {
-            root.reportError("Upload queue is full (" + root.maxQueuedUploads + " waiting). Try again shortly.")
+            root.reportError(L10n.t("Upload queue is full (") + root.maxQueuedUploads + L10n.t(" waiting). Try again shortly."))
             return null
         }
 
@@ -965,20 +965,20 @@ QtObject {
                 if (upload.state !== "validating") return
 
                 if (!out) {
-                    root._failUpload(upload, "Upload source does not exist or cannot be accessed")
+                    root._failUpload(upload, L10n.t("Upload source does not exist or cannot be accessed"))
                     return
                 }
                 var statResult = root.parseUploadStat(out)
                 if (!statResult) {
-                    root._failUpload(upload, "Upload source: file metadata could not be validated")
+                    root._failUpload(upload, L10n.t("Upload source: file metadata could not be validated"))
                     return
                 }
                 if (!statResult.regular) {
-                    root._failUpload(upload, "Upload source must be a regular file (not symlink, directory, device, FIFO, or socket)")
+                    root._failUpload(upload, L10n.t("Upload source must be a regular file (not symlink, directory, device, FIFO, or socket)"))
                     return
                 }
                 if (statResult.size > root.maxUploadBodyBytes) {
-                    root._failUpload(upload, "Upload source exceeds maximum size of " + root.maxUploadBodyBytes + " bytes")
+                    root._failUpload(upload, L10n.t("Upload source exceeds maximum size of ") + root.maxUploadBodyBytes + " bytes")
                     return
                 }
                 var nameResult = SafePath.sanitizeBasename(upload.fileName)
@@ -994,7 +994,7 @@ QtObject {
             }
         })
         if (!proc) {
-            root._failUpload(upload, "Failed to validate upload source")
+            root._failUpload(upload, L10n.t("Failed to validate upload source"))
             return
         }
         upload.statProcess = proc
@@ -1003,7 +1003,7 @@ QtObject {
     }
 
     function _failUpload(upload, message) {
-        root._finishUploadFailure(upload, "Invalid upload source: " + message)
+        root._finishUploadFailure(upload, L10n.t("Invalid upload source: ") + message)
     }
 
     // Single choke point for an upload that failed before curl ran (or at the
@@ -1047,12 +1047,12 @@ QtObject {
                 if (upload.state === "cancelled" || upload.state === "cancelling") return
                 if (success) {
                     if (typeof data !== "string" || data === "") {
-                        root._finishUploadFailure(upload, "Invalid server response")
+                        root._finishUploadFailure(upload, L10n.t("Invalid server response"))
                         return
                     }
                     var vUrl = UrlPolicy.validateTransferUrl(data)
                     if (!vUrl.valid) {
-                        root._finishUploadFailure(upload, "Invalid upload URL: " + vUrl.error)
+                        root._finishUploadFailure(upload, L10n.t("Invalid upload URL: ") + vUrl.error)
                         return
                     }
                     upload.uploadLink = data
@@ -1062,7 +1062,7 @@ QtObject {
                     root.executeCurlUpload(upload)
                 } else if (root.isAuthError(status)) {
                     upload.state = "auth_failed"
-                    upload.error = "Authentication failed (HTTP " + status + ")"
+                    upload.error = L10n.t("Authentication failed (HTTP ") + status + ")"
                     root.sanitizeForHistory(upload)
                     root.transferStateChanged(upload)
                     root.transfersChanged()
@@ -1082,7 +1082,7 @@ QtObject {
                 } else {
                     upload.state = "failed"
                     // Permanent failure (e.g. 400/404/409/422): no blind retry.
-                    upload.error = root._httpFailureMessage(error, status, "Upload link request failed")
+                    upload.error = root._httpFailureMessage(error, status, L10n.t("Upload link request failed"))
                     root.sanitizeForHistory(upload)
                     root.transferStateChanged(upload)
                     root.transfersChanged()
@@ -1111,7 +1111,7 @@ QtObject {
                 return
             }
             if (!authHeaderFile) {
-                root._finishUploadFailure(upload, "Failed to create auth header file")
+                root._finishUploadFailure(upload, L10n.t("Failed to create auth header file"))
                 return
             }
             upload.authHeaderFile = authHeaderFile
@@ -1124,7 +1124,7 @@ QtObject {
                 upload.curlConfigFile = curlConfigFile
                 var curlProc = uploadProcessComponent.createObject(root)
                 if (!curlProc) {
-                    root._finishUploadFailure(upload, "Failed to create upload process")
+                    root._finishUploadFailure(upload, L10n.t("Failed to create upload process"))
                     return
                 }
                 curlProc.transferRef = upload
@@ -1171,7 +1171,7 @@ function executeCurlUploadNoAuth(upload) {
             upload.curlConfigFile = curlConfigFile
             var curlProc = uploadProcessComponent.createObject(root)
             if (!curlProc) {
-                root._finishUploadFailure(upload, "Failed to create upload process")
+                root._finishUploadFailure(upload, L10n.t("Failed to create upload process"))
                 return
             }
             curlProc.transferRef = upload
@@ -1229,28 +1229,28 @@ function executeCurlUploadNoAuth(upload) {
                     root.pruneHistory()
                 } else {
                     upload.state = "failed"
-                    upload.error = "Upload server response was invalid"
+                    upload.error = L10n.t("Upload server response was invalid")
                     root.sanitizeForHistory(upload)
                 }
             } else {
                 upload.state = "failed"
-                upload.error = "Upload server response was invalid"
+                upload.error = L10n.t("Upload server response was invalid")
                 root.sanitizeForHistory(upload)
             }
         } else if (upload.state !== "cancelled" && exitCode === 63) {
             if (process) process.destroy()
             upload.state = "failed"
-            upload.error = "Upload response too large (exceeds " + root.maxUploadResponseBytes + " bytes)"
+            upload.error = L10n.t("Upload response too large (exceeds ") + root.maxUploadResponseBytes + " bytes)"
             root.sanitizeForHistory(upload)
         } else if (upload.state !== "cancelled") {
             if (process) process.destroy()
             upload.state = "failed"
-            upload.error = "Upload outcome is unknown after curl failed (exit code: " + exitCode + "); verify the server before retrying"
+            upload.error = "Upload outcome is unknown after curl failed (exit code: " + exitCode + L10n.t("); verify the server before retrying")
             root.sanitizeForHistory(upload)
-            root.notify("Upload failed", upload.fileName, "critical", upload)
+            root.notify(L10n.t("Upload failed"), upload.fileName, "critical", upload)
         }
         if (upload.state === "completed") {
-            root.notify("Upload completed", upload.fileName, "low", upload)
+            root.notify(L10n.t("Upload completed"), upload.fileName, "low", upload)
         }
         root.transferStateChanged(upload)
         root.transfersChanged()
@@ -1447,7 +1447,7 @@ function executeCurlUploadNoAuth(upload) {
             if (download.state !== "pending") return
             if (!ok) {
                 download.state = "failed"
-                download.error = "Cache recovery could not free enough space"
+                download.error = L10n.t("Cache recovery could not free enough space")
                 root.sanitizeForHistory(download)
                 root.transferStateChanged(download)
                 root.transfersChanged()
@@ -1463,7 +1463,7 @@ function executeCurlUploadNoAuth(upload) {
             if (download.state !== "pending") return
             if (!cacheResult.valid) {
                 download.state = "failed"
-                download.error = "Cache directory unavailable: " + cacheResult.error
+                download.error = L10n.t("Cache directory unavailable: ") + cacheResult.error
                 root.sanitizeForHistory(download)
                 root.transferStateChanged(download)
                 root.transfersChanged()
@@ -1473,7 +1473,7 @@ function executeCurlUploadNoAuth(upload) {
                 if (download.state !== "pending") return
                 if (!nameResult.valid) {
                     download.state = "failed"
-                    download.error = "Invalid filename: " + nameResult.error
+                    download.error = L10n.t("Invalid filename: ") + nameResult.error
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
@@ -1510,7 +1510,7 @@ function executeCurlUploadNoAuth(upload) {
                 if (success) {
                     if (typeof data !== "string" || data === "") {
                         download.state = "failed"
-                        download.error = "Invalid server response"
+                        download.error = L10n.t("Invalid server response")
                         root.sanitizeForHistory(download)
                         root.transferStateChanged(download)
                         root.transfersChanged()
@@ -1519,7 +1519,7 @@ function executeCurlUploadNoAuth(upload) {
                     var vUrl = UrlPolicy.validateTransferUrl(data)
                     if (!vUrl.valid) {
                         download.state = "failed"
-                        download.error = "Invalid download URL: " + vUrl.error
+                        download.error = L10n.t("Invalid download URL: ") + vUrl.error
                         root.sanitizeForHistory(download)
                         root.transferStateChanged(download)
                         root.transfersChanged()
@@ -1532,7 +1532,7 @@ function executeCurlUploadNoAuth(upload) {
                     root.executeCurlOpenDownload(download)
                 } else if (root.isAuthError(status)) {
                     download.state = "auth_failed"
-                    download.error = "Authentication failed (HTTP " + status + ")"
+                    download.error = L10n.t("Authentication failed (HTTP ") + status + ")"
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
@@ -1550,7 +1550,7 @@ function executeCurlUploadNoAuth(upload) {
                     })
                 } else {
                     download.state = "failed"
-                    download.error = root._httpFailureMessage(error, status, "Download link request failed")
+                    download.error = root._httpFailureMessage(error, status, L10n.t("Download link request failed"))
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
@@ -1578,7 +1578,7 @@ function executeCurlUploadNoAuth(upload) {
             }
             if (!authHeaderFile) {
                 download.state = "failed"
-                download.error = "Failed to create auth header file"
+                download.error = L10n.t("Failed to create auth header file")
                 root.sanitizeForHistory(download)
                 root.transferStateChanged(download)
                 root.transfersChanged()
@@ -1600,7 +1600,7 @@ function executeCurlUploadNoAuth(upload) {
                 if (!curlProc) {
                     root._releaseTransferCapacity(download)
                     download.state = "failed"
-                    download.error = "Failed to create download process"
+                    download.error = L10n.t("Failed to create download process")
                     root.sanitizeForHistory(download)
                     root.transferStateChanged(download)
                     root.transfersChanged()
@@ -1657,7 +1657,7 @@ function executeCurlUploadNoAuth(upload) {
             if (!curlProc) {
                 root._releaseTransferCapacity(download)
                 download.state = "failed"
-                download.error = "Failed to create download process"
+                download.error = L10n.t("Failed to create download process")
                 root.sanitizeForHistory(download)
                 root.transferStateChanged(download)
                 root.transfersChanged()
@@ -1709,7 +1709,7 @@ function executeCurlUploadNoAuth(upload) {
             var validation = root.validateHelperOutput(outText, "dl")
             if (!validation.valid) {
                 download.state = "failed"
-                download.error = "Invalid helper output: " + validation.error
+                download.error = L10n.t("Invalid helper output: ") + validation.error
                 root.sanitizeForHistory(download)
             } else {
                 var tempPath = download.cacheDir + "/" + validation.basename
@@ -1730,7 +1730,7 @@ function executeCurlUploadNoAuth(upload) {
                 return
             }
             download.state = "failed"
-            download.error = "Download failed (exit code: " + exitCode + ")"
+            download.error = L10n.t("Download failed (exit code: ") + exitCode + ")"
             root.sanitizeForHistory(download)
         }
         root.deleteFile(download.tempPath)
@@ -1742,7 +1742,7 @@ function executeCurlUploadNoAuth(upload) {
         var proc = _finalizeOpenDownloadProcessFactory.createObject(root)
         if (!proc) {
             download.state = "failed"
-            download.error = "Failed to finalize download"
+            download.error = L10n.t("Failed to finalize download")
             root.cleanupOpenTemp(download)
             root.sanitizeForHistory(download)
             root.transferStateChanged(download)
@@ -1778,7 +1778,7 @@ function executeCurlUploadNoAuth(upload) {
             })
         } else {
             download.state = "failed"
-            download.error = "Cache file already exists or could not be finalized"
+            download.error = L10n.t("Cache file already exists or could not be finalized")
             root.cleanupOpenTemp(download)
             root.sanitizeForHistory(download)
         }
@@ -1841,7 +1841,7 @@ function executeCurlUploadNoAuth(upload) {
         } else if (transfer.state === "opening") {
             root.releaseOpenCache(transfer)
             transfer.state = "failed"
-            transfer.error = "Cached file could not be opened by the default application"
+            transfer.error = L10n.t("Cached file could not be opened by the default application")
             root.sanitizeForHistory(transfer)
         } else {
             return
@@ -1856,7 +1856,7 @@ function executeCurlUploadNoAuth(upload) {
         if (!proc) {
             root.releaseOpenCache(transfer)
             transfer.state = "failed"
-            transfer.error = "Could not start the default application"
+            transfer.error = L10n.t("Could not start the default application")
             root.sanitizeForHistory(transfer)
             root.transferStateChanged(transfer)
             root.transfersChanged()

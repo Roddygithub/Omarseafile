@@ -135,7 +135,7 @@ check "Offline banner uses null-safe binding (connectionService guard)" bash -c 
 check "Upload picker uses out-of-process zenity (no QtQuick.Dialogs FileDialog)" bash -c '! grep -q "QtQuick.Dialogs" components/UploadDialog.qml && grep -q "zenity" components/UploadDialog.qml'
 check "Upload picker supports multi-file selection" grep -q '"--multiple"' components/UploadDialog.qml
 check "Upload picker runs in isolated Process (not in Quickshell)" bash -c 'grep -q "Process {" components/UploadDialog.qml && grep -q "pickerProcess" components/UploadDialog.qml'
-check "Upload picker zenity filter uses NAME | PATTERN format" grep -q '"--file-filter=All files | \*"' components/UploadDialog.qml
+check "Upload picker zenity filter uses NAME | PATTERN format" grep -q '"--file-filter=" + L10n.t("All files") + " | \*"' components/UploadDialog.qml
 check "Upload picker does not URI-decode selected paths" bash -c '! grep -vE "^\s*(//|\*|/\*)" components/UploadDialog.qml | grep -q "decodeURIComponent"'
 # Looks for a file:// string literal, not for the word in a comment.
 check "Upload picker passes raw filesystem paths to the caller" bash -c "! grep -qE '\"file://' components/UploadDialog.qml"
@@ -293,6 +293,7 @@ else
     echo "  deployment scope suite passes... SKIP (rsync not installed; deploy.sh requires it)"
 fi
 if command -v qs >/dev/null; then
+    check "live language switching suite passes" python3 scripts/test_localization_runtime.py
     check "Quickshell runtime remediation suite passes" python3 scripts/test_runtime_remediation.py
     check "HTTP transport integration suite passes" python3 scripts/test_http_integration.py
     check "Open Local lifecycle suite passes" python3 scripts/test_open_lifecycle.py

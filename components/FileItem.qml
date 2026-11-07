@@ -30,8 +30,8 @@ Item {
     readonly property var safeItem: item || {}
     Accessible.role: Accessible.ListItem
     Accessible.focusable: true
-    Accessible.name: (root.isDir ? "Folder " : "File ") + Models.boundedDisplayText(root.safeItem.name || "", 1024)
-        + (root.isSelected ? ", selected" : "")
+    Accessible.name: L10n.t(root.isDir ? "Folder %1" : "File %1", [Models.boundedDisplayText(root.safeItem.name || "", 1024)])
+        + (root.isSelected ? L10n.t(", selected") : "")
     Accessible.onPressAction: {
         if (root.isDir) root.onItemClicked(root.item)
         else root.onOpenClicked(root.item)

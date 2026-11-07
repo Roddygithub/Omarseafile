@@ -1,4 +1,5 @@
 import QtQuick
+import "../js"
 import QtQuick.Controls
 import qs.Commons
 import qs.Ui
@@ -27,7 +28,7 @@ Item {
 
         Text {
             id: countLabel
-            text: root.count + " selected"
+            text: L10n.t("%1 selected", [root.count])
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
@@ -44,7 +45,7 @@ Item {
 
         Button {
             id: moveBtn
-            text: "Move"
+            text: L10n.t("Move")
             visible: root.count > 0
             onClicked: {
                 if (root.onMove) root.onMove()
@@ -53,7 +54,7 @@ Item {
 
         Button {
             id: deleteBtn
-            text: "Delete"
+            text: L10n.t("Delete")
             color: Color.urgent
             visible: root.count > 0
             onClicked: {
@@ -63,14 +64,14 @@ Item {
 
         Button {
             id: moreBtn
-            text: "More"
+            text: L10n.t("More")
             visible: root.count > 0
             onClicked: moreMenu.open()
         }
 
         Button {
             id: clearBtn
-            text: "Clear"
+            text: L10n.t("Clear")
             visible: root.count > 0
             onClicked: {
                 if (root.onClear) root.onClear()
@@ -104,7 +105,7 @@ Item {
 
             Button {
                 width: parent.width
-                text: "Copy"
+                text: L10n.t("Copy")
                 onClicked: {
                     moreMenu.close()
                     if (root.onCopy) root.onCopy()

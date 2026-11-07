@@ -79,13 +79,13 @@ Item {
         Button {
             id: backButton
             text: Icons.chevronLeft
-            Accessible.name: "Back"
+            Accessible.name: L10n.t("Back")
             visible: root.showBack
             tooltipText: ""
             HoverHandler { id: backHover }
             PanelToolTip {
                 visible: backHover.hovered
-                text: "Back"
+                text: L10n.t("Back")
             }
             onClicked: {
                 if (root.onBackClicked) root.onBackClicked()
@@ -124,8 +124,8 @@ Item {
             width: root.searchActive ? Math.max(Style.space(80), row.width - row._fixedWidth) : 0
             height: row.height
             visible: root.searchActive
-            placeholderText: "Search..."
-            Accessible.name: "Search Seafile"
+            placeholderText: L10n.t("Search...")
+            Accessible.name: L10n.t("Search Seafile")
             Accessible.searchEdit: true
             text: root.searchQuery
             color: root.bar.foreground
@@ -155,13 +155,13 @@ Item {
         Button {
             id: searchButton
             text: root.searchActive ? Icons.times : Icons.search
-            Accessible.name: root.searchActive ? "Close search" : "Search"
+            Accessible.name: root.searchActive ? L10n.t("Close search") : L10n.t("Search")
             visible: root.showSearch
             tooltipText: ""
             HoverHandler { id: searchHover }
             PanelToolTip {
                 visible: searchHover.hovered
-                text: root.searchActive ? "Close search" : "Search"
+                text: root.searchActive ? L10n.t("Close search") : L10n.t("Search")
             }
             onClicked: {
                 root.searchActive = !root.searchActive
@@ -174,13 +174,13 @@ Item {
         Button {
             id: uploadButton
             text: Icons.upload
-            Accessible.name: "Upload file"
+            Accessible.name: L10n.t("Upload file")
             visible: root.showUpload && !root.searchActive && root.selectionCount === 0
             tooltipText: ""
             HoverHandler { id: uploadHover }
             PanelToolTip {
                 visible: uploadHover.hovered
-                text: "Upload file"
+                text: L10n.t("Upload file")
             }
             onClicked: {
                 if (root.onUploadClicked) root.onUploadClicked()
@@ -196,8 +196,8 @@ Item {
             activeFocusOnTab: visible
             Accessible.role: Accessible.Button
             Accessible.name: root.hasTransferFailures
-                ? "Transfers, with failures"
-                : "Transfers, " + root.activeTransferCount + " active"
+                ? L10n.t("Transfers, with failures")
+                : L10n.t("Transfers, %1 active", [root.activeTransferCount])
             Accessible.onPressAction: { if (root.onTransfersClicked) root.onTransfersClicked() }
             Keys.onReturnPressed: function(event) {
                 if (root.onTransfersClicked) root.onTransfersClicked()
@@ -252,7 +252,7 @@ Item {
 
             PanelToolTip {
                 visible: mouseArea.containsMouse
-                text: "Transfers"
+                text: L10n.t("Transfers")
             }
 
             MouseArea {
@@ -271,7 +271,7 @@ Item {
             height: row.height
             visible: root.showOffline
             Accessible.role: Accessible.StaticText
-            Accessible.name: "Offline — retrying connection"
+            Accessible.name: L10n.t("Offline — retrying connection")
 
             Text {
                 id: offlineIcon
@@ -283,7 +283,7 @@ Item {
             }
             PanelToolTip {
                 visible: offlineMouseArea.containsMouse
-                text: "Offline — retrying connection"
+                text: L10n.t("Offline — retrying connection")
             }
             MouseArea {
                 id: offlineMouseArea
@@ -296,7 +296,7 @@ Item {
         Button {
             id: overflowButton
             text: Icons.ellipsisV
-            Accessible.name: "More actions"
+            Accessible.name: L10n.t("More actions")
             visible: root.overflowAvailable
             // The menu labels already identify every available action; an
             // additional tooltip only obscures the toolbar edge.

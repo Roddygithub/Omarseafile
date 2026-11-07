@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-11-07
+
+### Added
+- Local translation catalogs for all 50 Omarchy languages and regional variants, with live language changes and right-to-left layouts.
+- Persistent bar update indicator and translated update instructions, independent of transfer notifications.
+- A `checkUpdates` setting to disable background release checks.
+- Tests for all locale catalogs, live language changes, update notifications and release-version comparisons.
+
+### Changed
+- Release checks are shared across monitors and cached across restarts; successful desktop notices are emitted once per available stable release.
+- Displayed dates follow the selected display locale.
+- Translations are machine-generated with common French UI terminology corrected manually; native-speaker review is welcome.
+
 ## [1.2.3] - 2026-10-17
 
 ### Security

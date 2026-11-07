@@ -5,7 +5,7 @@ import "../js"
 
 Item {
     id: root
-    property string message: "An error occurred"
+    property string message: L10n.t("An error occurred")
     property bool showError: false
     property var onRetry: null
     property QtObject bar: null
@@ -35,7 +35,7 @@ Item {
         }
 
         Button {
-            text: "Retry"
+            text: L10n.t("Retry")
             onClicked: {
                 if (root.onRetry) root.onRetry()
             }

@@ -116,7 +116,7 @@ QtObject {
 
         SafePath.getRuntimeSubdir("http", function(httpResult) {
             if (session !== root.sessionGeneration) return
-            if (!httpResult.valid) { finish(false, null, "Runtime dir unavailable: " + httpResult.error, 0); return }
+            if (!httpResult.valid) { finish(false, null, L10n.t("Runtime dir unavailable: ") + httpResult.error, 0); return }
 
             // curl semantics:
             //   -o FILE          writes the HTTP BODY into FILE
@@ -126,7 +126,7 @@ QtObject {
             // comes back on stdout, which _requestFactory parses. This is the
             // opposite of an earlier implementation that swapped the two.
             SafePath.createSecureFile("http", "curl_resp", "", function(respResult) {
-                if (!respResult.valid) { finish(false, null, "Response file failed: " + respResult.error, 0); return }
+                if (!respResult.valid) { finish(false, null, L10n.t("Response file failed: ") + respResult.error, 0); return }
                 var responseBodyFile = respResult.path
                 if (session !== root.sessionGeneration) { cleanup(responseBodyFile); return }
 
@@ -151,7 +151,7 @@ QtObject {
                 if (authHeader) {
                     var configContent = "header = \"Authorization: " + authHeader.replace(/\"/g, "\\\"") + "\"\n"
                     SafePath.createSecureFile("http", "curl_hdr", configContent, function(hdrResult) {
-                        if (!hdrResult.valid) { cleanup(responseBodyFile); finish(false, null, "Header file failed: " + hdrResult.error, 0); return }
+                        if (!hdrResult.valid) { cleanup(responseBodyFile); finish(false, null, L10n.t("Header file failed: ") + hdrResult.error, 0); return }
                         runRequest(hdrResult.path)
                     })
                 } else {
@@ -169,7 +169,7 @@ QtObject {
                             if (!bodyResult.valid) {
                                 cleanup(headerFile)
                                 cleanup(responseBodyFile)
-                                finish(false, null, "Body file failed: " + bodyResult.error, 0); return
+                                finish(false, null, L10n.t("Body file failed: ") + bodyResult.error, 0); return
                             }
                             execute(headerFile, bodyResult.path, curlArgs.slice())
                         })
@@ -222,16 +222,16 @@ QtObject {
                                         console.log("SEAFILE_TIMING http_done id=" + requestId + " duration_ms=" + (Date.now() - requestStartedAt) + " parse_ms=" + parseDuration + " bytes=" + respBody.length)
                                         finish(true, validation.data, null, status)
                                     } catch (e) {
-                                        finish(false, null, "Invalid JSON response", status)
+                                        finish(false, null, L10n.t("Invalid JSON response"), status)
                                     }
                                 } else if (exitCode === 63 || exitCode === 23) {
                                     // 63: max-filesize exceeded (curl 7.56.0+); 23: write error (older curl)
-                                    finish(false, null, "Response too large (exceeds " + root.maxResponseBytes + " bytes)", status)
+                                    finish(false, null, L10n.t("Response too large (exceeds ") + root.maxResponseBytes + " bytes)", status)
                                 } else {
                                     console.log("SEAFILE_TIMING http_done id=" + requestId + " duration_ms=" + (Date.now() - requestStartedAt) + " parse_ms=0 error=1")
                                     // Pass the real status through. Callers decide
                                     // retryability from it, never from `err` text.
-                                    finish(false, null, "Request failed (exit " + exitCode + "): " + (err || "unknown"), status)
+                                    finish(false, null, L10n.t("Request failed (exit ") + exitCode + "): " + (err || "unknown"), status)
                                 }
                             })
                         }
@@ -240,7 +240,7 @@ QtObject {
                         cleanup(hdrFile)
                         cleanup(reqBodyFile)
                         cleanup(responseBodyFile)
-                        finish(false, null, "Failed to create request process", 0)
+                        finish(false, null, L10n.t("Failed to create request process"), 0)
                         return
                     }
                     proc.command = args
@@ -264,16 +264,16 @@ QtObject {
     function del(url, headers, callback) { root.request("DELETE", url, headers, null, callback) }
 
     function validateCollection(arr, maxItems) {
-        if (!Array.isArray(arr)) return { valid: false, error: "Not an array" }
+        if (!Array.isArray(arr)) return { valid: false, error: L10n.t("Not an array") }
         var limit = maxItems || root.maxCollectionItems
-        if (arr.length > limit) return { valid: false, error: "Collection exceeds max items (" + limit + ")" }
+        if (arr.length > limit) return { valid: false, error: L10n.t("Collection exceeds max items (") + limit + ")" }
         return { valid: true }
     }
 
     function validateString(str, maxLen) {
-        if (typeof str !== "string") return { valid: false, error: "Not a string" }
+        if (typeof str !== "string") return { valid: false, error: L10n.t("Not a string") }
         var limit = maxLen || root.maxStringLength
-        if (str.length > limit) return { valid: false, error: "String exceeds max length" }
+        if (str.length > limit) return { valid: false, error: L10n.t("String exceeds max length") }
         return { valid: true }
     }
 
@@ -282,7 +282,7 @@ QtObject {
     }
 
     function validateValue(data, depth) {
-        if (depth > root.maxValidationDepth) return { valid: false, error: "Response nesting exceeds maximum depth" }
+        if (depth > root.maxValidationDepth) return { valid: false, error: L10n.t("Response nesting exceeds maximum depth") }
         if (data === null || data === undefined) {
             return { valid: true, data: null }
         }
@@ -304,7 +304,7 @@ QtObject {
     }
 
     function validateObject(obj, depth) {
-        if (depth > root.maxValidationDepth) return { valid: false, error: "Response nesting exceeds maximum depth" }
+        if (depth > root.maxValidationDepth) return { valid: false, error: L10n.t("Response nesting exceeds maximum depth") }
         for (var key in obj) {
             var val = obj[key]
             if (typeof val === "string") {

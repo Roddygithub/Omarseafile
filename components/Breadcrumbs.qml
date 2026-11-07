@@ -41,7 +41,7 @@ Item {
                         cursorShape: Qt.PointingHandCursor
                         activeFocusOnTab: true
                         Accessible.role: Accessible.Button
-                        Accessible.name: "Go to " + segmentLabel.text
+                        Accessible.name: L10n.t("Go to ") + segmentLabel.text
                         Accessible.onPressAction: {
                             if (root.onSegmentClicked) root.onSegmentClicked(index)
                         }

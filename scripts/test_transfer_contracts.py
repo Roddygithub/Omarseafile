@@ -31,7 +31,7 @@ item = (ROOT / "components/TransferItem.qml").read_text()
 check("Libraries list receives transfer revisions", "transferRevision: root.transferRevision" in home)
 check("Home active transfer rows keep their width", "id: row\n                        width: parent.width\n                        spacing: Style.space(12)" in home)
 check("Transfer rows keep their width", "id: row\n        width: parent.width\n        spacing: Style.space(8)" in item)
-check("Transfer rows render the file name", "root.transfer.fileName || \"Unknown\"" in item)
+check("Transfer rows render the file name", "root.transfer.fileName || L10n.t(\"Unknown\")" in item)
 
 if NODE:
     script = r'''const h = require("./scripts/qmljs.js");

@@ -15,6 +15,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 tests = [
+    "test_localization.py",
+    "test_updates.py",
     # Security regressions.
     "test_secure_output.py",
     "test_finding2.py",

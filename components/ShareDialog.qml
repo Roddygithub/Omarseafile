@@ -67,20 +67,20 @@ Item {
                     root.showCreateForm = true
                 }
             } else {
-                root.errorMessage = error || "Failed to load share links"
+                root.errorMessage = error || L10n.t("Failed to load share links")
             }
         })
     }
 
     function createLink() {
         if (root.enablePassword && root.passwordValue.length < 6) {
-            root.errorMessage = "Password must be at least 6 characters"
+            root.errorMessage = L10n.t("Password must be at least 6 characters")
             return
         }
         if (root.enableExpiration) {
             var days = Number(root.expireDays)
             if (!/^\d+$/.test(root.expireDays) || days < 1 || days > 365) {
-                root.errorMessage = "Expiration must be between 1 and 365 days"
+                root.errorMessage = L10n.t("Expiration must be between 1 and 365 days")
                 return
             }
         }
@@ -110,9 +110,9 @@ Item {
                 root.showCreateForm = false
                 root.existingLinks.push(data)
                 root.existingLinks = root.existingLinks.slice()
-                if (root.onToast) root.onToast("Share link created")
+                if (root.onToast) root.onToast(L10n.t("Share link created"))
             } else {
-                root.errorMessage = error || "Failed to create share link"
+                root.errorMessage = error || L10n.t("Failed to create share link")
             }
         })
     }
@@ -135,9 +135,9 @@ Item {
                 if (root.existingLinks.length === 0) {
                     root.showCreateForm = true
                 }
-                if (root.onToast) root.onToast("Share link revoked")
+                if (root.onToast) root.onToast(L10n.t("Share link revoked"))
             } else {
-                root.errorMessage = error || "Failed to delete share link"
+                root.errorMessage = error || L10n.t("Failed to delete share link")
             }
         })
     }
@@ -196,10 +196,10 @@ Item {
         id: confirmComponent
         ConfirmDialog {
             bar: root.bar
-            confirmText: "Revoke"
-            message: "Revoke share link for \"" + (root.revokeLinkData
-                ? (root.revokeLinkData.obj_name || root.revokeLinkData.path || "this item")
-                : "this item") + "\"?"
+            confirmText: L10n.t("Revoke")
+            message: L10n.t("Revoke share link for \"") + (root.revokeLinkData
+                ? (root.revokeLinkData.obj_name || root.revokeLinkData.path || L10n.t("this item"))
+                : L10n.t("this item")) + "\"?"
             onConfirm: function() { root.executeRevoke() }
             onCancel: function() { root.cancelRevoke() }
         }
@@ -215,7 +215,7 @@ Item {
         }
         onExited: function(exitCode) {
             if (exitCode !== 0) {
-                root.errorMessage = "Clipboard unavailable. Install wl-clipboard to copy links."
+                root.errorMessage = L10n.t("Clipboard unavailable. Install wl-clipboard to copy links.")
             }
         }
     }
@@ -226,7 +226,7 @@ Item {
         width: Math.min(parent.width, Style.space(400))
 
         Text {
-            text: "Share"
+            text: L10n.t("Share")
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.display
@@ -234,7 +234,7 @@ Item {
         }
 
         Text {
-            text: root.isDir ? "Folder: " + Models.boundedDisplayText(root.item.name, 1024) : "File: " + Models.boundedDisplayText(root.item.name, 1024)
+            text: L10n.t(root.isDir ? "Folder: %1" : "File: %1", [Models.boundedDisplayText(root.item.name, 1024)])
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
@@ -245,7 +245,7 @@ Item {
 
         // Loading indicator
         Text {
-            text: "Loading..."
+            text: L10n.t("Loading...")
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
@@ -271,7 +271,7 @@ Item {
             visible: !root.loading && root.existingLinks.length > 0 && !root.showCreateForm
 
             Text {
-                text: "Existing Links"
+                text: L10n.t("Existing Links")
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.body
@@ -311,7 +311,7 @@ Item {
 
                         Button {
                             id: copyBtn
-                            text: "Copy"
+                            text: L10n.t("Copy")
                             onClicked: {
                                 root.copyToClipboard(modelData.link)
                             }
@@ -319,7 +319,7 @@ Item {
 
                         Button {
                             id: deleteBtn
-                            text: "Revoke"
+                            text: L10n.t("Revoke")
                             color: Color.urgent
                             onClicked: {
                                 root.confirmRevoke(modelData)
@@ -331,16 +331,16 @@ Item {
                         text: Models.boundedDisplayText((function() {
                             var info = []
                             if (modelData.expire_date) {
-                                info.push("Expires: " + modelData.expire_date.split("T")[0])
+                                info.push(L10n.t("Expires: %1", [modelData.expire_date.split("T")[0]]))
                             }
                             if (modelData.password) {
-                                info.push("Password protected")
+                                info.push(L10n.t("Password protected"))
                             }
                             if (modelData.permissions) {
                                 var perms = []
-                                if (modelData.permissions.can_edit) perms.push("Edit")
-                                if (modelData.permissions.can_download) perms.push("Download")
-                                if (modelData.permissions.can_upload) perms.push("Upload")
+                                if (modelData.permissions.can_edit) perms.push(L10n.t("Edit"))
+                                if (modelData.permissions.can_download) perms.push(L10n.t("Download"))
+                                if (modelData.permissions.can_upload) perms.push(L10n.t("Upload"))
                                 if (perms.length > 0) info.push(perms.join(", "))
                             }
                             return info.join(" | ")
@@ -356,7 +356,7 @@ Item {
 
             Button {
                 width: parent.width
-                text: "Create New Link"
+                text: L10n.t("Create New Link")
                 onClicked: {
                     root.beginCreateForm()
                 }
@@ -370,7 +370,7 @@ Item {
             visible: !root.loading && root.showCreateForm
 
             Text {
-                text: "Create Share Link"
+                text: L10n.t("Create Share Link")
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.body
@@ -385,12 +385,12 @@ Item {
                 Switch {
                     id: passwordSwitch
                     checked: root.enablePassword
-                    Accessible.name: "Password protect share link"
+                    Accessible.name: L10n.t("Password protect share link")
                     onCheckedChanged: root.enablePassword = checked
                 }
 
                 Text {
-                    text: "Password protect"
+                    text: L10n.t("Password protect")
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
@@ -402,8 +402,8 @@ Item {
             TextField {
                 id: passwordField
                 width: parent.width
-                placeholderText: "Password (min 6 chars)"
-                Accessible.name: "Share link password"
+                placeholderText: L10n.t("Password (min 6 chars)")
+                Accessible.name: L10n.t("Share link password")
                 text: root.passwordValue
                 onTextChanged: root.passwordValue = text
                 visible: root.enablePassword
@@ -424,12 +424,12 @@ Item {
                 Switch {
                     id: expirationSwitch
                     checked: root.enableExpiration
-                    Accessible.name: "Set link expiration"
+                    Accessible.name: L10n.t("Set link expiration")
                     onCheckedChanged: root.enableExpiration = checked
                 }
 
                 Text {
-                    text: "Set expiration"
+                    text: L10n.t("Set expiration")
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
@@ -446,12 +446,12 @@ Item {
                 TextField {
                     id: expireDaysField
                     width: parent.width - daysLabel.width - Style.space(8)
-                    placeholderText: "Days"
-                    Accessible.name: "Expiration in days, from 1 to 365"
+                    placeholderText: L10n.t("Days")
+                    Accessible.name: L10n.t("Expiration in days, from 1 to 365")
                     text: root.expireDays
                     onTextChanged: {
                         root.expireDays = text
-                        if (root.errorMessage.indexOf("Expiration") === 0) root.errorMessage = ""
+                        if (root.errorMessage.indexOf(L10n.t("Expiration")) === 0) root.errorMessage = ""
                     }
                     validator: IntValidator { bottom: 1; top: 365 }
                     // Escape closes this dialog only — never the whole panel.
@@ -464,7 +464,7 @@ Item {
 
                 Text {
                     id: daysLabel
-                    text: "days"
+                    text: L10n.t("days")
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
@@ -481,12 +481,12 @@ Item {
                 Switch {
                     id: permissionsSwitch
                     checked: root.enablePermissions
-                    Accessible.name: "Set share link permissions"
+                    Accessible.name: L10n.t("Set share link permissions")
                     onCheckedChanged: root.enablePermissions = checked
                 }
 
                 Text {
-                    text: "Set permissions"
+                    text: L10n.t("Set permissions")
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
@@ -506,13 +506,13 @@ Item {
 
                     Switch {
                         id: canEditSwitch
-                        Accessible.name: "Allow editing"
+                        Accessible.name: L10n.t("Allow editing")
                         checked: root.permCanEdit
                         onCheckedChanged: root.permCanEdit = checked
                     }
 
                     Text {
-                        text: "Can edit"
+                        text: L10n.t("Can edit")
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.body
@@ -527,13 +527,13 @@ Item {
 
                     Switch {
                         id: canDownloadSwitch
-                        Accessible.name: "Allow downloads"
+                        Accessible.name: L10n.t("Allow downloads")
                         checked: root.permCanDownload
                         onCheckedChanged: root.permCanDownload = checked
                     }
 
                     Text {
-                        text: "Can download"
+                        text: L10n.t("Can download")
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.body
@@ -549,13 +549,13 @@ Item {
 
                     Switch {
                         id: canUploadSwitch
-                        Accessible.name: "Allow uploads"
+                        Accessible.name: L10n.t("Allow uploads")
                         checked: root.permCanUpload
                         onCheckedChanged: root.permCanUpload = checked
                     }
 
                     Text {
-                        text: "Can upload"
+                        text: L10n.t("Can upload")
                         color: root.bar.foreground
                         font.family: root.bar.fontFamily
                         font.pixelSize: Style.font.body
@@ -572,7 +572,7 @@ Item {
                 visible: root.shareUrl !== ""
 
                 Text {
-                    text: "Link created!"
+                    text: L10n.t("Link created!")
                     color: Color.accent
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
@@ -605,7 +605,7 @@ Item {
 
                     Button {
                         id: copyCreatedBtn
-                        text: "Copy"
+                        text: L10n.t("Copy")
                         onClicked: {
                             root.copyToClipboard(root.shareUrl)
                         }
@@ -621,7 +621,7 @@ Item {
 
             Button {
                 width: parent.width / 2 - Style.space(6)
-                text: root.showCreateForm && root.existingLinks.length > 0 ? "Cancel" : "Close"
+                text: root.showCreateForm && root.existingLinks.length > 0 ? L10n.t("Cancel") : L10n.t("Close")
                 Accessible.name: text
                 onClicked: {
                     if (root.showCreateForm && root.existingLinks.length > 0) {
@@ -635,7 +635,7 @@ Item {
 
             Button {
                 width: parent.width / 2 - Style.space(6)
-                text: "Create"
+                text: L10n.t("Create")
                 visible: root.showCreateForm && root.shareUrl === ""
                 onClicked: {
                     root.createLink()

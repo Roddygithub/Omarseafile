@@ -83,7 +83,7 @@ Item {
         LoadingIndicator {
             width: parent.width
             visible: root.loading && !root.searchActive
-            message: "Loading libraries..."
+            message: L10n.t("Loading libraries...")
             bar: root.bar
         }
 
@@ -97,7 +97,7 @@ Item {
             Row {
                 height: Style.space(24)
                 Text {
-                    text: "QUICK ACCESS"
+                    text: L10n.t("QUICK ACCESS")
                     color: Qt.darker(root.bar.foreground, 1.3)
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.caption
@@ -131,7 +131,7 @@ Item {
                         cursorShape: Qt.PointingHandCursor
                         activeFocusOnTab: true
                         Accessible.role: Accessible.Button
-                        Accessible.name: "Open library " + displayName
+                        Accessible.name: L10n.t("Open library ") + displayName
                         Accessible.onPressAction: {
                             if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
                         }
@@ -184,8 +184,8 @@ Item {
                             text: Icons.times
                             width: Style.space(24)
                             height: Style.space(24)
-                            tooltipText: "Remove from Quick Access"
-                            Accessible.name: "Remove " + displayName + " from Quick Access"
+                            tooltipText: L10n.t("Remove from Quick Access")
+                            Accessible.name: L10n.t("Remove %1 from Quick Access", [displayName])
                             // The row MouseArea is declared before this Row, so
                             // the button stacks above it and owns its presses.
                             onClicked: {
@@ -215,7 +215,7 @@ Item {
                         cursorShape: Qt.PointingHandCursor
                         activeFocusOnTab: true
                         Accessible.role: Accessible.Button
-                        Accessible.name: "Open folder " + displayName
+                        Accessible.name: L10n.t("Open folder ") + displayName
                         Accessible.onPressAction: {
                             if (root.onFavoriteClicked) root.onFavoriteClicked(modelData)
                         }
@@ -268,8 +268,8 @@ Item {
                             text: Icons.times
                             width: Style.space(24)
                             height: Style.space(24)
-                            tooltipText: "Remove from Quick Access"
-                            Accessible.name: "Remove " + displayName + " from Quick Access"
+                            tooltipText: L10n.t("Remove from Quick Access")
+                            Accessible.name: L10n.t("Remove %1 from Quick Access", [displayName])
                             // The row MouseArea is declared before this Row, so
                             // the button stacks above it and owns its presses.
                             onClicked: {
@@ -291,7 +291,7 @@ Item {
             Row {
                 height: Style.space(24)
                 Text {
-                    text: "ACTIVE TRANSFERS"
+                    text: L10n.t("ACTIVE TRANSFERS")
                     color: Qt.darker(root.bar.foreground, 1.3)
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.caption
@@ -337,7 +337,7 @@ Item {
 
                         Text {
                             id: nameLabel
-                            text: Models.boundedDisplayText((isQueued ? "Queued - " : "") + (modelData.fileName || "Unknown"), 1024)
+                            text: Models.boundedDisplayText((isQueued ? L10n.t("Queued - ") : "") + (modelData.fileName || L10n.t("Unknown")), 1024)
                             color: root.bar.foreground
                             font.family: root.bar.fontFamily
                             font.pixelSize: Style.font.body
@@ -364,8 +364,8 @@ Item {
                             width: Style.space(24)
                             height: Style.space(24)
                             visible: isActive
-                            tooltipText: "Cancel transfer"
-                            Accessible.name: "Cancel transfer of " + (modelData.fileName || "file")
+                            tooltipText: L10n.t("Cancel transfer")
+                            Accessible.name: L10n.t("Cancel transfer of ") + (modelData.fileName || "file")
                             // Was `onClicked: root.onCancel`, which evaluated the
                             // callback without ever calling it - cancel did
                             // nothing. Queued transfers are cancellable too.
@@ -381,7 +381,7 @@ Item {
         LoadingIndicator {
             width: parent.width
             visible: root.searchActive && root.searchState === "loading"
-            message: "Searching " + root.searchPendingCount + " libraries..."
+            message: L10n.t("Searching %1 libraries…", [root.searchPendingCount])
             bar: root.bar
         }
 
@@ -391,9 +391,9 @@ Item {
             visible: root.searchActive && (root.searchState === "results" || root.searchState === "empty")
             text: root.searchState === "results"
                 ? (root.searchTruncated
-                    ? "Showing first " + root.maxSearchResults + " results. Refine your search."
-                    : root.searchResults.length + " result(s) found")
-                : "No results found"
+                    ? L10n.t("Showing first %1 results. Refine your search.", [root.maxSearchResults])
+                    : L10n.t("%1 result(s) found", [root.searchResults.length]))
+                : L10n.t("No results found")
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
@@ -464,10 +464,10 @@ Item {
             id: emptyState
             bar: root.bar
             icon: Icons.book
-            title: root.libraries.length === 0 ? "No libraries available" : "Quick Access"
+            title: root.libraries.length === 0 ? L10n.t("No libraries available") : L10n.t("Quick Access")
             subtitle: root.libraries.length === 0
-                ? "This account has no accessible libraries."
-                : "Pin libraries and folders for quick access\nRight-click an item in the browser and select \"Add to Quick Access\""
+                ? L10n.t("This account has no accessible libraries.")
+                : L10n.t("Pin libraries and folders for quick access\nRight-click an item in the browser and select \"Add to Quick Access\"")
             width: parent.width
             visible: !root.loading && root.errorMessage === "" && !root.searchActive && Favorites.getLibraries().length === 0 && Favorites.getFolders().length === 0 && root.libraries.length === 0
         }

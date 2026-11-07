@@ -7,7 +7,7 @@ Item {
     id: root
     required property var bar
     property string icon: Icons.folder
-    property string title: "Empty"
+    property string title: L10n.t("Empty")
     property string subtitle: ""
     property var action: null
     property string actionText: ""

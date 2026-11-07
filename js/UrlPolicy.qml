@@ -28,36 +28,36 @@ QtObject {
     // routinely deployed behind a reverse proxy prefix.
     function validateForAuth(url) {
         if (!url || typeof url !== "string") {
-            return { valid: false, error: "Empty URL" }
+            return { valid: false, error: L10n.t("Empty URL") }
         }
         var parsed
         try {
             parsed = new URL(url)
         } catch (e) {
-            return { valid: false, error: "Invalid URL format" }
+            return { valid: false, error: L10n.t("Invalid URL format") }
         }
         var scheme = parsed.protocol.replace(":", "")
         var host = parsed.hostname
 
         if (parsed.username || parsed.password) {
-            return { valid: false, error: "Server URL must not contain credentials (user:pass@)." }
+            return { valid: false, error: L10n.t("Server URL must not contain credentials (user:pass@).") }
         }
         if (parsed.search && parsed.search !== "") {
-            return { valid: false, error: "Server URL must not contain a query string." }
+            return { valid: false, error: L10n.t("Server URL must not contain a query string.") }
         }
         // Qt6 URL parser emits spurious hash='#' for some TLDs (e.g. .ts.net).
         // Treat a bare "#" the same as no fragment.
         if (parsed.hash && parsed.hash !== "" && parsed.hash !== "#") {
-            return { valid: false, error: "Server URL must not contain a fragment (#)." }
+            return { valid: false, error: L10n.t("Server URL must not contain a fragment (#).") }
         }
 
         if (scheme === "https") {
             return { valid: true }
         }
         if (scheme === "http" && root.isLoopbackHost(host)) {
-            return { valid: true, warning: "Loopback HTTP \u2014 not recommended for production" }
+            return { valid: true, warning: L10n.t("Loopback HTTP \u2014 not recommended for production") }
         }
-        return { valid: false, error: "Cleartext HTTP not allowed for authentication. Use HTTPS or loopback (http://localhost, http://127.0.0.1)." }
+        return { valid: false, error: L10n.t("Cleartext HTTP not allowed for authentication. Use HTTPS or loopback (http://localhost, http://127.0.0.1).") }
     }
 
     // Validate a server-provided URL before it becomes a transfer target.
@@ -65,30 +65,30 @@ QtObject {
     // credentials/userinfo, javascript:/file: schemes, unparseable URLs.
     function validateTransferUrl(url) {
         if (!url || typeof url !== "string") {
-            return { valid: false, error: "URL must be a non-empty string" }
+            return { valid: false, error: L10n.t("URL must be a non-empty string") }
         }
         if (url.length > 8192) {
-            return { valid: false, error: "URL exceeds maximum length" }
+            return { valid: false, error: L10n.t("URL exceeds maximum length") }
         }
         var parsed
         try {
             parsed = new URL(url)
         } catch (e) {
-            return { valid: false, error: "URL is malformed" }
+            return { valid: false, error: L10n.t("URL is malformed") }
         }
         var scheme = parsed.protocol.replace(":", "")
         var host = parsed.hostname
 
         // Reject javascript: and file: schemes
         if (scheme === "javascript" || scheme === "file") {
-            return { valid: false, error: "Unsupported URL scheme: " + scheme }
+            return { valid: false, error: L10n.t("Unsupported URL scheme: ") + scheme }
         }
 
         // HTTPS is always allowed
         if (scheme === "https") {
             // Reject userinfo (credentials in URL)
             if (parsed.username || parsed.password) {
-                return { valid: false, error: "URL must not contain credentials" }
+                return { valid: false, error: L10n.t("URL must not contain credentials") }
             }
             return { valid: true }
         }
@@ -96,12 +96,12 @@ QtObject {
         // HTTP only allowed for loopback
         if (scheme === "http" && root.isLoopbackHost(host)) {
             if (parsed.username || parsed.password) {
-                return { valid: false, error: "URL must not contain credentials" }
+                return { valid: false, error: L10n.t("URL must not contain credentials") }
             }
-            return { valid: true, warning: "Loopback HTTP transfer" }
+            return { valid: true, warning: L10n.t("Loopback HTTP transfer") }
         }
 
-        return { valid: false, error: "Transfer URL must use HTTPS (or loopback HTTP)" }
+        return { valid: false, error: L10n.t("Transfer URL must use HTTPS (or loopback HTTP)") }
     }
 
     // Extract origin (scheme + hostname + port) from a URL string.
@@ -130,10 +130,10 @@ QtObject {
         var baseOrigin = _extractOrigin(baseUrl)
 
         if (!transferOrigin) {
-            return { sameOrigin: false, reason: "Transfer URL is malformed" }
+            return { sameOrigin: false, reason: L10n.t("Transfer URL is malformed") }
         }
         if (!baseOrigin) {
-            return { sameOrigin: false, reason: "Base URL is malformed" }
+            return { sameOrigin: false, reason: L10n.t("Base URL is malformed") }
         }
 
         if (transferOrigin === baseOrigin) {

@@ -26,7 +26,7 @@ Column {
             if (success) {
                 root.historyData = data
             } else {
-                root.errorMessage = "Failed to load history: " + error
+                root.errorMessage = L10n.t("Failed to load history: ") + error
             }
         })
     }
@@ -46,7 +46,7 @@ Column {
             spacing: Style.space(8)
 
             Text {
-                text: Models.boundedDisplayText("History: " + root.fileName, 1024)
+                text: Models.boundedDisplayText(L10n.t("History: %1", [root.fileName]), 1024)
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.title
@@ -78,7 +78,7 @@ Column {
                     height: row.implicitHeight + Style.space(8)
                     required property var modelData
                     Accessible.role: Accessible.ListItem
-                    Accessible.name: "Revision " + timeLabel.text + (isCurrent ? ", current" : "")
+                    Accessible.name: L10n.t(isCurrent ? "Current revision: %1" : "Revision: %1", [timeLabel.text])
 
                     property var revision: modelData
                     property bool isCurrent: String(modelData.version) === "1"
@@ -109,7 +109,7 @@ Column {
                                 id: timeLabel
                                 text: {
                                     var date = new Date(revision.ctime * 1000)
-                                    return date.toLocaleDateString() + " " + date.toLocaleTimeString()
+                                    return date.toLocaleString(Qt.locale(L10n.formatLocale), Locale.ShortFormat)
                                 }
                                 color: isCurrent ? Color.accent : root.bar.foreground
                                 font.family: root.bar.fontFamily
@@ -134,7 +134,7 @@ Column {
 
                             Text {
                                 id: sizeLabel
-                                text: "Size: " + Models.formatSize(revision.revFileSize)
+                                text: L10n.t("Size: %1", [Models.formatSize(revision.revFileSize)])
                                 color: Qt.darker(root.bar.foreground, 1.4)
                                 font.family: root.bar.fontFamily
                                 font.pixelSize: Style.font.caption
@@ -150,7 +150,7 @@ Column {
 
                             Button {
                                 id: downloadBtn
-                                text: "Download"
+                                text: L10n.t("Download")
                                 visible: !isCurrent
                                 onClicked: {
                                     if (root.onDownloadRevision) root.onDownloadRevision(revision)
@@ -159,7 +159,7 @@ Column {
 
                             Text {
                                 id: currentLabel
-                                text: "Current"
+                                text: L10n.t("Current")
                                 color: Color.accent
                                 font.family: root.bar.fontFamily
                                 font.pixelSize: Style.font.caption
@@ -192,8 +192,8 @@ Column {
                 id: emptyState
                 bar: root.bar
                 icon: Icons.clock
-                title: "No history"
-                subtitle: "File revisions will appear here"
+                title: L10n.t("No history")
+                subtitle: L10n.t("File revisions will appear here")
                 width: parent.width
                 anchors.centerIn: parent
                 visible: !root.loading && root.errorMessage === "" && root.historyData.length === 0
@@ -205,7 +205,7 @@ Column {
     Button {
         width: parent.width
         height: Style.space(40)
-        text: "Close"
+        text: L10n.t("Close")
         onClicked: {
             if (root.onClose) root.onClose()
         }

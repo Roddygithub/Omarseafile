@@ -654,7 +654,7 @@ test("exactly one TransferManager instantiation in the app",
      sum(read(p).count("TransferManager {") for p in
          glob.glob(os.path.join(ROOT, "**", "*.qml"), recursive=True)) == 1, kind="STATIC")
 test("toolbar title shows Transfers",
-     'root.showTransfers ? "Transfers"' in panel, kind="STATIC")
+     'root.showTransfers ? L10n.t("Transfers")' in panel, kind="STATIC")
 test("back/escape closes transfers", "if (root.showTransfers) { root.showTransfers = false }" in panel,
      kind="STATIC")
 test("Escape from Transfers returns to the view, never closes the panel",
@@ -1003,21 +1003,23 @@ print("\n--- 10. Release metadata consistency (STATIC) ---")
 # =====================================================================
 import json
 manifest = json.loads(read("manifest.json"))
-test("manifest version is 1.2.3", manifest.get("version") == "1.2.3", manifest.get("version"),
+test("manifest version is semantic", re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", manifest.get("version", "")), manifest.get("version"),
      kind="STATIC")
 test("Settings About derives from the same version",
-      'readonly property string pluginVersion: "1.2.3"' in panel
+      ('readonly property string pluginVersion: ' + json.dumps(manifest['version'])) in panel
      and "pluginVersion: root.pluginVersion" in panel, kind="STATIC")
 test("foldersFirst is declared in the manifest schema",
      any(f.get("key") == "foldersFirst" for f in manifest["barWidget"]["schema"]), kind="STATIC")
 changelog = read("CHANGELOG.md")
-test("CHANGELOG has a 1.2.3 section", "[1.2.3]" in changelog, kind="STATIC")
+test("CHANGELOG has the manifest version", ("[" + manifest["version"] + "]") in changelog, kind="STATIC")
+update_helper = read("js/check_update.py")
+update_service = read("js/UpdateService.qml")
 test("update checker uses the GitHub latest release endpoint",
-     "api.github.com/repos/Roddygithub/Omarseafile/releases/latest" in panel
-     and "function checkForUpdate()" in panel, kind="STATIC")
-test("update notice includes the native update command",
-     "omarchy plugin update roddy.seafile" in panel
-     and "TransferService.notify(\"Omarseafile update available\"" in panel, kind="STATIC")
+     "https://api.github.com/repos/" in update_helper
+     and "/releases/latest" in update_helper and "Roddygithub/Omarseafile" in update_helper, kind="STATIC")
+test("update notice includes the native update command independently of transfers",
+     "omarchy plugin update " in update_helper
+     and "notify-send" in update_helper and "TransferService" not in update_service, kind="STATIC")
 toolbar = read("components/ToolBar.qml")
 test("overflow menu has a host-overlay fallback",
      "var target = root.overlay || root" in toolbar
