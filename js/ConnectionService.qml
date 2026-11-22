@@ -9,9 +9,8 @@ QtObject {
     property string serverUrl: ""
     property int checkInterval: 30000
     property int maxConsecutiveFailures: 3
-    // The probe is a liveness check: a short deadline and a small answer cap.
+    // The probe is a liveness check: a short deadline and no retained body.
     property int probeTimeoutMs: 5000
-    property int probeMaxBytes: 65536
 
     property int consecutiveFailures: 0
     property int probeGeneration: 0
