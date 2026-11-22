@@ -88,8 +88,12 @@ QtObject {
         }
     }
 
-    function request(method, url, headers, body, callback) {
+    // `timeoutMs` and `maxBytes` bound one request more tightly than the
+    // defaults: a connectivity probe needs neither 30 seconds nor 10 MiB.
+    function request(method, url, headers, body, callback, timeoutMs, maxBytes) {
         var session = root.sessionGeneration
+        var totalTimeout = timeoutMs > 0 ? timeoutMs : root.totalTimeoutMs
+        var responseLimit = maxBytes > 0 ? maxBytes : root.maxResponseBytes
         var finished = false
         // The 4th argument is the real HTTP status (0 == no HTTP response was
         // observed, i.e. a transport failure). Callers written against the old
@@ -108,7 +112,7 @@ QtObject {
             url: url,
             headers: headers || ({}),
             body: body,
-            timeoutMs: root.totalTimeoutMs
+            timeoutMs: totalTimeout
         }
 
         var authHeader = config.headers ? config.headers["Authorization"] : null
@@ -133,11 +137,11 @@ QtObject {
                 var curlArgs = [
                     "curl", "-q", "-f", "-s", "-S",
                     "--connect-timeout", Math.ceil(root.connectTimeoutMs / 1000).toString(),
-                    "--max-time", Math.ceil(root.totalTimeoutMs / 1000).toString(),
+                    "--max-time", Math.ceil(totalTimeout / 1000).toString(),
                     "--speed-limit", "1",
                     "--speed-time", "30",
                     "--no-location",
-                    "--max-filesize", root.maxResponseBytes.toString(),
+                    "--max-filesize", responseLimit.toString(),
                     "-o", responseBodyFile,
                     "-w", "%{http_code}"
                 ]
@@ -226,7 +230,7 @@ QtObject {
                                     }
                                 } else if (exitCode === 63 || exitCode === 23) {
                                     // 63: max-filesize exceeded (curl 7.56.0+); 23: write error (older curl)
-                                    finish(false, null, L10n.t("Response too large (exceeds ") + root.maxResponseBytes + " bytes)", status)
+                                    finish(false, null, L10n.t("Response too large (exceeds ") + responseLimit + " bytes)", status)
                                 } else {
                                     console.log("SEAFILE_TIMING http_done id=" + requestId + " duration_ms=" + (Date.now() - requestStartedAt) + " parse_ms=0 error=1")
                                     // Pass the real status through. Callers decide

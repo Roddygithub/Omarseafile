@@ -46,7 +46,8 @@ Item {
             width: parent.width
         }
 
-        TextField {
+        BoundedTextField {
+
             id: nameField
             width: parent.width
             placeholderText: L10n.t("Folder name")

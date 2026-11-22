@@ -119,7 +119,8 @@ Item {
             onClear: function() { if (root.onClearSelection) root.onClearSelection() }
         }
 
-        TextField {
+        BoundedTextField {
+
             id: searchField
             width: root.searchActive ? Math.max(Style.space(80), row.width - row._fixedWidth) : 0
             height: row.height

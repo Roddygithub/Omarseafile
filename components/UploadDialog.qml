@@ -131,7 +131,8 @@ Item {
             width: parent.width
             spacing: Style.space(8)
 
-            TextField {
+            BoundedTextField {
+
                 id: pathField
                 width: parent.width - Style.space(8) - browseButton.width
                 placeholderText: "/home/user/file.txt"

@@ -39,7 +39,8 @@ Item {
             textFormat: Text.PlainText
         }
 
-        TextField {
+        BoundedTextField {
+
             id: nameField
             width: parent.width
             placeholderText: L10n.t("New name")

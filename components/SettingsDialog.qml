@@ -67,7 +67,8 @@ Item {
                 font.letterSpacing: 1
             }
 
-            TextField {
+            BoundedTextField {
+
                 id: serverUrlField
                 width: parent.width
                 placeholderText: "https://seafile.example.com"

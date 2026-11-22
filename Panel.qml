@@ -1734,44 +1734,26 @@ Panel {
 
         settingsDialog.connectionTestRunning = true
         settingsDialog.connectionTestMessage = L10n.t("Testing connection...")
-        var xhr = new XMLHttpRequest()
         var testUrl = normalized + "/api2/ping/"
-        xhr.open("GET", testUrl, true)
-        xhr.timeout = 10000
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                var dialog = settingsLoader.item
-                if (!dialog || dialog !== settingsDialog || generation !== root.connectionTestGeneration) return
-                dialog.connectionTestRunning = false
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    dialog.connectionTestSuccess = true
-                    dialog.connectionTestMessage = L10n.t("Connection successful")
-                    // Clear offline state - successful connection means we're online
-                    panelConnectionService.forceCheck()
-                } else if (xhr.status === 0) {
-                    dialog.connectionTestSuccess = false
-                    dialog.connectionTestMessage = L10n.t("Connection failed: Network error")
-                } else {
-                    dialog.connectionTestSuccess = false
-                    dialog.connectionTestMessage = L10n.t("Connection failed: HTTP ") + xhr.status
-                }
+        // Bounded transport (curl --max-time/--max-filesize): an XMLHttpRequest
+        // would hold whatever the server streams, in the shared shell.
+        HttpTransport.request("GET", testUrl, {}, null, function(success, data, error, status) {
+            var dialog = settingsLoader.item
+            if (!dialog || dialog !== settingsDialog || generation !== root.connectionTestGeneration) return
+            dialog.connectionTestRunning = false
+            if (status >= 200 && status < 300) {
+                dialog.connectionTestSuccess = true
+                dialog.connectionTestMessage = L10n.t("Connection successful")
+                // Clear offline state - successful connection means we're online
+                panelConnectionService.forceCheck()
+            } else if (status === 0) {
+                dialog.connectionTestSuccess = false
+                dialog.connectionTestMessage = L10n.t("Connection failed: Network error")
+            } else {
+                dialog.connectionTestSuccess = false
+                dialog.connectionTestMessage = L10n.t("Connection failed: HTTP ") + status
             }
-        }
-        xhr.ontimeout = function() {
-            var dialog = settingsLoader.item
-            if (!dialog || dialog !== settingsDialog || generation !== root.connectionTestGeneration) return
-            dialog.connectionTestRunning = false
-            dialog.connectionTestSuccess = false
-            dialog.connectionTestMessage = L10n.t("Connection timed out")
-        }
-        xhr.onerror = function() {
-            var dialog = settingsLoader.item
-            if (!dialog || dialog !== settingsDialog || generation !== root.connectionTestGeneration) return
-            dialog.connectionTestRunning = false
-            dialog.connectionTestSuccess = false
-            dialog.connectionTestMessage = L10n.t("Connection error")
-        }
-        xhr.send()
+        }, 10000, 65536)
     }
 
     // ===== CREATE FOLDER =====

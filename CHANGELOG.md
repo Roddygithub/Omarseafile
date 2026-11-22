@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- Connectivity probes and the settings "Test Connection" button run through a bounded transport: the probe discards the response body under `--max-time`, so a hostile or compromised server can no longer stream an oversized `/api2/ping/` answer into the shared shell.
+- Every editable text field (server URL, search, new folder, rename, share password and expiry, upload path) reads a paste through a bounded `wl-paste` with a byte cap and a deadline, and refuses oversized, truncated, late or failed transfers instead of handing them to Qt's native paste. Text drops are refused before the offer is retrieved.
+- `HttpTransport.request` accepts a per-request timeout and response-size limit.
+
 ## [1.3.1] - 2026-11-07
 
 ### Fixed

@@ -399,7 +399,8 @@ Item {
                 }
             }
 
-            TextField {
+            BoundedTextField {
+
                 id: passwordField
                 width: parent.width
                 placeholderText: L10n.t("Password (min 6 chars)")
@@ -443,7 +444,8 @@ Item {
                 width: parent.width
                 visible: root.enableExpiration
 
-                TextField {
+                BoundedTextField {
+
                     id: expireDaysField
                     width: parent.width - daysLabel.width - Style.space(8)
                     placeholderText: L10n.t("Days")

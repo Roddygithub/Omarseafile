@@ -9,6 +9,9 @@ QtObject {
     property string serverUrl: ""
     property int checkInterval: 30000
     property int maxConsecutiveFailures: 3
+    // The probe is a liveness check: a short deadline and a small answer cap.
+    property int probeTimeoutMs: 5000
+    property int probeMaxBytes: 65536
 
     property int consecutiveFailures: 0
     property int probeGeneration: 0
@@ -42,27 +45,50 @@ QtObject {
         return true
     }
 
+    // The probe needs the status code and nothing else. curl discards the body
+    // (-o /dev/null) under --max-time, so the shared shell retains no response
+    // bytes at all, unlike a QML XMLHttpRequest that accumulates whatever the
+    // server streams.
+    property Component probeFactory: Component {
+        Process {
+            property var onDone: null
+            stdout: StdioCollector {
+                waitForEnd: true
+            }
+            onExited: function(exitCode) {
+                var cb = onDone
+                var out = stdout.text
+                destroy()
+                if (cb) cb(exitCode, out)
+            }
+        }
+    }
+
     function checkConnectivity() {
         if (!root.serverUrl) return
 
         var generation = ++root.probeGeneration
         var probe = { finalized: false }
         function finalize(callback) { return root.finalizeProbe(probe, callback) }
-        var xhr = new XMLHttpRequest()
         var url = root.serverUrl.replace(/\/+$/, "") + "/api2/ping/"
-        xhr.open("GET", url, true)
-        xhr.timeout = 5000
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE)
-                finalize(function() { root.handleResponse(generation, xhr.status) })
-        }
-        xhr.ontimeout = function() {
+        var proc = root.probeFactory.createObject(root, {
+            onDone: function(exitCode, out) {
+                finalize(function() {
+                    var text = (out || "").trim()
+                    var status = /^[0-9]{3}$/.test(text) ? parseInt(text, 10) : 0
+                    if (status >= 200 && status < 500) root.handleResponse(generation, status)
+                    else root.handleFailure(generation)
+                })
+            }
+        })
+        if (!proc) {
             finalize(function() { root.handleFailure(generation) })
+            return
         }
-        xhr.onerror = function() {
-            finalize(function() { root.handleFailure(generation) })
-        }
-        xhr.send()
+        proc.command = ["curl", "-q", "-s", "-o", "/dev/null", "-w", "%{http_code}",
+            "--max-time", Math.ceil(root.probeTimeoutMs / 1000).toString(),
+            "--no-location", "--", url]
+        proc.running = true
     }
 
     function handleResponse(generation, status) {
